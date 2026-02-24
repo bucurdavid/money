@@ -31,14 +31,19 @@ export default async function Home() {
       </nav>
 
       <main>
-        <section className="hero">
+        <section className="hero reveal">
           <div className="container">
-            <p className="hero-label">Payment Skill for AI Agents</p>
+            <p className="hero-label">
+              <span>Payment Skill for AI Agents</span>
+            </p>
             <h1 className="hero-title">money</h1>
             <p className="hero-desc">
               Send tokens on five chains with three lines of code.
               <br />
               RPCs, addresses, explorer URLs&thinsp;&mdash;&thinsp;all built in.
+            </p>
+            <p className="section-note" style={{ marginTop: 0, marginBottom: '3rem' }}>
+              Zero dependencies. One skill file. Runs everywhere.
             </p>
             <div className="hero-actions">
               <a href="#install" className="btn-primary">
@@ -55,7 +60,7 @@ export default async function Home() {
           <span />
         </div>
 
-        <section id="install" className="section">
+        <section id="install" className="section reveal" aria-label="Installation instructions">
           <div className="container">
             <h2 className="section-label">Install</h2>
             <div className="install-block">
@@ -77,29 +82,31 @@ export default async function Home() {
           <span />
         </div>
 
-        <section className="section">
+        <section className="section reveal">
           <div className="container">
             <h2 className="section-label">Three Steps</h2>
-            <div className="steps">
-              <div className="step">
-                <span className="step-n">1</span>
-                <div className="step-body">
-                  <span className="step-name">Setup</span>
-                   <code>{'await money.setup({ chain: "fast" })'}</code>
+            <div className="steps-grid">
+              <div className="steps">
+                <div className="step">
+                  <span className="step-n">1</span>
+                  <div className="step-body">
+                    <span className="step-name">Setup</span>
+                     <code>{'await money.setup({ chain: "fast" })'}</code>
+                  </div>
                 </div>
-              </div>
-              <div className="step">
-                <span className="step-n">2</span>
-                <div className="step-body">
-                  <span className="step-name">Balance</span>
-                   <code>{'await money.balance({ chain: "fast" })'}</code>
+                <div className="step">
+                  <span className="step-n">2</span>
+                  <div className="step-body">
+                    <span className="step-name">Balance</span>
+                     <code>{'await money.balance({ chain: "fast" })'}</code>
+                  </div>
                 </div>
-              </div>
-              <div className="step">
-                <span className="step-n">3</span>
-                <div className="step-body">
-                  <span className="step-name">Send</span>
-                   <code>{'await money.send({ to: "set1...", amount: 10, chain: "fast" })'}</code>
+                <div className="step">
+                  <span className="step-n">3</span>
+                  <div className="step-body">
+                    <span className="step-name">Send</span>
+                     <code>{'await money.send({ to: "set1...", amount: 10, chain: "fast" })'}</code>
+                  </div>
                 </div>
               </div>
             </div>
@@ -113,7 +120,7 @@ export default async function Home() {
           <span />
         </div>
 
-        <section className="section">
+        <section className="chains-section reveal">
           <div className="container">
             <h2 className="section-label">Chains</h2>
             <div className="table-wrap">
@@ -152,6 +159,7 @@ export default async function Home() {
       <footer className="footer">
         <div className="container footer-inner">
           <span className="footer-credit">Fast Protocol</span>
+          <span className="footer-credit" style={{ opacity: 0.5 }}>Built for agents.</span>
           <nav className="footer-nav">
             <a href="/skill.md">Skill</a>
             <a href="/money.bundle.js" download>
