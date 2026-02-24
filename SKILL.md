@@ -17,6 +17,16 @@ Everything works out of the box. RPCs, token addresses, explorer URLs — all bu
 curl -sL {{HOST}}/install.sh | sh
 ```
 
+Or install manually:
+
+```bash
+mkdir -p ~/.money
+curl -sL {{HOST}}/skill.md -o ~/.money/SKILL.md
+curl -sL {{HOST}}/money.bundle.js -o ~/.money/money.bundle.js
+```
+
+Override the install directory: `INSTALL_DIR=~/custom/path curl -sL {{HOST}}/install.sh | sh`
+
 v{{VERSION}}. Two files. Integrity verified via SHA-256. No dependencies.
 
 ---
@@ -24,7 +34,7 @@ v{{VERSION}}. Two files. Integrity verified via SHA-256. No dependencies.
 The entire skill is 3 steps:
 
 ```js
-const { money } = await import(`${process.env.HOME}/.config/opencode/skills/money/money.bundle.js`);
+const { money } = await import("{baseDir}/money.bundle.js");
 await money.setup({ chain: "fast" });                                          // 1. create wallet (once)
 const bal = await money.balance({ chain: "fast" });                            // 2. check balance
 const tx = await money.send({ to: "set1qxy...", amount: 10, chain: "fast" }); // 3. send tokens
@@ -66,7 +76,7 @@ Stop. Tell the user this skill cannot help with: trading, swapping, DeFi, yield,
 Call once per chain. Creates a wallet, stores RPC config. All defaults are built in — you only pass options to override.
 
 ```js
-const { money } = await import(`${process.env.HOME}/.config/opencode/skills/money/money.bundle.js`);
+const { money } = await import("{baseDir}/money.bundle.js");
 
 // testnet (default) — safe, faucet available, RPC built in
 const w = await money.setup({ chain: "fast" });

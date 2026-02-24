@@ -14,7 +14,7 @@ export async function GET() {
 
   const script = `#!/bin/sh
 set -e
-DIR="$HOME/.config/opencode/skills/money"
+DIR="\${INSTALL_DIR:-$HOME/.money}"
 HOST="${origin}"
 mkdir -p "$DIR"
 curl -sL "$HOST/skill.md" -o "$DIR/SKILL.md"
