@@ -11,10 +11,8 @@ import {
   http,
   formatUnits,
   parseUnits,
-  getAddress,
-  keccak256,
 } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { privateKeyToAccount, publicKeyToAddress } from 'viem/accounts';
 import type { Chain, PublicClient } from 'viem';
 
 import {
@@ -64,24 +62,10 @@ const FAUCET_URLS: Record<string, string> = {
 
 /**
  * Derive an EVM address from an uncompressed secp256k1 public key.
- *
- * The public key is the 65-byte hex string "04 || x || y".
- * EVM address = checksum(last 20 bytes of keccak256(x || y))
+ * Delegates to viem's publicKeyToAddress which handles keccak256 + EIP-55 checksum.
  */
 function publicKeyToEvmAddress(uncompressedPubKeyHex: string): string {
-  // Strip "04" prefix (2 hex chars = 1 byte) to get the 64-byte x||y
-  const keyBody = uncompressedPubKeyHex.startsWith('04')
-    ? uncompressedPubKeyHex.slice(2)
-    : uncompressedPubKeyHex;
-
-  // keccak256 expects a 0x-prefixed hex string
-  const hash = keccak256(`0x${keyBody}` as `0x${string}`);
-
-  // Last 20 bytes of the 32-byte hash = chars 24..63 (0-indexed from after "0x")
-  const addressHex = `0x${hash.slice(-40)}` as `0x${string}`;
-
-  // Apply EIP-55 checksum
-  return getAddress(addressHex);
+  return publicKeyToAddress(`0x${uncompressedPubKeyHex}` as `0x${string}`);
 }
 
 // ─── Factory ──────────────────────────────────────────────────────────────────
