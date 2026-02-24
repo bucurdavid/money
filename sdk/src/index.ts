@@ -3,7 +3,7 @@
  */
 
 import { loadConfig, setChainConfig, getChainConfig } from './config.js';
-import { expandHome } from './utils.js';
+import { expandHome, compareDecimalStrings } from './utils.js';
 import { loadKeyfile, scrubKeyFromError } from './keys.js';
 import { detectChain, isValidAddress } from './detect.js';
 import { MoneyError } from './errors.js';
@@ -203,17 +203,30 @@ export const money = {
     const config = await loadConfig();
     const results: BalanceResult[] = [];
     for (const [key, chainConfig] of Object.entries(config.chains)) {
+      const { chain: bChain } = parseConfigKey(key);
       let adapter;
-      try { adapter = await getAdapter(key); } catch { continue; }
+      try { adapter = await getAdapter(key); } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (process.env.MONEY_DEBUG) console.warn(`[money] balance error for ${bChain}: ${msg}`);
+        continue;
+      }
       const keyfilePath = expandHome(chainConfig.keyfile);
       let address: string;
-      try { const result = await adapter.setupWallet(keyfilePath); address = result.address; } catch { continue; }
+      try { const result = await adapter.setupWallet(keyfilePath); address = result.address; } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (process.env.MONEY_DEBUG) console.warn(`[money] balance error for ${bChain}: ${msg}`);
+        continue;
+      }
       const resolvedToken = token ?? chainConfig.defaultToken;
       try {
         const bal = await adapter.getBalance(address, resolvedToken);
-        const { chain: bChain, network: bNetwork } = parseConfigKey(key);
+        const { network: bNetwork } = parseConfigKey(key);
         results.push({ chain: bChain, network: bNetwork, address, amount: bal.amount, token: bal.token });
-      } catch { continue; }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (process.env.MONEY_DEBUG) console.warn(`[money] balance error for ${bChain}: ${msg}`);
+        continue;
+      }
     }
     return results;
   },
@@ -255,7 +268,7 @@ export const money = {
     // error message in the common case.
     try {
       const bal = await adapter.getBalance(from, token);
-      if (parseFloat(bal.amount) < parseFloat(amountStr)) {
+      if (compareDecimalStrings(bal.amount, amountStr) < 0) {
         throw new MoneyError('INSUFFICIENT_BALANCE', `Need ${amount} ${token}, have ${bal.amount}`, { chain, details: { have: bal.amount, need: amountStr, token } });
       }
     } catch (err) {

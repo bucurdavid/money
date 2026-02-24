@@ -72,9 +72,12 @@ export async function saveConfig(config: MoneyConfig): Promise<void> {
   }
 
   const content = JSON.stringify(config, null, 2);
+  const tmpPath = `${configPath}.tmp.${process.pid}`;
   try {
-    await fs.writeFile(configPath, content, { encoding: 'utf-8', mode: 0o600 });
+    await fs.writeFile(tmpPath, content, { encoding: 'utf-8', mode: 0o600 });
+    await fs.rename(tmpPath, configPath);
   } catch (err: unknown) {
+    try { await fs.unlink(tmpPath); } catch { /* ignore */ }
     throw new Error(
       `Failed to write config to ${configPath}: ${(err as Error).message}`
     );

@@ -97,8 +97,12 @@ function parseDerSignature(der: Buffer): { r: string; s: string } {
 
 // ─── Hex private key redaction ────────────────────────────────────────────────
 
-/** Regex matching a standalone 64+ character hex string (potential private key). */
-const HEX_KEY_RE = /\b[0-9a-fA-F]{64,}\b/g;
+/**
+ * Regex matching a standalone 64+ character hex string (potential private key).
+ * Uses a negative lookbehind for '0x' so that 0x-prefixed transaction hashes
+ * (e.g. 0xabc123...) are preserved while bare hex private keys are redacted.
+ */
+const HEX_KEY_RE = /(?<!0x)\b[0-9a-fA-F]{64,}\b/g;
 const REDACTED = '[REDACTED]';
 
 // ─── Public API ───────────────────────────────────────────────────────────────
