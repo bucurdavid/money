@@ -7,14 +7,14 @@ export function CopyButton({ text }: { text: string }) {
 
   return (
     <button
-      className="copy-btn"
+      className={copied ? 'copy-btn copy-btn--copied' : 'copy-btn'}
       onClick={() => {
         navigator.clipboard.writeText(text);
         setCopied(true);
         setTimeout(() => setCopied(false), 1500);
       }}
     >
-      {copied ? 'copied' : 'copy'}
+      {copied ? '✓ copied' : 'copy'}
     </button>
   );
 }
