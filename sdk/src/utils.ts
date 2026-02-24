@@ -51,3 +51,19 @@ export function fromHex(hexAmount: string, decimals: number): string {
   if (!hexAmount || hexAmount === '0') return '0';
   return toHuman(BigInt(`0x${hexAmount}`), decimals);
 }
+
+/**
+ * Compare two decimal number strings without floating-point precision loss.
+ * Normalises both strings to the same number of decimal places, converts to
+ * BigInt, and compares. Returns -1, 0, or 1.
+ */
+export function compareDecimalStrings(a: string, b: string): number {
+  const [aInt, aFrac = ''] = a.split('.');
+  const [bInt, bFrac = ''] = b.split('.');
+  const maxFrac = Math.max(aFrac.length, bFrac.length);
+  const aRaw = BigInt(aInt + aFrac.padEnd(maxFrac, '0'));
+  const bRaw = BigInt(bInt + bFrac.padEnd(maxFrac, '0'));
+  if (aRaw < bRaw) return -1;
+  if (aRaw > bRaw) return 1;
+  return 0;
+}

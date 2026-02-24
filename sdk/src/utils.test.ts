@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { toRaw, toHuman, toHex, fromHex } from './utils.js';
+import { toRaw, toHuman, toHex, fromHex, compareDecimalStrings } from './utils.js';
 
 describe('toRaw', () => {
   it('converts integer amount', () => {
@@ -79,5 +79,35 @@ describe('fromHex', () => {
 
   it('handles large amounts', () => {
     assert.equal(fromHex('10f0cf064dd59200000', 18), '5000');
+  });
+});
+
+describe('compareDecimalStrings', () => {
+  it('returns 0 for equal values', () => {
+    assert.equal(compareDecimalStrings('1.5', '1.5'), 0);
+  });
+
+  it('returns -1 when a < b', () => {
+    assert.equal(compareDecimalStrings('1.5', '2.0'), -1);
+  });
+
+  it('returns 1 when a > b (integer vs near-integer)', () => {
+    assert.equal(compareDecimalStrings('100', '99.999999999999999999'), 1);
+  });
+
+  it('handles 18-decimal precision correctly (returns -1)', () => {
+    assert.equal(compareDecimalStrings('0.000000000000000001', '0.000000000000000002'), -1);
+  });
+
+  it('returns 1 for large integer vs fraction below it', () => {
+    assert.equal(compareDecimalStrings('1000000', '999999.999999999999999999'), 1);
+  });
+
+  it('returns 1 when a > b (simple)', () => {
+    assert.equal(compareDecimalStrings('2.0', '1.5'), 1);
+  });
+
+  it('handles integers without decimal point', () => {
+    assert.equal(compareDecimalStrings('10', '10'), 0);
   });
 });
