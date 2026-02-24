@@ -292,11 +292,12 @@ code { font-family: var(--font-mono), 'SF Mono', 'Consolas', monospace; }
 .install-cmd {
   font-size: 0.95rem;
   color: var(--accent);
-  white-space: nowrap;
   font-family: var(--font-mono), monospace;
-  overflow-x: auto;
   max-width: 100%;
   display: block;
+  word-break: break-all;
+  white-space: normal;
+  line-height: 1.6;
 }
 
 .install-hint {
