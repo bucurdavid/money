@@ -81,16 +81,19 @@ The SDK detects the chain from the address format:
 | Base58, 32-44 chars | Solana | SOL |
 
 ```js
-// Fast — chain and token auto-detected
+// Fast — chain and token auto-detected (native: SET)
 const tx = await money.send("set1qxy2kfcg...", 10);
 
-// EVM — specify chain and token when address is 0x
-const tx = await money.send("0x1234...abcd", 25, { chain: "ethereum", token: "USDC" });
+// EVM — native ETH by default, override chain if needed
+const tx = await money.send("0x1234...abcd", 1.5, { chain: "ethereum" });
+
+// EVM — non-native token: pass raw address or a registered alias
+const tx = await money.send("0x1234...abcd", 25, { chain: "base", token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" });
 
 // tx = { txHash, explorerUrl, fee, chain, network }
 ```
 
-Solana works like Fast — chain auto-detected, pass `{ token: "USDC" }` for SPL tokens.
+Solana works like Fast — chain auto-detected, native SOL by default. For SPL tokens pass the mint address or a registered alias as `token`.
 
 ---
 
@@ -183,23 +186,41 @@ For confirmed incoming verification, use a block explorer — outside this SDK.
 
 ## Tokens
 
-USDC is pre-registered on Base, Ethereum, Arbitrum, and Solana after `setup()`. No extra steps.
+Native token works immediately after `setup()` — no configuration needed.
+
+| Chain | Native token |
+|---|---|
+| Fast | SET |
+| Base, Ethereum, Arbitrum | ETH |
+| Solana | SOL |
+
+For other tokens, pass the contract/mint address directly (decimals fetched automatically) or register a named alias:
 
 ```js
-// Use a named alias
-await money.send("0x1234...abcd", 25, { token: "USDC" });
-
-// Use a raw contract/mint address — decimals fetched automatically
+// Raw contract/mint address — works immediately, no registration needed
 await money.send("0x1234...abcd", 0.5, { token: "0x4200000000000000000000000000000000000006" });
 
-// Register a custom alias
-await money.alias("base", "WETH", { address: "0x4200...0006", decimals: 18 });
-await money.alias("solana", "USDT", { mint: "Es9vMF...NYB", decimals: 6 });
+// Register a named alias once, use by name forever
+await money.alias("base", "USDC", { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 });
+await money.send("0x1234...abcd", 25, { token: "USDC" });
 
-// Look up or list
-const info = await money.alias("base", "WETH");
+// Look up or list aliases
+const info = await money.alias("base", "USDC");
 const all = await money.aliases("base");
 ```
+
+**Known USDC addresses:**
+
+| Chain | Network | Address / Mint |
+|---|---|---|
+| Base | testnet | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
+| Base | mainnet | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| Ethereum | testnet | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` |
+| Ethereum | mainnet | `0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48` |
+| Arbitrum | testnet | `0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d` |
+| Arbitrum | mainnet | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
+| Solana | testnet | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` |
+| Solana | mainnet | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
 
 ---
 

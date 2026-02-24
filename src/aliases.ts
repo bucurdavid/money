@@ -71,30 +71,6 @@ export async function getAliases(cacheKey: string): Promise<TokenInfo[]> {
   }));
 }
 
-/**
- * Seed aliases for a config key from a defaults map.
- * Only writes entries that don't already exist (idempotent).
- */
-export async function seedAliases(
-  cacheKey: string,
-  defaults: Record<string, TokenConfig> | undefined,
-): Promise<void> {
-  if (!defaults || Object.keys(defaults).length === 0) return;
-  const all = await loadAliases();
-  const existing = all[cacheKey] ?? {};
-  let changed = false;
-  for (const [name, config] of Object.entries(defaults)) {
-    if (!existing[name]) {
-      existing[name] = config;
-      changed = true;
-    }
-  }
-  if (changed) {
-    all[cacheKey] = existing;
-    await saveAliases(all);
-  }
-}
-
 /** Get EVM aliases for a config key — used by registry.ts to build the adapter's token map. */
 export async function getEvmAliases(
   cacheKey: string,
