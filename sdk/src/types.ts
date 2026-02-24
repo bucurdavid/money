@@ -81,6 +81,24 @@ export interface HistoryParams {
   limit?: number;
 }
 
+/** Params for money.addContact() */
+export interface AddContactParams {
+  name: string;
+  chain: string;
+  address: string;
+}
+
+/** Params for money.removeContact() */
+export interface RemoveContactParams {
+  name: string;
+  chain?: string;
+}
+
+/** Params for money.contacts() */
+export interface ContactsParams {
+  name?: string;
+}
+
 // ─── Return types for SDK methods ────────────────────────────────────────────
 
 export interface SetupResult {
@@ -164,4 +182,28 @@ export interface TokenInfo {
   address?: string;    // EVM ERC-20 contract address
   mint?: string;       // Solana SPL mint address
   decimals: number;
+}
+
+/** A named contact with per-chain addresses (chain → address mapping) */
+export interface ContactEntry {
+  name: string;
+  addresses: Record<string, string>;
+}
+
+export interface AddContactResult {
+  name: string;
+  chain: string;
+  address: string;
+  note: string;
+}
+
+export interface RemoveContactResult {
+  name: string;
+  chain?: string;
+  note: string;
+}
+
+export interface ContactsResult {
+  contacts: ContactEntry[];
+  note: string;
 }

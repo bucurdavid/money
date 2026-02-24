@@ -13,6 +13,7 @@ export type MoneyErrorCode =
   | 'FAUCET_THROTTLED'
   | 'INVALID_ADDRESS'
   | 'TOKEN_NOT_FOUND'
+  | 'CONTACT_NOT_FOUND'
   | 'INVALID_PARAMS';
 
 export class MoneyError extends Error {
