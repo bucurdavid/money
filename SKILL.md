@@ -24,6 +24,32 @@ await money.setup("fast", { network: "mainnet" });
 | testnet (default) | ✅ Fast, Solana | `keys/<chain>.json` |
 | mainnet | ❌ disabled | `keys/<chain>-mainnet.json` |
 
+## Custom RPC
+
+Bring your own RPC endpoint (e.g. Alchemy, Infura):
+
+```js
+await money.setup("base", { network: "mainnet", rpc: "https://your-alchemy-url.com" });
+```
+
+The RPC is stored in config and persists — no need to pass it on every call.
+
+## Custom Tokens
+
+USDC is configured by default on all chains. Add any ERC-20 or SPL token:
+
+```js
+// EVM
+await money.addToken("base", "WETH", { address: "0x4200000000000000000000000000000000000006", decimals: 18 });
+await money.send("0x1234...abcd", 0.5, { token: "WETH" });
+
+// Solana
+await money.addToken("solana", "USDT", { mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", decimals: 6 });
+
+// List configured tokens
+const tokens = await money.tokens("base");
+```
+
 ## Send Tokens
 
 1. Check balance
@@ -85,6 +111,9 @@ try {
 | `money.chains()` | `[{ chain, address, status }]` |
 | `money.detect(address)` | `string` or `null` |
 | `money.history(chain?, limit?)` | `[{ txHash, direction, amount }]` |
+| `money.addToken(chain, name, config)` | `void` |
+| `money.tokens(chain?)` | `[{ chain, name, address?, mint?, decimals }]` |
 
-`opts` for setup: `{ network?: "testnet" | "mainnet" }`
+`opts` for setup: `{ network?: "testnet" | "mainnet", rpc?: string }`
+`config` for addToken: `{ address?, mint?, decimals? }`
 `opts` for send: `{ chain?, token?, memo? }`

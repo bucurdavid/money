@@ -427,3 +427,177 @@ describe('money.detect', () => {
     assert.equal(result, null);
   });
 });
+
+// ─── money.addToken ───────────────────────────────────────────────────────────
+
+describe('money.addToken', () => {
+  it('adds a token — appears in money.tokens()', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast');
+
+    await money.addToken('fast', 'MYTOKEN', { address: '0x1234567890123456789012345678901234567890', decimals: 18 });
+
+    const tokens = await money.tokens('fast');
+    const found = tokens.find(t => t.name === 'MYTOKEN');
+    assert.ok(found, 'MYTOKEN should appear in tokens list');
+    assert.equal(found!.address, '0x1234567890123456789012345678901234567890');
+    assert.equal(found!.decimals, 18);
+    assert.equal(found!.chain, 'fast');
+  });
+
+  it('overwrites an existing token entry', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast');
+
+    await money.addToken('fast', 'TKN', { address: '0xaaa', decimals: 6 });
+    await money.addToken('fast', 'TKN', { address: '0xbbb', decimals: 18 }); // overwrite
+
+    const tokens = await money.tokens('fast');
+    const tkn = tokens.filter(t => t.name === 'TKN');
+    assert.equal(tkn.length, 1, 'should only have one TKN entry after overwrite');
+    assert.equal(tkn[0].address, '0xbbb');
+    assert.equal(tkn[0].decimals, 18);
+  });
+
+  it('throws CHAIN_NOT_CONFIGURED for unconfigured chain', async () => {
+    // No setup for 'bitcoin'
+    await assert.rejects(
+      () => money.addToken('bitcoin', 'BTC', { decimals: 8 }),
+      (err: unknown) => {
+        assert.ok(err instanceof MoneyError, `expected MoneyError, got: ${String(err)}`);
+        assert.equal((err as MoneyError).code, 'CHAIN_NOT_CONFIGURED');
+        return true;
+      },
+    );
+  });
+});
+
+// ─── money.tokens ─────────────────────────────────────────────────────────────
+
+describe('money.tokens', () => {
+  it('returns empty array when no tokens are configured for the chain', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast'); // fast defaults have no tokens map
+
+    const tokens = await money.tokens('fast');
+    assert.ok(Array.isArray(tokens));
+    assert.equal(tokens.length, 0);
+  });
+
+  it('returns tokens for a specific chain after addToken', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast');
+
+    await money.addToken('fast', 'TKNA', { address: '0xaaa', decimals: 6 });
+    await money.addToken('fast', 'TKNB', { address: '0xbbb', decimals: 18 });
+
+    const tokens = await money.tokens('fast');
+    assert.equal(tokens.length, 2);
+    assert.ok(tokens.some(t => t.name === 'TKNA'), 'should include TKNA');
+    assert.ok(tokens.some(t => t.name === 'TKNB'), 'should include TKNB');
+  });
+
+  it('returns all tokens across all chains when no chain specified', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast');
+    await money.addToken('fast', 'TKNA', { address: '0xaaa', decimals: 6 });
+
+    const tokens = await money.tokens();
+    assert.ok(Array.isArray(tokens));
+    assert.ok(tokens.length >= 1, 'should return at least TKNA');
+    assert.ok(tokens.every(t => typeof t.chain === 'string' && typeof t.name === 'string'));
+  });
+
+  it('token entries have chain field matching the config key', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast');
+    await money.addToken('fast', 'TKN', { decimals: 8 });
+
+    const tokens = await money.tokens('fast');
+    const tkn = tokens.find(t => t.name === 'TKN');
+    assert.ok(tkn, 'TKN not found');
+    assert.equal(tkn!.chain, 'fast');
+  });
+});
+
+// ─── money.setup — rpc override ──────────────────────────────────────────────
+
+describe('money.setup with rpc override', () => {
+  it('stores custom rpc in config.json', async () => {
+    const customRpc = 'https://custom-rpc.example.com';
+    await money.setup('fast', { rpc: customRpc });
+
+    // Read config file directly
+    const configContent = await fs.readFile(path.join(tmpDir, 'config.json'), 'utf-8');
+    const config = JSON.parse(configContent) as { chains: Record<string, { rpc: string }> };
+    assert.equal(config.chains['fast']?.rpc, customRpc, 'custom RPC should be stored in config');
+  });
+
+  it('re-setup without rpc option preserves existing custom rpc', async () => {
+    const customRpc = 'https://custom-rpc.example.com';
+
+    // First setup with custom RPC
+    await money.setup('fast', { rpc: customRpc });
+
+    // Re-setup without rpc option — should preserve, NOT reset to default
+    await money.setup('fast'); // no rpc option
+
+    const configContent = await fs.readFile(path.join(tmpDir, 'config.json'), 'utf-8');
+    const config = JSON.parse(configContent) as { chains: Record<string, { rpc: string }> };
+    assert.equal(config.chains['fast']?.rpc, customRpc, 'existing RPC should be preserved on re-setup');
+  });
+
+  it('second rpc option overwrites previous custom rpc', async () => {
+    await money.setup('fast', { rpc: 'https://first-rpc.example.com' });
+    await money.setup('fast', { rpc: 'https://second-rpc.example.com' });
+
+    const configContent = await fs.readFile(path.join(tmpDir, 'config.json'), 'utf-8');
+    const config = JSON.parse(configContent) as { chains: Record<string, { rpc: string }> };
+    assert.equal(config.chains['fast']?.rpc, 'https://second-rpc.example.com');
+  });
+});
+
+// ─── money.send — opts.chain and opts.token ──────────────────────────────────
+
+describe('money.send with opts.chain', () => {
+  it('explicit opts.chain="fast" works for a fast address', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast');
+    globalThis.fetch = standardFastFetch({
+      proxy_getAccountInfo: { balance: 'de0b6b3a7640000000', next_nonce: 1 }, // enough balance
+    });
+
+    const to = 'set1ld55rskkecy2wflhf0kmfr82ay937tpq7zwmx978udetmqqt2task3fcxc';
+    const result = await money.send(to, 1, { chain: 'fast' });
+    assert.equal(result.chain, 'fast');
+    assert.ok(typeof result.txHash === 'string');
+  });
+
+  it('opts.chain="fast" with an EVM address throws INVALID_ADDRESS', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast');
+
+    const evmAddress = '0x742d35Cc6634C0532925a3b8D4C9b34EcFedBCfB';
+    await assert.rejects(
+      () => money.send(evmAddress, 1, { chain: 'fast' }),
+      (err: unknown) => {
+        assert.ok(err instanceof MoneyError, `expected MoneyError, got: ${String(err)}`);
+        assert.equal((err as MoneyError).code, 'INVALID_ADDRESS');
+        return true;
+      },
+    );
+  });
+
+  it('opts.token="SET" explicitly is same as default for fast chain', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast');
+    globalThis.fetch = standardFastFetch({
+      proxy_getAccountInfo: { balance: 'de0b6b3a7640000000', next_nonce: 1 },
+    });
+
+    const to = 'set1ld55rskkecy2wflhf0kmfr82ay937tpq7zwmx978udetmqqt2task3fcxc';
+    const result = await money.send(to, 1, { token: 'SET' });
+    assert.equal(result.chain, 'fast');
+    assert.ok(typeof result.txHash === 'string');
+  });
+});

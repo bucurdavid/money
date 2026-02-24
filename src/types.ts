@@ -79,3 +79,16 @@ export interface HistoryEntry {
   counterparty: string;
   timestamp: string;
 }
+
+export interface SetupOptions {
+  network?: NetworkType;
+  rpc?: string;  // Override default RPC endpoint. Stored in config and persists across sessions.
+}
+
+export interface TokenInfo {
+  chain: string;       // Config key (e.g. "fast", "base", "base:mainnet")
+  name: string;        // Token symbol (e.g. "USDC", "WETH")
+  address?: string;    // EVM ERC-20 contract address
+  mint?: string;       // Solana SPL mint address
+  decimals: number;
+}

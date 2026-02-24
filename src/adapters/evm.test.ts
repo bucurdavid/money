@@ -378,6 +378,55 @@ describe('send', () => {
       },
     );
   });
+
+  it('sends ERC-20 token (USDC) and returns txHash + explorerUrl', async () => {
+    const txHash = '0x' + 'd'.repeat(64);
+    // viem's writeContract calls similar eth_* methods as sendTransaction
+    globalThis.fetch = multiMethodFetch({
+      ...buildSendHandlers(txHash),
+    });
+
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const keyfile = path.join(tmpDir, 'keys', 'evm.json');
+    const { address: fromAddr } = await adapter.setupWallet(keyfile);
+
+    const result = await adapter.send({
+      from: fromAddr,
+      to: '0x' + 'b'.repeat(40),
+      amount: '10',
+      token: 'USDC',
+      keyfile,
+    });
+
+    assert.equal(result.txHash, txHash);
+    assert.ok(result.explorerUrl.includes(txHash), `explorerUrl should contain txHash`);
+    assert.ok(result.explorerUrl.startsWith(FAKE_EXPLORER), `explorerUrl should start with explorer base`);
+  });
+
+  it('throws TX_FAILED for unknown token', async () => {
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const keyfile = path.join(tmpDir, 'keys', 'evm.json');
+    await adapter.setupWallet(keyfile);
+
+    await assert.rejects(
+      () => adapter.send({
+        from: '0x' + 'a'.repeat(40),
+        to: '0x' + 'b'.repeat(40),
+        amount: '10',
+        token: 'NOTEXIST',
+        keyfile,
+      }),
+      (err: unknown) => {
+        assert.ok(err instanceof MoneyError, `expected MoneyError, got: ${String(err)}`);
+        // The token lookup fails inside withKey, which wraps as TX_FAILED
+        assert.ok(
+          (err as MoneyError).code === 'TX_FAILED',
+          `expected TX_FAILED, got: ${(err as MoneyError).code}`,
+        );
+        return true;
+      },
+    );
+  });
 });
 
 describe('faucet', () => {
