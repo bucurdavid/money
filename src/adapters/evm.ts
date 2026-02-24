@@ -29,7 +29,7 @@ import type { ChainAdapter } from './adapter.js';
 const ADDRESS_PATTERN = /^0x[0-9a-fA-F]{40}$/;
 const NATIVE_DECIMALS = 18;
 
-/** Minimal ERC-20 ABI for balanceOf and transfer */
+/** Minimal ERC-20 ABI for balanceOf, transfer, and decimals */
 const ERC20_ABI = [
   {
     name: 'balanceOf',
@@ -47,6 +47,13 @@ const ERC20_ABI = [
       { name: 'amount', type: 'uint256' },
     ],
     outputs: [{ name: '', type: 'bool' }],
+  },
+  {
+    name: 'decimals',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint8' }],
   },
 ] as const;
 
@@ -74,12 +81,48 @@ export function createEvmAdapter(
   chainName: string,
   rpcUrl: string,
   explorerBaseUrl: string,
-  tokens: Record<string, { address: string; decimals: number }>,
+  aliases: Record<string, { address: string; decimals: number }>,
 ): ChainAdapter {
   // Create the publicClient once per adapter instance
   const publicClient: PublicClient = createPublicClient({
     transport: http(rpcUrl),
   });
+
+  const decimalsCache = new Map<string, number>();
+
+  // ─── resolveToken ───────────────────────────────────────────────────────────
+
+  type ResolvedToken =
+    | { type: 'native' }
+    | { type: 'erc20'; address: string; decimals: number };
+
+  async function resolveToken(token?: string): Promise<ResolvedToken> {
+    const t = token ?? 'ETH';
+    if (t === 'ETH') return { type: 'native' };
+
+    // Raw ERC-20 address
+    if (/^0x[0-9a-fA-F]{40}$/.test(t)) {
+      let decimals = decimalsCache.get(t);
+      if (decimals === undefined) {
+        decimals = await publicClient.readContract({
+          address: t as `0x${string}`,
+          abi: ERC20_ABI,
+          functionName: 'decimals',
+          args: [],
+        }) as number;
+        decimalsCache.set(t, decimals);
+      }
+      return { type: 'erc20', address: t, decimals };
+    }
+
+    // Named alias
+    const aliasConfig = aliases[t];
+    if (aliasConfig) {
+      return { type: 'erc20', address: aliasConfig.address, decimals: aliasConfig.decimals };
+    }
+
+    throw new MoneyError('TX_FAILED', `Token "${t}" is not configured for chain "${chainName}".`, { chain: chainName });
+  }
 
   // ─── setupWallet ────────────────────────────────────────────────────────────
 
@@ -106,38 +149,22 @@ export function createEvmAdapter(
     address: string,
     token?: string,
   ): Promise<{ amount: string; token: string }> {
-    const resolvedToken = token ?? 'ETH';
-    const isNative = !resolvedToken || resolvedToken === 'ETH';
+    const resolved = await resolveToken(token);
 
-    if (isNative) {
-      const raw = await publicClient.getBalance({
-        address: address as `0x${string}`,
-      });
-      return {
-        amount: formatUnits(raw, NATIVE_DECIMALS),
-        token: 'ETH',
-      };
-    }
-
-    // ERC-20 token
-    const tokenConfig = tokens[resolvedToken];
-    if (!tokenConfig) {
-      throw new Error(
-        `Token "${resolvedToken}" is not configured for chain "${chainName}".`,
-      );
+    if (resolved.type === 'native') {
+      const raw = await publicClient.getBalance({ address: address as `0x${string}` });
+      return { amount: formatUnits(raw, NATIVE_DECIMALS), token: 'ETH' };
     }
 
     const raw = await publicClient.readContract({
-      address: tokenConfig.address as `0x${string}`,
+      address: resolved.address as `0x${string}`,
       abi: ERC20_ABI,
       functionName: 'balanceOf',
       args: [address as `0x${string}`],
     });
 
-    return {
-      amount: formatUnits(raw as bigint, tokenConfig.decimals),
-      token: resolvedToken,
-    };
+    const label = token ?? resolved.address;
+    return { amount: formatUnits(raw as bigint, resolved.decimals), token: label };
   }
 
   // ─── send ────────────────────────────────────────────────────────────────────
@@ -150,19 +177,18 @@ export function createEvmAdapter(
     memo?: string;
     keyfile: string;
   }): Promise<{ txHash: string; explorerUrl: string; fee: string }> {
-    const resolvedToken = params.token ?? 'ETH';
-    const isNative = !resolvedToken || resolvedToken === 'ETH';
+    // Resolve token BEFORE entering withKey so errors propagate cleanly
+    const resolved = await resolveToken(params.token);
 
     try {
       const txHash = await withKey(params.keyfile, async (kp) => {
         const account = privateKeyToAccount(`0x${kp.privateKey}` as `0x${string}`);
-
         const walletClient = createWalletClient({
           account,
           transport: http(rpcUrl),
         });
 
-        if (isNative) {
+        if (resolved.type === 'native') {
           const value = parseUnits(params.amount, NATIVE_DECIMALS);
           return walletClient.sendTransaction({
             to: params.to as `0x${string}`,
@@ -171,17 +197,9 @@ export function createEvmAdapter(
           });
         }
 
-        // ERC-20 transfer
-        const tokenConfig = tokens[resolvedToken];
-        if (!tokenConfig) {
-          throw new Error(
-            `Token "${resolvedToken}" is not configured for chain "${chainName}".`,
-          );
-        }
-
-        const amount = parseUnits(params.amount, tokenConfig.decimals);
+        const amount = parseUnits(params.amount, resolved.decimals);
         return walletClient.writeContract({
-          address: tokenConfig.address as `0x${string}`,
+          address: resolved.address as `0x${string}`,
           abi: ERC20_ABI,
           functionName: 'transfer',
           args: [params.to as `0x${string}`, amount],

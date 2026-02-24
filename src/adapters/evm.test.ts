@@ -253,6 +253,44 @@ describe('getBalance', () => {
       },
     );
   });
+
+  it('fetches balance for raw ERC-20 contract address (calls decimals then balanceOf)', async () => {
+    const rawAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+    // ABI-encoded uint8 decimals = 6: 32-byte left-padded
+    const abiDecimals = '0x' + '0'.repeat(63) + '6';
+    // ABI-encoded uint256 balance = 1_000_000 (1 USDC): 32-byte left-padded
+    const abiBalance = '0x' + '0'.repeat(59) + 'f4240';
+
+    let callCount = 0;
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const bodyText = typeof init?.body === 'string' ? init.body : '';
+      const parsed = JSON.parse(bodyText) as { method: string; id: number } | Array<{ method: string; id: number }>;
+      const reqs = Array.isArray(parsed) ? parsed : [parsed];
+      callCount += reqs.length;
+      const results = reqs.map(req => {
+        if (req.method === 'eth_call') {
+          // First call is decimals, second is balanceOf
+          const result = callCount <= reqs.length ? abiDecimals : abiBalance;
+          return { jsonrpc: '2.0', id: req.id, result };
+        }
+        return { jsonrpc: '2.0', id: req.id, result: null };
+      });
+      const body = JSON.stringify(Array.isArray(parsed) ? results : results[0]);
+      return {
+        ok: true, status: 200, headers: STUB_HEADERS,
+        json: async () => Array.isArray(parsed) ? results : results[0],
+        text: async () => body, body: null, bodyUsed: false,
+      } as unknown as Response;
+    }) as FetchFn;
+
+    // Create adapter with NO aliases (empty map) — raw address must work without registration
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, {});
+    const balance = await adapter.getBalance('0x' + 'a'.repeat(40), rawAddress);
+
+    assert.equal(balance.token, rawAddress);
+    // amount should be parsed with decimals fetched from contract
+    assert.ok(typeof balance.amount === 'string', 'amount should be a string');
+  });
 });
 
 describe('send', () => {

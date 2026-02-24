@@ -42,8 +42,9 @@ export function isValidAddress(address: string, chain: string): boolean {
  * EVM chain names are mapped to the evm pattern.
  */
 export function getAddressPattern(chain: string): RegExp | null {
-  if (EVM_CHAINS.includes(chain)) {
+  const bare = chain.includes(':') ? chain.split(':')[0] : chain;
+  if (EVM_CHAINS.includes(bare)) {
     return PATTERNS.evm;
   }
-  return PATTERNS[chain] ?? null;
+  return PATTERNS[bare] ?? null;
 }

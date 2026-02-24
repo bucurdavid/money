@@ -1,11 +1,5 @@
 /**
  * index.test.ts — Comprehensive unit tests for the money SDK (@fast/money)
- *
- * Test strategy:
- * - Use "fast" chain for most tests (simplest RPC mocking)
- * - Set MONEY_CONFIG_DIR to a unique temp dir per test
- * - Pre-write config with keyfile inside tmpDir for full isolation
- * - Mock globalThis.fetch for all RPC calls
  */
 
 import { describe, it, beforeEach, afterEach } from 'node:test';
@@ -15,6 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { money, MoneyError } from './index.js';
+import { _resetAdapterCache } from './index.js';
 import type { NetworkType } from './types.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -24,7 +19,6 @@ let originalFetch: FetchFn;
 let tmpDir: string;
 const ORIGINAL_CONFIG_DIR = process.env.MONEY_CONFIG_DIR;
 
-/** Build a per-chain config that points keyfiles into tmpDir */
 function fastChainConfig(tmpDir: string) {
   return {
     rpc: 'https://proxy.fastset.xyz',
@@ -34,11 +28,6 @@ function fastChainConfig(tmpDir: string) {
   };
 }
 
-/**
- * Write config.json to tmpDir so that money.setup() uses our custom keyfile path.
- * money.setup() merges `{ ...existing, rpc: defaults.rpc, network: defaults.network }`,
- * so pre-seeding preserves our keyfile path inside tmpDir.
- */
 async function seedConfig(tmpDir: string, chains: Record<string, unknown> = {}) {
   await fs.mkdir(tmpDir, { recursive: true });
   const config = { chains: { fast: fastChainConfig(tmpDir), ...chains } };
@@ -49,12 +38,7 @@ async function seedConfig(tmpDir: string, chains: Record<string, unknown> = {}) 
   );
 }
 
-/**
- * Create a fetch mock that dispatches based on JSON-RPC method name.
- */
-function makeFetchMock(
-  handlers: Record<string, unknown>,
-): FetchFn {
+function makeFetchMock(handlers: Record<string, unknown>): FetchFn {
   return (async (_url: string | URL | Request, init?: RequestInit) => {
     const bodyText = typeof init?.body === 'string' ? init.body : '';
     const parsed = JSON.parse(bodyText) as { method: string; params: unknown };
@@ -66,10 +50,9 @@ function makeFetchMock(
   }) as FetchFn;
 }
 
-/** Standard mock that handles all three Fast RPCs we need */
 function standardFastFetch(overrides: Record<string, unknown> = {}): FetchFn {
   return makeFetchMock({
-    proxy_getAccountInfo: { balance: 'de0b6b3a7640000', next_nonce: 0 }, // 1 SET
+    proxy_getAccountInfo: { balance: 'de0b6b3a7640000', next_nonce: 0 },
     proxy_submitTransaction: {
       Success: { envelope: { transaction: { nonce: 0 } }, signatures: [] },
     },
@@ -84,20 +67,16 @@ beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'money-idx-test-'));
   process.env.MONEY_CONFIG_DIR = tmpDir;
   originalFetch = globalThis.fetch;
+  _resetAdapterCache();
 });
 
 afterEach(async () => {
-  // Restore fetch
   globalThis.fetch = originalFetch;
-
-  // Restore MONEY_CONFIG_DIR
   if (ORIGINAL_CONFIG_DIR === undefined) {
     delete process.env.MONEY_CONFIG_DIR;
   } else {
     process.env.MONEY_CONFIG_DIR = ORIGINAL_CONFIG_DIR;
   }
-
-  // Clean up temp dir
   await fs.rm(tmpDir, { recursive: true, force: true });
 });
 
@@ -118,12 +97,13 @@ describe('money.setup', () => {
     assert.ok(result.address.startsWith('set1'), `expected set1... got: ${result.address}`);
   });
 
-  it('throws for unknown chain name', async () => {
+  it('throws MoneyError(CHAIN_NOT_CONFIGURED) for unknown chain name', async () => {
     await assert.rejects(
       () => money.setup('dogecoin'),
-      (err: Error) => {
-        assert.ok(err instanceof Error);
-        assert.ok(err.message.includes('dogecoin'));
+      (err: unknown) => {
+        assert.ok(err instanceof MoneyError, `expected MoneyError, got: ${String(err)}`);
+        assert.equal((err as MoneyError).code, 'CHAIN_NOT_CONFIGURED');
+        assert.ok((err as MoneyError).message.includes('dogecoin'));
         return true;
       },
     );
@@ -143,7 +123,6 @@ describe('money.chains', () => {
   it('returns status for configured chains after setup', async () => {
     await seedConfig(tmpDir);
     await money.setup('fast');
-
     const chains = await money.chains();
     assert.ok(Array.isArray(chains));
     const fastChain = chains.find(c => c.chain === 'fast');
@@ -152,8 +131,7 @@ describe('money.chains', () => {
 
   it('shows "ready" when keyfile exists', async () => {
     await seedConfig(tmpDir);
-    await money.setup('fast'); // creates keyfile
-
+    await money.setup('fast');
     const chains = await money.chains();
     const fastChain = chains.find(c => c.chain === 'fast');
     assert.ok(fastChain, 'fast chain not found');
@@ -162,10 +140,7 @@ describe('money.chains', () => {
   });
 
   it('shows "no-key" when keyfile does not exist', async () => {
-    // Write config without creating a keyfile
     await seedConfig(tmpDir);
-    // Don't call money.setup() — keyfile won't exist
-
     const chains = await money.chains();
     const fastChain = chains.find(c => c.chain === 'fast');
     assert.ok(fastChain, 'fast chain not found');
@@ -178,11 +153,8 @@ describe('money.chains', () => {
 describe('money.wallets', () => {
   it('returns balances for configured chains (mock RPC balance)', async () => {
     await seedConfig(tmpDir);
-    await money.setup('fast'); // creates keyfile + evicts adapter cache
-
-    // Mock fetch to return 1 SET
+    await money.setup('fast');
     globalThis.fetch = standardFastFetch();
-
     const wallets = await money.wallets();
     assert.ok(Array.isArray(wallets));
     const fastWallet = wallets.find(w => w.chain === 'fast');
@@ -198,11 +170,9 @@ describe('money.balance', () => {
   it('single chain: returns balance result with chain, address, amount, token', async () => {
     await seedConfig(tmpDir);
     await money.setup('fast');
-
     globalThis.fetch = standardFastFetch();
-
     const result = await money.balance('fast');
-    assert.ok(!Array.isArray(result), 'single chain should return BalanceResult not array');
+    assert.ok(!Array.isArray(result));
     const bal = result as { chain: string; address: string; amount: string; token: string };
     assert.equal(bal.chain, 'fast');
     assert.ok(bal.address.startsWith('set1'));
@@ -210,18 +180,13 @@ describe('money.balance', () => {
     assert.equal(bal.token, 'SET');
   });
 
-  it('throws for unconfigured chain', async () => {
-    // Only fast is in config; asking for solana should throw
+  it('throws MoneyError for unconfigured chain', async () => {
     await seedConfig(tmpDir);
-
     await assert.rejects(
       () => money.balance('solana'),
-      (err: Error) => {
-        assert.ok(err instanceof Error);
-        assert.ok(
-          err.message.includes('solana') || err.message.includes('not configured'),
-          `unexpected message: ${err.message}`,
-        );
+      (err: unknown) => {
+        assert.ok(err instanceof MoneyError);
+        assert.equal((err as MoneyError).code, 'CHAIN_NOT_CONFIGURED');
         return true;
       },
     );
@@ -230,14 +195,10 @@ describe('money.balance', () => {
   it('returns array of balances when no chain specified', async () => {
     await seedConfig(tmpDir);
     await money.setup('fast');
-
     globalThis.fetch = standardFastFetch();
-
     const results = await money.balance();
     assert.ok(Array.isArray(results));
-    const fastBal = (results as Array<{ chain: string; amount: string }>).find(
-      r => r.chain === 'fast',
-    );
+    const fastBal = (results as Array<{ chain: string; amount: string }>).find(r => r.chain === 'fast');
     assert.ok(fastBal, 'fast balance not found');
     assert.equal(fastBal!.amount, '1');
   });
@@ -250,33 +211,40 @@ describe('money.send', () => {
     await seedConfig(tmpDir);
     const setupResult = await money.setup('fast');
     const from = setupResult.address;
-
-    // Use the sender's own address as recipient (self-send for test purposes)
     globalThis.fetch = standardFastFetch({
-      // Balance check: 100 SET
-      proxy_getAccountInfo: { balance: '56bc75e2d630fffff', next_nonce: 1 }, // ~100 SET
+      proxy_getAccountInfo: { balance: '56bc75e2d630fffff', next_nonce: 1 },
     });
-
     const result = await money.send(from, '0.001');
     assert.equal(result.chain, 'fast');
     assert.ok(typeof result.txHash === 'string' && result.txHash.length > 0);
     assert.equal(result.fee, '0.01');
   });
 
+  it('writes to history.csv after successful send', async () => {
+    await seedConfig(tmpDir);
+    const setupResult = await money.setup('fast');
+    const from = setupResult.address;
+    globalThis.fetch = standardFastFetch({
+      proxy_getAccountInfo: { balance: '56bc75e2d630fffff', next_nonce: 1 },
+    });
+    await money.send(from, '0.001');
+    const csvPath = path.join(tmpDir, 'history.csv');
+    const csv = await fs.readFile(csvPath, 'utf-8');
+    assert.ok(csv.includes('fast'), 'history.csv should include chain "fast"');
+    assert.ok(csv.includes('0.001'), 'history.csv should include amount');
+  });
+
   it('throws INSUFFICIENT_BALANCE when balance too low', async () => {
     await seedConfig(tmpDir);
     const setupResult = await money.setup('fast');
     const from = setupResult.address;
-
-    // Return a very low balance (0.001 SET in hex = de0b6b3a7640 = 1e15)
     globalThis.fetch = makeFetchMock({
-      proxy_getAccountInfo: { balance: 'e8d4a51000', next_nonce: 0 }, // ~0.000001 SET
+      proxy_getAccountInfo: { balance: 'e8d4a51000', next_nonce: 0 },
     });
-
     await assert.rejects(
       () => money.send(from, '100'),
       (err: unknown) => {
-        assert.ok(err instanceof MoneyError, `expected MoneyError, got ${String(err)}`);
+        assert.ok(err instanceof MoneyError);
         assert.equal((err as MoneyError).code, 'INSUFFICIENT_BALANCE');
         return true;
       },
@@ -286,11 +254,10 @@ describe('money.send', () => {
   it('throws INVALID_ADDRESS for garbage input', async () => {
     await seedConfig(tmpDir);
     await money.setup('fast');
-
     await assert.rejects(
       () => money.send('GARBAGE_NOT_AN_ADDRESS_!!!', '1'),
       (err: unknown) => {
-        assert.ok(err instanceof MoneyError, `expected MoneyError, got ${String(err)}`);
+        assert.ok(err instanceof MoneyError);
         assert.equal((err as MoneyError).code, 'INVALID_ADDRESS');
         return true;
       },
@@ -298,16 +265,13 @@ describe('money.send', () => {
   });
 
   it('throws CHAIN_NOT_CONFIGURED for EVM address when only fast is configured', async () => {
-    // Only fast is configured; an EVM address will detect as 'base' but it's not configured
     await seedConfig(tmpDir);
     await money.setup('fast');
-
     const evmAddress = '0x742d35Cc6634C0532925a3b8D4C9b34EcFedBCfB';
-
     await assert.rejects(
       () => money.send(evmAddress, '1'),
       (err: unknown) => {
-        assert.ok(err instanceof MoneyError, `expected MoneyError, got ${String(err)}`);
+        assert.ok(err instanceof MoneyError);
         assert.equal((err as MoneyError).code, 'CHAIN_NOT_CONFIGURED');
         return true;
       },
@@ -321,49 +285,35 @@ describe('money.faucet', () => {
   it('calls adapter faucet and returns result with chain, amount, token, txHash', async () => {
     await seedConfig(tmpDir);
     await money.setup('fast');
-
-    // faucet calls proxy_faucetDrip (returns null), then proxy_getAccountInfo for balance
     let callCount = 0;
     globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
       callCount++;
       const bodyText = typeof init?.body === 'string' ? init.body : '';
       const parsed = JSON.parse(bodyText) as { method: string };
-
       if (parsed.method === 'proxy_faucetDrip') {
-        return {
-          ok: true,
-          json: async () => ({ jsonrpc: '2.0', id: 1, result: null }),
-        } as Response;
+        return { ok: true, json: async () => ({ jsonrpc: '2.0', id: 1, result: null }) } as Response;
       }
-      // proxy_getAccountInfo — return balance after faucet
       return {
         ok: true,
-        json: async () => ({
-          jsonrpc: '2.0',
-          id: 1,
-          result: { balance: '21e19e0c9bab2400000', next_nonce: 1 }, // ~10000 SET
-        }),
+        json: async () => ({ jsonrpc: '2.0', id: 1, result: { balance: '21e19e0c9bab2400000', next_nonce: 1 } }),
       } as Response;
     }) as FetchFn;
-
     const result = await money.faucet('fast');
     assert.equal(result.chain, 'fast');
     assert.equal(result.token, 'SET');
     assert.ok(typeof result.txHash === 'string');
-    assert.ok(parseFloat(result.amount) > 0, `expected positive amount, got: ${result.amount}`);
-    assert.ok(callCount >= 2, `expected at least 2 RPC calls (faucetDrip + getAccountInfo), got ${callCount}`);
+    assert.ok(parseFloat(result.amount) > 0);
+    assert.ok(callCount >= 2);
   });
 
   it('throws for unconfigured chain', async () => {
-    await seedConfig(tmpDir); // only fast in config
-
+    await seedConfig(tmpDir);
     await assert.rejects(
       () => money.faucet('solana'),
-      (err: Error) => {
-        assert.ok(err instanceof Error);
+      (err: unknown) => {
+        assert.ok(err instanceof MoneyError);
         assert.ok(
-          err.message.includes('solana') || err.message.includes('not configured'),
-          `unexpected message: ${err.message}`,
+          (err as MoneyError).message.includes('solana') || (err as MoneyError).message.includes('not configured'),
         );
         return true;
       },
@@ -371,26 +321,101 @@ describe('money.faucet', () => {
   });
 });
 
+// ─── money.alias ─────────────────────────────────────────────────────────────
+
+describe('money.alias', () => {
+  it('GET returns null for unknown alias', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast');
+    const result = await money.alias('fast', 'NOTEXIST');
+    assert.equal(result, null);
+  });
+
+  it('SET then GET returns the alias', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast');
+    await money.alias('fast', 'MYTOKEN', { address: '0x1234567890123456789012345678901234567890', decimals: 18 });
+    const result = await money.alias('fast', 'MYTOKEN');
+    assert.ok(result !== null);
+    assert.equal(result!.name, 'MYTOKEN');
+    assert.equal(result!.address, '0x1234567890123456789012345678901234567890');
+    assert.equal(result!.decimals, 18);
+  });
+
+  it('throws CHAIN_NOT_CONFIGURED for unconfigured chain', async () => {
+    await assert.rejects(
+      () => money.alias('bitcoin', 'BTC'),
+      (err: unknown) => {
+        assert.ok(err instanceof MoneyError);
+        assert.equal((err as MoneyError).code, 'CHAIN_NOT_CONFIGURED');
+        return true;
+      },
+    );
+  });
+});
+
+// ─── money.aliases ─────────────────────────────────────────────────────────────
+
+describe('money.aliases', () => {
+  it('returns empty array when no aliases set', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast');
+    const result = await money.aliases('fast');
+    assert.ok(Array.isArray(result));
+    // fast chain has no DEFAULT_ALIASES so should be empty
+    assert.equal(result.length, 0);
+  });
+
+  it('returns aliases after SET', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast');
+    await money.alias('fast', 'TKN', { address: '0xaaa' + '0'.repeat(37), decimals: 6 });
+    const result = await money.aliases('fast');
+    assert.ok(result.some(t => t.name === 'TKN'));
+  });
+
+  it('returns empty array for unconfigured chain (no throw)', async () => {
+    const result = await money.aliases('unknown');
+    assert.ok(Array.isArray(result));
+    assert.equal(result.length, 0);
+  });
+});
+
 // ─── money.history ─────────────────────────────────────────────────────────────
 
 describe('money.history', () => {
-  it('returns empty array when adapter has no getHistory (fast adapter)', async () => {
+  it('returns empty array when no sends have occurred', async () => {
     await seedConfig(tmpDir);
     await money.setup('fast');
-
-    // Fast adapter has no getHistory method, so history() skips it
     const entries = await money.history('fast');
     assert.ok(Array.isArray(entries));
     assert.equal(entries.length, 0);
   });
 
-  it('returns empty array when called with no chain and fast is the only configured chain', async () => {
+  it('returns empty array when called with no chain and no history exists', async () => {
     await seedConfig(tmpDir);
     await money.setup('fast');
-
     const entries = await money.history();
     assert.ok(Array.isArray(entries));
     assert.equal(entries.length, 0);
+  });
+
+  it('returns entries from history.csv after a send', async () => {
+    await seedConfig(tmpDir);
+    const setupResult = await money.setup('fast');
+    const from = setupResult.address;
+    globalThis.fetch = standardFastFetch({
+      proxy_getAccountInfo: { balance: '56bc75e2d630fffff', next_nonce: 1 },
+    });
+    await money.send(from, '0.001');
+    const entries = await money.history();
+    assert.ok(Array.isArray(entries));
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].chain, 'fast');
+    assert.equal(entries[0].amount, '0.001');
+    assert.equal(entries[0].token, 'SET');
+    assert.ok(typeof entries[0].txHash === 'string');
+    assert.ok(typeof entries[0].ts === 'string');
   });
 });
 
@@ -404,153 +429,46 @@ describe('money.detect', () => {
 
   it('detects EVM chain from 0x... address', () => {
     const result = money.detect('0x742d35Cc6634C0532925a3b8D4C9b34EcFedBCfB');
-    // Returns first EVM chain found in DEFAULT_CHAIN_CONFIGS (base, ethereum, or arbitrum)
-    assert.ok(
-      result === 'base' || result === 'ethereum' || result === 'arbitrum',
-      `expected EVM chain, got: ${result}`,
-    );
+    assert.ok(result === 'base' || result === 'ethereum' || result === 'arbitrum');
   });
 
   it('detects "solana" from base58 address', () => {
-    // Valid Solana address (32-44 base58 chars, no 0/O/I/l)
     const result = money.detect('7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU');
     assert.equal(result, 'solana');
   });
 
   it('returns null for garbage input', () => {
-    const result = money.detect('GARBAGE!@#$%NOT_AN_ADDRESS');
-    assert.equal(result, null);
+    assert.equal(money.detect('GARBAGE!@#$%NOT_AN_ADDRESS'), null);
   });
 
   it('returns null for empty string', () => {
-    const result = money.detect('');
-    assert.equal(result, null);
+    assert.equal(money.detect(''), null);
   });
 });
 
-// ─── money.addToken ───────────────────────────────────────────────────────────
-
-describe('money.addToken', () => {
-  it('adds a token — appears in money.tokens()', async () => {
-    await seedConfig(tmpDir);
-    await money.setup('fast');
-
-    await money.addToken('fast', 'MYTOKEN', { address: '0x1234567890123456789012345678901234567890', decimals: 18 });
-
-    const tokens = await money.tokens('fast');
-    const found = tokens.find(t => t.name === 'MYTOKEN');
-    assert.ok(found, 'MYTOKEN should appear in tokens list');
-    assert.equal(found!.address, '0x1234567890123456789012345678901234567890');
-    assert.equal(found!.decimals, 18);
-    assert.equal(found!.chain, 'fast');
-  });
-
-  it('overwrites an existing token entry', async () => {
-    await seedConfig(tmpDir);
-    await money.setup('fast');
-
-    await money.addToken('fast', 'TKN', { address: '0xaaa', decimals: 6 });
-    await money.addToken('fast', 'TKN', { address: '0xbbb', decimals: 18 }); // overwrite
-
-    const tokens = await money.tokens('fast');
-    const tkn = tokens.filter(t => t.name === 'TKN');
-    assert.equal(tkn.length, 1, 'should only have one TKN entry after overwrite');
-    assert.equal(tkn[0].address, '0xbbb');
-    assert.equal(tkn[0].decimals, 18);
-  });
-
-  it('throws CHAIN_NOT_CONFIGURED for unconfigured chain', async () => {
-    // No setup for 'bitcoin'
-    await assert.rejects(
-      () => money.addToken('bitcoin', 'BTC', { decimals: 8 }),
-      (err: unknown) => {
-        assert.ok(err instanceof MoneyError, `expected MoneyError, got: ${String(err)}`);
-        assert.equal((err as MoneyError).code, 'CHAIN_NOT_CONFIGURED');
-        return true;
-      },
-    );
-  });
-});
-
-// ─── money.tokens ─────────────────────────────────────────────────────────────
-
-describe('money.tokens', () => {
-  it('returns empty array when no tokens are configured for the chain', async () => {
-    await seedConfig(tmpDir);
-    await money.setup('fast'); // fast defaults have no tokens map
-
-    const tokens = await money.tokens('fast');
-    assert.ok(Array.isArray(tokens));
-    assert.equal(tokens.length, 0);
-  });
-
-  it('returns tokens for a specific chain after addToken', async () => {
-    await seedConfig(tmpDir);
-    await money.setup('fast');
-
-    await money.addToken('fast', 'TKNA', { address: '0xaaa', decimals: 6 });
-    await money.addToken('fast', 'TKNB', { address: '0xbbb', decimals: 18 });
-
-    const tokens = await money.tokens('fast');
-    assert.equal(tokens.length, 2);
-    assert.ok(tokens.some(t => t.name === 'TKNA'), 'should include TKNA');
-    assert.ok(tokens.some(t => t.name === 'TKNB'), 'should include TKNB');
-  });
-
-  it('returns all tokens across all chains when no chain specified', async () => {
-    await seedConfig(tmpDir);
-    await money.setup('fast');
-    await money.addToken('fast', 'TKNA', { address: '0xaaa', decimals: 6 });
-
-    const tokens = await money.tokens();
-    assert.ok(Array.isArray(tokens));
-    assert.ok(tokens.length >= 1, 'should return at least TKNA');
-    assert.ok(tokens.every(t => typeof t.chain === 'string' && typeof t.name === 'string'));
-  });
-
-  it('token entries have chain field matching the config key', async () => {
-    await seedConfig(tmpDir);
-    await money.setup('fast');
-    await money.addToken('fast', 'TKN', { decimals: 8 });
-
-    const tokens = await money.tokens('fast');
-    const tkn = tokens.find(t => t.name === 'TKN');
-    assert.ok(tkn, 'TKN not found');
-    assert.equal(tkn!.chain, 'fast');
-  });
-});
-
-// ─── money.setup — rpc override ──────────────────────────────────────────────
+// ─── money.setup with rpc override ──────────────────────────────────────────
 
 describe('money.setup with rpc override', () => {
   it('stores custom rpc in config.json', async () => {
     const customRpc = 'https://custom-rpc.example.com';
     await money.setup('fast', { rpc: customRpc });
-
-    // Read config file directly
     const configContent = await fs.readFile(path.join(tmpDir, 'config.json'), 'utf-8');
     const config = JSON.parse(configContent) as { chains: Record<string, { rpc: string }> };
-    assert.equal(config.chains['fast']?.rpc, customRpc, 'custom RPC should be stored in config');
+    assert.equal(config.chains['fast']?.rpc, customRpc);
   });
 
   it('re-setup without rpc option preserves existing custom rpc', async () => {
     const customRpc = 'https://custom-rpc.example.com';
-
-    // First setup with custom RPC
     await money.setup('fast', { rpc: customRpc });
-
-    // Re-setup without rpc option — should preserve, NOT reset to default
-    await money.setup('fast'); // no rpc option
-
+    await money.setup('fast');
     const configContent = await fs.readFile(path.join(tmpDir, 'config.json'), 'utf-8');
     const config = JSON.parse(configContent) as { chains: Record<string, { rpc: string }> };
-    assert.equal(config.chains['fast']?.rpc, customRpc, 'existing RPC should be preserved on re-setup');
+    assert.equal(config.chains['fast']?.rpc, customRpc);
   });
 
   it('second rpc option overwrites previous custom rpc', async () => {
     await money.setup('fast', { rpc: 'https://first-rpc.example.com' });
     await money.setup('fast', { rpc: 'https://second-rpc.example.com' });
-
     const configContent = await fs.readFile(path.join(tmpDir, 'config.json'), 'utf-8');
     const config = JSON.parse(configContent) as { chains: Record<string, { rpc: string }> };
     assert.equal(config.chains['fast']?.rpc, 'https://second-rpc.example.com');
@@ -564,9 +482,8 @@ describe('money.send with opts.chain', () => {
     await seedConfig(tmpDir);
     await money.setup('fast');
     globalThis.fetch = standardFastFetch({
-      proxy_getAccountInfo: { balance: 'de0b6b3a7640000000', next_nonce: 1 }, // enough balance
+      proxy_getAccountInfo: { balance: 'de0b6b3a7640000000', next_nonce: 1 },
     });
-
     const to = 'set1ld55rskkecy2wflhf0kmfr82ay937tpq7zwmx978udetmqqt2task3fcxc';
     const result = await money.send(to, 1, { chain: 'fast' });
     assert.equal(result.chain, 'fast');
@@ -576,12 +493,11 @@ describe('money.send with opts.chain', () => {
   it('opts.chain="fast" with an EVM address throws INVALID_ADDRESS', async () => {
     await seedConfig(tmpDir);
     await money.setup('fast');
-
     const evmAddress = '0x742d35Cc6634C0532925a3b8D4C9b34EcFedBCfB';
     await assert.rejects(
       () => money.send(evmAddress, 1, { chain: 'fast' }),
       (err: unknown) => {
-        assert.ok(err instanceof MoneyError, `expected MoneyError, got: ${String(err)}`);
+        assert.ok(err instanceof MoneyError);
         assert.equal((err as MoneyError).code, 'INVALID_ADDRESS');
         return true;
       },
@@ -594,7 +510,6 @@ describe('money.send with opts.chain', () => {
     globalThis.fetch = standardFastFetch({
       proxy_getAccountInfo: { balance: 'de0b6b3a7640000000', next_nonce: 1 },
     });
-
     const to = 'set1ld55rskkecy2wflhf0kmfr82ay937tpq7zwmx978udetmqqt2task3fcxc';
     const result = await money.send(to, 1, { token: 'SET' });
     assert.equal(result.chain, 'fast');

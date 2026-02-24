@@ -16,7 +16,6 @@ export interface ChainConfig {
   keyfile: string;
   network: string;
   defaultToken: string;
-  tokens?: Record<string, TokenConfig>;
 }
 
 export interface MoneyConfig {
@@ -72,12 +71,12 @@ export interface FaucetResult {
 }
 
 export interface HistoryEntry {
-  txHash: string;
-  direction: 'sent' | 'received';
+  ts: string;       // ISO timestamp
+  chain: string;    // config key e.g. "fast", "base:mainnet"
+  to: string;       // recipient address
   amount: string;
   token: string;
-  counterparty: string;
-  timestamp: string;
+  txHash: string;
 }
 
 export interface SetupOptions {
