@@ -1,14 +1,15 @@
 import type { Metadata } from 'next';
-import { Playfair_Display, DM_Sans, JetBrains_Mono } from 'next/font/google';
+import { Syne, Outfit, JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 
-const playfair = Playfair_Display({
+const syne = Syne({
   subsets: ['latin'],
+  weight: ['400', '500', '600', '700', '800'],
   variable: '--font-display',
   display: 'swap',
 });
 
-const dmSans = DM_Sans({
+const outfit = Outfit({
   subsets: ['latin'],
   variable: '--font-body',
   display: 'swap',
@@ -21,9 +22,9 @@ const jetbrains = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'money — Payment Skill for AI Agents',
+  title: 'money — Payments for AI Agents',
   description:
-    'Send tokens on Fast, Base, Ethereum, Arbitrum, or Solana. RPCs, token addresses, and explorer URLs built in. Three lines of code.',
+    'Drop-in payment skill for AI agents. Send tokens on Fast, Base, Ethereum, Arbitrum, or Solana. Three lines of code.',
 };
 
 export default function RootLayout({
@@ -34,7 +35,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${playfair.variable} ${dmSans.variable} ${jetbrains.variable}`}
+      className={`${syne.variable} ${outfit.variable} ${jetbrains.variable}`}
     >
       <body>{children}</body>
     </html>
