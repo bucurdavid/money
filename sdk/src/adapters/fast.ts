@@ -298,7 +298,6 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
       to: string;
       amount: string;
       token?: string;
-      memo?: string;
       keyfile: string;
     }): Promise<{ txHash: string; explorerUrl: string; fee: string }> {
       const hexAmount = toHex(params.amount, FAST_DECIMALS);

@@ -25,9 +25,9 @@ The entire skill is 3 steps:
 
 ```js
 const { money } = await import(`${process.env.HOME}/.config/opencode/skills/money/money.bundle.js`);
-await money.setup("fast");                          // 1. create wallet (once)
-const bal = await money.balance("fast");            // 2. check balance
-const tx = await money.send("set1qxy...", 10);      // 3. send tokens
+await money.setup({ chain: "fast" });                                          // 1. create wallet (once)
+const bal = await money.balance({ chain: "fast" });                            // 2. check balance
+const tx = await money.send({ to: "set1qxy...", amount: 10, chain: "fast" }); // 3. send tokens
 ```
 
 That pattern is identical on every chain. Only the chain name and address format change.
@@ -69,53 +69,63 @@ Call once per chain. Creates a wallet, stores RPC config. All defaults are built
 const { money } = await import(`${process.env.HOME}/.config/opencode/skills/money/money.bundle.js`);
 
 // testnet (default) — safe, faucet available, RPC built in
-const w = await money.setup("fast");
-// w = { chain: "fast", address: "set1...", network: "testnet" }
+const w = await money.setup({ chain: "fast" });
+// w = { chain: "fast", address: "set1...", network: "testnet", note: "Fund this wallet:\n  await money.faucet({ chain: \"fast\" })" }
 
 // mainnet — real money, faucet disabled, optional custom RPC
-const w = await money.setup("base", { network: "mainnet", rpc: "https://your-rpc-url" });
-// w = { chain: "base", address: "0x...", network: "mainnet" }
+const w = await money.setup({ chain: "base", network: "mainnet", rpc: "https://your-rpc-url" });
+// w = { chain: "base", address: "0x...", network: "mainnet", note: "" }
 ```
 
-Same call for every chain. Only the first argument changes. RPC is stored permanently — no need to pass it again.
+Same call for every chain. Only the `chain` value changes. RPC is stored permanently — no need to pass it again.
 
 ---
 
 ## Send Tokens
 
-The skill detects the chain from the address format:
+Chain is always required. Use `identifyChains()` if you don't know which chain an address belongs to.
 
 | Address looks like | Chain | Default token |
 |---|---|---|
 | `set` prefix (bech32m, e.g. `set1abc...`) | Fast | SET |
-| `0x` + 40 hex chars | Base (or override: Ethereum, Arbitrum) | ETH |
+| `0x` + 40 hex chars | Base, Ethereum, or Arbitrum | ETH |
 | Base58, 32-44 chars | Solana | SOL |
 
 ```js
-// Fast — chain and token auto-detected (native: SET)
-const tx = await money.send("set1qxy2kfcg...", 10);
+// Send native tokens
+const tx = await money.send({ to: "set1qxy...", amount: 10, chain: "fast" });
+// tx = { txHash, explorerUrl, fee, chain, network, note }
 
-// EVM — native ETH by default, override chain if needed
-const tx = await money.send("0x1234...abcd", 1.5, { chain: "ethereum" });
+// Send on EVM — chain is always required
+const tx = await money.send({ to: "0x1234...abcd", amount: 1.5, chain: "ethereum" });
 
-// EVM — non-native token: pass raw address or a registered alias
-const tx = await money.send("0x1234...abcd", 25, { chain: "base", token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" });
-
-// tx = { txHash, explorerUrl, fee, chain, network }
+// Send non-native token
+const tx = await money.send({ to: "0x1234...abcd", amount: 25, chain: "base", token: "USDC" });
 ```
 
-Solana works like Fast — chain auto-detected, native SOL by default. For SPL tokens pass the mint address or a registered alias as `token`.
+### Don't know the chain? Use identifyChains
+
+```js
+// Identify which chains an address format belongs to
+const result = await money.identifyChains({ address: "0x1234...abcd" });
+// result = { chains: ["base", "ethereum", "arbitrum"], note: "Multiple chains use this address format. Ask the user which chain to use." }
+```
+
+Solana works like Fast — native SOL by default. For SPL tokens pass the mint address or a registered token name as `token`.
 
 ---
 
 ## Check Balance
 
 ```js
-const bal = await money.balance("fast");
-// bal = { amount: "42.5", token: "SET", chain: "fast", network: "testnet", address: "set1..." }
+const bal = await money.balance({ chain: "fast" });
+// bal = { amount: "42.5", token: "SET", chain: "fast", network: "testnet", address: "set1...", note: "" }
 
-const all = await money.balance();  // all configured chains at once
+// Check a specific token
+const bal = await money.balance({ chain: "base", token: "USDC" });
 ```
+
+For balances across all configured chains, use `money.status()`.
 
 ---
 
@@ -124,8 +134,8 @@ const all = await money.balance();  // all configured chains at once
 Testnet only. Not available on mainnet.
 
 ```js
-const r = await money.faucet("fast");
-// r = { amount, token, txHash, chain, network }
+const r = await money.faucet({ chain: "fast" });
+// r = { amount, token, txHash, chain, network, note: "Check balance:\n  await money.balance({ chain: \"fast\" })" }
 ```
 
 If it throws `TX_FAILED`, the manual faucet URL is in `e.details.faucetUrl`.
@@ -134,27 +144,34 @@ If it throws `TX_FAILED`, the manual faucet URL is in `e.details.faucetUrl`.
 
 ## Error Recovery
 
+All errors have `{ code, message, note }`. The `note` field contains a working code example showing how to fix the error.
+
 | `e.code` | Meaning | Action |
 |---|---|---|
-| `INSUFFICIENT_BALANCE` | Not enough tokens | Testnet: `money.faucet(chain)`, retry. Mainnet: fund wallet. |
-| `CHAIN_NOT_CONFIGURED` | No wallet for chain | `money.setup(chain)`, retry. |
+| `INVALID_PARAMS` | Missing or invalid parameter | Read `e.note` for the correct call shape. |
+| `INSUFFICIENT_BALANCE` | Not enough tokens | Testnet: `money.faucet({ chain })`, retry. Mainnet: fund wallet. |
+| `CHAIN_NOT_CONFIGURED` | No wallet for chain | `money.setup({ chain })`, retry. |
 | `TX_FAILED` | RPC/network error | Wait 5s, retry once. If still fails, stop. |
+| `FAUCET_THROTTLED` | Faucet rate limited | Wait and retry later. |
 | `INVALID_ADDRESS` | Bad address | Do not retry. Confirm address with user. |
-| `TOKEN_NOT_FOUND` | Token not registered | `money.alias(chain, name, { address, decimals })`, retry. |
+| `TOKEN_NOT_FOUND` | Token not registered | `money.registerToken({ chain, name, address, decimals })`, retry. |
 
 ```js
 try {
-  await money.send("set1qxy2kfcg...", 10);
+  await money.send({ to: "set1qxy...", amount: 10, chain: "fast" });
 } catch (e) {
+  // e.note contains a code example showing how to fix the error
+  console.log(e.code, e.message, e.note);
+
   if (e.code === "INSUFFICIENT_BALANCE") {
-    await money.faucet("fast");
-    await money.send("set1qxy2kfcg...", 10);
+    await money.faucet({ chain: "fast" });
+    await money.send({ to: "set1qxy...", amount: 10, chain: "fast" });
   } else if (e.code === "CHAIN_NOT_CONFIGURED") {
-    await money.setup("fast");
-    await money.send("set1qxy2kfcg...", 10);
+    await money.setup({ chain: "fast" });
+    await money.send({ to: "set1qxy...", amount: 10, chain: "fast" });
   } else if (e.code === "TX_FAILED") {
     await new Promise(r => setTimeout(r, 5000));
-    await money.send("set1qxy2kfcg...", 10);
+    await money.send({ to: "set1qxy...", amount: 10, chain: "fast" });
   } else {
     throw e;
   }
@@ -168,12 +185,12 @@ try {
 Check history before sending to avoid double sends:
 
 ```js
-const history = await money.history("fast");
-const already = history.find(e => e.to === to && e.amount === String(amount));
+const { entries } = await money.history({ chain: "fast" });
+const already = entries.find(e => e.to === to && e.amount === String(amount));
 if (already) {
   console.log("Already sent:", already.txHash);
 } else {
-  await money.send(to, amount);
+  await money.send({ to, amount, chain: "fast" });
 }
 ```
 
@@ -184,9 +201,9 @@ if (already) {
 This skill does not detect incoming payments. Use balance delta as a proxy:
 
 ```js
-const before = await money.balance("fast");
+const before = await money.balance({ chain: "fast" });
 // ... wait ...
-const after = await money.balance("fast");
+const after = await money.balance({ chain: "fast" });
 const delta = parseFloat(after.amount) - parseFloat(before.amount);
 if (delta > 0) console.log("Received:", delta, after.token);
 ```
@@ -205,19 +222,16 @@ Native token works immediately after `setup()` — no configuration needed.
 | Base, Ethereum, Arbitrum | ETH |
 | Solana | SOL |
 
-For other tokens, pass the contract/mint address directly (decimals fetched automatically) or register a named alias:
+For other tokens, register a named token once and use it by name forever:
 
 ```js
-// Raw contract/mint address — works immediately, no registration needed
-await money.send("0x1234...abcd", 0.5, { token: "0x4200000000000000000000000000000000000006" });
+// Register a named token once, use by name forever
+await money.registerToken({ chain: "base", name: "USDC", address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 });
+await money.send({ to: "0x1234...abcd", amount: 25, chain: "base", token: "USDC" });
 
-// Register a named alias once, use by name forever
-await money.alias("base", "USDC", { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 });
-await money.send("0x1234...abcd", 25, { token: "USDC" });
-
-// Look up or list aliases
-const info = await money.alias("base", "USDC");
-const all = await money.aliases("base");
+// Look up or list tokens
+const info = await money.getToken({ chain: "base", name: "USDC" });
+const { tokens } = await money.tokens({ chain: "base" });
 ```
 
 **Known USDC addresses:**
@@ -238,9 +252,9 @@ const all = await money.aliases("base");
 ## History
 
 ```js
-const all = await money.history();           // all chains
-const fast = await money.history("fast");    // one chain
-const last5 = await money.history(5);        // last N across all chains
+const { entries } = await money.history();                          // all chains
+const { entries } = await money.history({ chain: "fast" });         // one chain
+const { entries } = await money.history({ limit: 5 });              // last 5
 
 // Each entry: { ts, chain, network, to, amount, token, txHash }
 ```
@@ -251,19 +265,16 @@ const last5 = await money.history(5);        // last N across all chains
 
 | Method | Returns |
 |--------|---------|
-| `money.setup(chain, opts?)` | `{ chain, address, network }` |
-| `money.balance(chain?, token?)` | `{ amount, token, chain, network, address }` or array |
-| `money.send(to, amount, opts?)` | `{ txHash, explorerUrl, fee, chain, network }` |
-| `money.faucet(chain)` | `{ amount, token, txHash, chain, network }` |
-| `money.wallets()` | `[{ chain, network, address, balances }]` |
-| `money.chains()` | `[{ chain, address, network, status }]` |
-| `money.detect(address)` | `string` (chain name) or `null` |
-| `money.history(chainOrLimit?, limit?)` | `[{ ts, chain, network, to, amount, token, txHash }]` |
-| `money.alias(chain, name)` | `TokenInfo` or `null` |
-| `money.alias(chain, name, config)` | `null` |
-| `money.aliases(chain)` | `TokenInfo[]` |
+| `money.setup({ chain, network?, rpc? })` | `{ chain, address, network, note }` |
+| `money.status()` | `{ entries: [{ chain, address, network, defaultToken, status, balance? }], note }` |
+| `money.balance({ chain, token? })` | `{ amount, token, chain, network, address, note }` |
+| `money.send({ to, amount, chain, token? })` | `{ txHash, explorerUrl, fee, chain, network, note }` |
+| `money.faucet({ chain })` | `{ amount, token, txHash, chain, network, note }` |
+| `money.identifyChains({ address })` | `{ chains: string[], note }` |
+| `money.getToken({ chain, name })` | `TokenInfo` or `null` |
+| `money.registerToken({ chain, name, address?, mint?, decimals? })` | `void` |
+| `money.tokens({ chain })` | `{ tokens: TokenInfo[], note }` |
+| `money.history({ chain?, limit? })` | `{ entries: [{ ts, chain, network, to, amount, token, txHash }], note }` |
 
-`opts` for `setup`: `{ network?: "testnet" | "mainnet", rpc?: string }`
-`opts` for `send`: `{ chain?: string, token?: string, memo?: string }`
-`config` for `alias`: `{ address?: string, mint?: string, decimals?: number }`
-
+All errors: `{ code, message, note }`. The `note` field contains a code example showing how to fix the error.
+`token` defaults to `"native"` when omitted. `"native"` resolves to SET (Fast), ETH (Base/Ethereum/Arbitrum), SOL (Solana).

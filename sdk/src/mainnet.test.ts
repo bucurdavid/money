@@ -109,7 +109,7 @@ describe('parseConfigKey', () => {
 describe('money.setup mainnet', () => {
   it('defaults to testnet when no options provided (backward compat)', async () => {
     await seedConfig(tmpDir);
-    const result = await money.setup('fast');
+    const result = await money.setup({ chain: 'fast' });
     assert.equal(result.network, 'testnet');
     assert.equal(result.chain, 'fast');
     assert.ok(result.address.startsWith('set1'));
@@ -117,7 +117,7 @@ describe('money.setup mainnet', () => {
 
   it('sets up mainnet when { network: "mainnet" } passed', async () => {
     await seedConfig(tmpDir, { 'fast:mainnet': fastMainnetConfig(tmpDir) });
-    const result = await money.setup('fast', { network: 'mainnet' });
+    const result = await money.setup({ chain: 'fast', network: 'mainnet' });
     assert.equal(result.network, 'mainnet');
     assert.equal(result.chain, 'fast');
     assert.ok(result.address.startsWith('set1'));
@@ -125,8 +125,8 @@ describe('money.setup mainnet', () => {
 
   it('testnet and mainnet use separate keyfiles', async () => {
     await seedConfig(tmpDir, { 'fast:mainnet': fastMainnetConfig(tmpDir) });
-    const testnet = await money.setup('fast');
-    const mainnet = await money.setup('fast', { network: 'mainnet' });
+    const testnet = await money.setup({ chain: 'fast' });
+    const mainnet = await money.setup({ chain: 'fast', network: 'mainnet' });
 
     // Different keyfiles should produce different addresses
     // (unless user explicitly symlinks them — but in test they're separate)
@@ -139,8 +139,8 @@ describe('money.setup mainnet', () => {
 
   it('testnet and mainnet configs coexist in config.json', async () => {
     await seedConfig(tmpDir);
-    await money.setup('fast');
-    await money.setup('fast', { network: 'mainnet' });
+    await money.setup({ chain: 'fast' });
+    await money.setup({ chain: 'fast', network: 'mainnet' });
 
     // Read config directly
     const raw = await fs.readFile(path.join(tmpDir, 'config.json'), 'utf-8');
@@ -156,10 +156,10 @@ describe('money.setup mainnet', () => {
 describe('faucet mainnet gating', () => {
   it('faucet throws on mainnet for fast', async () => {
     await seedConfig(tmpDir, { 'fast:mainnet': fastMainnetConfig(tmpDir) });
-    await money.setup('fast', { network: 'mainnet' });
+    await money.setup({ chain: 'fast', network: 'mainnet' });
 
     await assert.rejects(
-      () => money.faucet('fast:mainnet'),
+      () => money.faucet({ chain: 'fast:mainnet' }),
       (err: unknown) => {
         assert.ok(err instanceof MoneyError, `expected MoneyError, got ${String(err)}`);
         assert.equal((err as MoneyError).code, 'TX_FAILED');
@@ -171,14 +171,14 @@ describe('faucet mainnet gating', () => {
 
   it('faucet still works on testnet for fast', async () => {
     await seedConfig(tmpDir);
-    await money.setup('fast');
+    await money.setup({ chain: 'fast' });
 
     globalThis.fetch = makeFetchMock({
       proxy_faucetDrip: null,
       proxy_getAccountInfo: { balance: '21e19e0c9bab2400000', next_nonce: 1 },
     });
 
-    const result = await money.faucet('fast');
+    const result = await money.faucet({ chain: 'fast' });
     assert.equal(result.chain, 'fast');
     assert.equal(result.network, 'testnet');
     assert.ok(parseFloat(result.amount) > 0);

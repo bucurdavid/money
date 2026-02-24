@@ -177,7 +177,6 @@ export function createEvmAdapter(
     to: string;
     amount: string;
     token?: string;
-    memo?: string;
     keyfile: string;
   }): Promise<{ txHash: string; explorerUrl: string; fee: string }> {
     // Resolve token BEFORE entering withKey so errors propagate cleanly

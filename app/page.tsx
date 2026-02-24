@@ -85,21 +85,21 @@ export default async function Home() {
                 <span className="step-n">1</span>
                 <div className="step-body">
                   <span className="step-name">Setup</span>
-                  <code>await money.setup(&quot;fast&quot;)</code>
+                   <code>{'await money.setup({ chain: "fast" })'}</code>
                 </div>
               </div>
               <div className="step">
                 <span className="step-n">2</span>
                 <div className="step-body">
                   <span className="step-name">Balance</span>
-                  <code>await money.balance(&quot;fast&quot;)</code>
+                   <code>{'await money.balance({ chain: "fast" })'}</code>
                 </div>
               </div>
               <div className="step">
                 <span className="step-n">3</span>
                 <div className="step-body">
                   <span className="step-name">Send</span>
-                  <code>await money.send(&quot;set1...&quot;, 10)</code>
+                   <code>{'await money.send({ to: "set1...", amount: 10, chain: "fast" })'}</code>
                 </div>
               </div>
             </div>

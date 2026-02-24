@@ -9,25 +9,21 @@ const PATTERNS: Record<string, RegExp> = {
 const EVM_CHAINS = ['base', 'ethereum', 'arbitrum'];
 
 /**
- * Detect chain from address format.
- * For EVM addresses, returns the configured EVM chain only when exactly one
- * EVM chain is configured. Returns null when multiple EVM chains are configured
- * (ambiguous — caller must require explicit chain) or when none are configured.
+ * Identify which chain(s) an address could belong to based on format.
+ * Returns all possible chains — caller decides how to narrow.
+ * EVM addresses return all 3 EVM chains since they share the same format.
  */
-export function detectChain(address: string, configuredChains: string[]): string | null {
+export function identifyChains(address: string): string[] {
   if (PATTERNS.fast.test(address)) {
-    return 'fast';
+    return ['fast'];
   }
   if (PATTERNS.evm.test(address)) {
-    const evmMatches = EVM_CHAINS.filter(c => configuredChains.includes(c));
-    if (evmMatches.length === 1) return evmMatches[0];
-    if (evmMatches.length > 1) return null; // ambiguous — caller should require explicit chain
-    return null; // no EVM chains configured
+    return [...EVM_CHAINS];
   }
   if (PATTERNS.solana.test(address)) {
-    return 'solana';
+    return ['solana'];
   }
-  return null;
+  return [];
 }
 
 /**

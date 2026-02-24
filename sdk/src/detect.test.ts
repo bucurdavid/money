@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { detectChain, isValidAddress, getAddressPattern } from './detect.js';
+import { identifyChains, isValidAddress, getAddressPattern } from './detect.js';
 
 // ─── Realistic test addresses ──────────────────────────────────────────────
 // fast: 'set1' + 38+ lowercase alphanumeric chars (real wallet address)
@@ -12,39 +12,26 @@ const SOLANA_ADDR  = '9xQeWvG816bUx9EPjHmaT23yvVM2ZWbrrpZb9PusVFin';
 // invalid: clearly wrong
 const INVALID_ADDR = 'not-a-valid-address';
 
-// ─── detectChain ───────────────────────────────────────────────────────────
-describe('detectChain', () => {
-  it('returns "fast" for a fast (bech32m) address', () => {
-    assert.equal(detectChain(FAST_ADDR, []), 'fast');
+// ─── identifyChains ────────────────────────────────────────────────────────
+describe('identifyChains', () => {
+  it('returns ["fast"] for a fast (bech32m) address', () => {
+    assert.deepStrictEqual(identifyChains(FAST_ADDR), ['fast']);
   });
 
-  it('returns the configured EVM chain when one EVM chain is configured', () => {
-    assert.equal(detectChain(EVM_ADDR, ['base']), 'base');
+  it('returns all 3 EVM chains for an EVM address', () => {
+    assert.deepStrictEqual(identifyChains(EVM_ADDR), ['base', 'ethereum', 'arbitrum']);
   });
 
-  it('returns null when multiple EVM chains are configured (ambiguous)', () => {
-    // Multiple EVM chains configured — cannot auto-detect, caller must specify explicitly
-    assert.equal(detectChain(EVM_ADDR, ['ethereum', 'base']), null);
+  it('returns ["solana"] for a solana (base58) address', () => {
+    assert.deepStrictEqual(identifyChains(SOLANA_ADDR), ['solana']);
   });
 
-  it('returns "ethereum" when only ethereum is configured', () => {
-    assert.equal(detectChain(EVM_ADDR, ['ethereum']), 'ethereum');
+  it('returns [] for an invalid address', () => {
+    assert.deepStrictEqual(identifyChains(INVALID_ADDR), []);
   });
 
-  it('returns null when no EVM chains are configured', () => {
-    assert.equal(detectChain(EVM_ADDR, []), null);
-  });
-
-  it('returns null when only non-EVM chains are configured', () => {
-    assert.equal(detectChain(EVM_ADDR, ['fast', 'solana']), null);
-  });
-
-  it('returns "solana" for a solana (base58) address', () => {
-    assert.equal(detectChain(SOLANA_ADDR, []), 'solana');
-  });
-
-  it('returns null for an invalid address', () => {
-    assert.equal(detectChain(INVALID_ADDR, ['base', 'ethereum']), null);
+  it('returns [] for an empty string', () => {
+    assert.deepStrictEqual(identifyChains(''), []);
   });
 });
 
