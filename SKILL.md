@@ -76,7 +76,7 @@ The SDK detects the chain from the address format:
 
 | Address looks like | Chain | Default token |
 |---|---|---|
-| `set1...` | Fast | SET |
+| `set` prefix (bech32m, e.g. `set1abc...`) | Fast | SET |
 | `0x` + 40 hex chars | Base (or override: Ethereum, Arbitrum) | ETH |
 | Base58, 32-44 chars | Solana | SOL |
 
