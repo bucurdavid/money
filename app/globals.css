@@ -294,6 +294,9 @@ code { font-family: var(--font-mono), 'SF Mono', 'Consolas', monospace; }
   color: var(--accent);
   white-space: nowrap;
   font-family: var(--font-mono), monospace;
+  overflow-x: auto;
+  max-width: 100%;
+  display: block;
 }
 
 .install-hint {
@@ -428,6 +431,9 @@ code { font-family: var(--font-mono), 'SF Mono', 'Consolas', monospace; }
   white-space: nowrap;
   font-family: var(--font-mono), monospace;
   transition: border-color 0.2s, color 0.2s;
+  overflow-x: auto;
+  max-width: 100%;
+  display: block;
 }
 
 .step:hover .step-body code {
@@ -649,9 +655,25 @@ code { font-family: var(--font-mono), 'SF Mono', 'Consolas', monospace; }
     flex-direction: column;
     align-items: flex-start;
     gap: 1rem;
+    padding: 1.25rem 1rem;
   }
 
-  .install-text { flex-direction: column; gap: 0.4rem; }
+  .install-text {
+    flex-direction: column;
+    gap: 0.4rem;
+    width: 100%;
+  }
+
+  .install-cmd {
+    font-size: 0.75rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .step-body code {
+    font-size: 0.68rem;
+    padding: 0.35rem 0.6rem;
+  }
 }
 
 /* ── Responsive — Mobile ───────────────────────────────────────── */
@@ -700,10 +722,23 @@ code { font-family: var(--font-mono), 'SF Mono', 'Consolas', monospace; }
   .nav-links { gap: 1.25rem; }
   .nav-links a { font-size: 0.65rem; }
 
-  .chain-table { font-size: 0.75rem; }
-  .chain-table th { font-size: 0.5rem; }
-  .chain-table td { padding: 0.7rem 0.875rem 0.7rem 0; }
+  .chain-table { font-size: 0.72rem; }
+  .chain-table th { font-size: 0.48rem; padding-right: 0.6rem; }
+  .chain-table td { padding: 0.6rem 0.6rem 0.6rem 0; }
+  .chain-table code { font-size: 0.65rem; }
+  .net { font-size: 0.5rem; padding: 0.08rem 0.3rem; margin-right: 0.2rem; }
 
-  .install-cmd { font-size: 0.8rem; }
-  .install-block { padding: 1.35rem 1.25rem; }
+  .install-cmd {
+    font-size: 0.7rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .install-block { padding: 1.1rem 1rem; }
+
+  .step-body code {
+    font-size: 0.62rem;
+    padding: 0.3rem 0.5rem;
+  }
+
+  .hero-label { font-size: 0.55rem; letter-spacing: 0.15em; }
 }
