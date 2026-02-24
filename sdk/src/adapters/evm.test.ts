@@ -331,6 +331,21 @@ describe('send', () => {
         oldestBlock: '0x1',
         reward: [['0x3B9ACA00']],
       },
+      eth_getTransactionReceipt: {
+        transactionHash: txHash,
+        blockHash: '0x' + 'b'.repeat(64),
+        blockNumber: '0x1',
+        transactionIndex: '0x0',
+        status: '0x1',
+        gasUsed: '0x5208',
+        effectiveGasPrice: '0x3B9ACA00',
+        cumulativeGasUsed: '0x5208',
+        from: '0x' + '0'.repeat(40),
+        to: '0x' + 'b'.repeat(40),
+        logs: [],
+        logsBloom: '0x' + '0'.repeat(512),
+        type: '0x2',
+      },
     };
   }
 
@@ -352,7 +367,7 @@ describe('send', () => {
     assert.equal(result.txHash, txHash);
     assert.ok(result.explorerUrl.includes(txHash), `explorerUrl should contain txHash: ${result.explorerUrl}`);
     assert.ok(result.explorerUrl.startsWith(FAKE_EXPLORER), `explorerUrl should start with explorer base: ${result.explorerUrl}`);
-    assert.equal(result.fee, '0');
+    assert.equal(result.fee, '0.000021');
   });
 
   it('wraps generic RPC errors as MoneyError("TX_FAILED")', async () => {

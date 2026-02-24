@@ -82,9 +82,11 @@ export function createEvmAdapter(
   rpcUrl: string,
   explorerBaseUrl: string,
   aliases: Record<string, { address: string; decimals: number }>,
+  viemChain?: Chain,
 ): ChainAdapter {
   // Create the publicClient once per adapter instance
   const publicClient: PublicClient = createPublicClient({
+    chain: viemChain,
     transport: http(rpcUrl),
   });
 
@@ -186,6 +188,7 @@ export function createEvmAdapter(
         const account = privateKeyToAccount(`0x${kp.privateKey}` as `0x${string}`);
         const walletClient = createWalletClient({
           account,
+          chain: viemChain,
           transport: http(rpcUrl),
         });
 
@@ -194,7 +197,7 @@ export function createEvmAdapter(
           return walletClient.sendTransaction({
             to: params.to as `0x${string}`,
             value,
-            chain: null as unknown as Chain,
+            chain: viemChain ?? null as unknown as Chain,
           });
         }
 
@@ -204,14 +207,22 @@ export function createEvmAdapter(
           abi: ERC20_ABI,
           functionName: 'transfer',
           args: [params.to as `0x${string}`, amount],
-          chain: null as unknown as Chain,
+          chain: viemChain ?? null as unknown as Chain,
         });
       });
+
+      let fee = '0';
+      try {
+        const receipt = await publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
+        fee = formatUnits(receipt.gasUsed * receipt.effectiveGasPrice, 18);
+      } catch {
+        // Fall back to '0' if receipt fetch fails
+      }
 
       return {
         txHash,
         explorerUrl: `${explorerBaseUrl}/tx/${txHash}`,
-        fee: '0',
+        fee,
       };
     } catch (err) {
       if (err instanceof MoneyError) throw err;
