@@ -13,10 +13,12 @@ Everything works out of the box. RPCs, token addresses, explorer URLs — all bu
 ## Install
 
 ```bash
-git clone https://github.com/bucurdavid/money.git ~/.openclaw-work/skills/money
+mkdir -p ~/.openclaw-work/skills/money
+curl -sL https://raw.githubusercontent.com/bucurdavid/money/main/SKILL.md -o ~/.openclaw-work/skills/money/SKILL.md
+curl -sL https://raw.githubusercontent.com/bucurdavid/money/main/money.bundle.js -o ~/.openclaw-work/skills/money/money.bundle.js
 ```
 
-The bundle is pre-built. No `npm install`, no build step. Clone and use immediately.
+Two files. No git, no npm, no build. Re-run anytime to update.
 
 ---
 
