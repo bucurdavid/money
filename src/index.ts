@@ -10,8 +10,9 @@ import { loadKeyfile, scrubKeyFromError } from './keys.js';
 import { detectChain, isValidAddress } from './detect.js';
 import { MoneyError } from './errors.js';
 import { getAdapter, evictAdapter, _resetAdapterCache } from './registry.js';
-import { DEFAULT_CHAIN_CONFIGS } from './defaults.js';
+import { DEFAULT_CHAIN_CONFIGS, configKey, parseConfigKey, supportedChains } from './defaults.js';
 import type {
+  NetworkType,
   SetupResult,
   ChainInfo,
   WalletInfo,
@@ -26,6 +27,7 @@ import type {
 // ─── Re-exports ───────────────────────────────────────────────────────────────
 
 export type {
+  NetworkType,
   SetupResult,
   ChainInfo,
   WalletInfo,
@@ -47,26 +49,40 @@ export { MoneyError } from './errors.js';
 export type { MoneyErrorCode } from './errors.js';
 export { _resetAdapterCache } from './registry.js';
 
+// ─── Setup Options ────────────────────────────────────────────────────────────
+
+export interface SetupOptions {
+  network?: NetworkType;
+}
+
 // ─── SDK Object ───────────────────────────────────────────────────────────────
 
 export const money = {
-  async setup(chain: string): Promise<SetupResult> {
-    const defaults = DEFAULT_CHAIN_CONFIGS[chain];
+  async setup(chain: string, opts?: SetupOptions): Promise<SetupResult> {
+    const network: NetworkType = opts?.network ?? 'testnet';
+    const chainDefaults = DEFAULT_CHAIN_CONFIGS[chain];
+    if (!chainDefaults) {
+      throw new Error(
+        `No default config for chain "${chain}". Supported chains: ${supportedChains().join(', ')}.`
+      );
+    }
+    const defaults = chainDefaults[network];
     if (!defaults) {
       throw new Error(
-        `No default config for chain "${chain}". Supported chains: ${Object.keys(DEFAULT_CHAIN_CONFIGS).join(', ')}.`
+        `No config for chain "${chain}" on network "${network}".`
       );
     }
 
-    const existing = await getChainConfig(chain);
+    const key = configKey(chain, network);
+    const existing = await getChainConfig(key);
     const chainConfig: ChainConfig = existing
       ? { ...existing, rpc: defaults.rpc, network: defaults.network }
       : { ...defaults };
 
-    await setChainConfig(chain, chainConfig);
-    evictAdapter(chain);
+    await setChainConfig(key, chainConfig);
+    evictAdapter(key);
 
-    const adapter = await getAdapter(chain);
+    const adapter = await getAdapter(key);
     const keyfilePath = expandHome(chainConfig.keyfile);
 
     let address: string;
@@ -84,7 +100,8 @@ export const money = {
     const config = await loadConfig();
     const results: ChainInfo[] = [];
 
-    for (const [chain, chainConfig] of Object.entries(config.chains)) {
+    for (const [key, chainConfig] of Object.entries(config.chains)) {
+      const { chain } = parseConfigKey(key);
       const keyfilePath = expandHome(chainConfig.keyfile);
 
       let keyfileExists = false;
@@ -94,14 +111,14 @@ export const money = {
       } catch { /* Keyfile missing or unreadable */ }
 
       if (!keyfileExists) {
-        results.push({ chain, address: '', network: chainConfig.network, defaultToken: chainConfig.defaultToken, status: 'no-key' });
+        results.push({ chain: key, address: '', network: chainConfig.network, defaultToken: chainConfig.defaultToken, status: 'no-key' });
         continue;
       }
 
       let address = '';
       let status: ChainInfo['status'] = 'ready';
       try {
-        const adapter = await getAdapter(chain);
+        const adapter = await getAdapter(key);
         const result = await adapter.setupWallet(keyfilePath);
         address = result.address;
       } catch (err) {
@@ -109,7 +126,7 @@ export const money = {
         status = (msg.includes('not configured') || msg.includes('no-rpc')) ? 'no-rpc' : 'error';
       }
 
-      results.push({ chain, address, network: chainConfig.network, defaultToken: chainConfig.defaultToken, status });
+      results.push({ chain: key, address, network: chainConfig.network, defaultToken: chainConfig.defaultToken, status });
     }
 
     return results;
@@ -119,11 +136,11 @@ export const money = {
     const config = await loadConfig();
     const results: WalletInfo[] = [];
 
-    for (const [chain, chainConfig] of Object.entries(config.chains)) {
+    for (const [key, chainConfig] of Object.entries(config.chains)) {
       const keyfilePath = expandHome(chainConfig.keyfile);
 
       let adapter;
-      try { adapter = await getAdapter(chain); } catch { continue; }
+      try { adapter = await getAdapter(key); } catch { continue; }
 
       let address: string;
       try { const result = await adapter.setupWallet(keyfilePath); address = result.address; } catch { continue; }
@@ -134,7 +151,7 @@ export const money = {
         balances[bal.token] = bal.amount;
       } catch { /* RPC unavailable */ }
 
-      results.push({ chain, address, balances });
+      results.push({ chain: key, address, balances });
     }
 
     return results;
@@ -142,28 +159,32 @@ export const money = {
 
   async balance(chain?: string, token?: string): Promise<BalanceResult | BalanceResult[]> {
     if (chain) {
-      const chainConfig = await getChainConfig(chain);
-      if (!chainConfig) throw new Error(`Chain "${chain}" is not configured. Run money.setup("${chain}") first.`);
-      const adapter = await getAdapter(chain);
+      // Try the exact key first, then fall back to bare chain name (testnet compat)
+      let chainConfig = await getChainConfig(chain);
+      let key = chain;
+      if (!chainConfig) {
+        throw new Error(`Chain "${chain}" is not configured. Run money.setup("${chain}") first.`);
+      }
+      const adapter = await getAdapter(key);
       const keyfilePath = expandHome(chainConfig.keyfile);
       const { address } = await adapter.setupWallet(keyfilePath);
       const resolvedToken = token ?? chainConfig.defaultToken;
       const bal = await adapter.getBalance(address, resolvedToken);
-      return { chain, address, amount: bal.amount, token: bal.token };
+      return { chain: key, address, amount: bal.amount, token: bal.token };
     }
 
     const config = await loadConfig();
     const results: BalanceResult[] = [];
-    for (const [c, chainConfig] of Object.entries(config.chains)) {
+    for (const [key, chainConfig] of Object.entries(config.chains)) {
       let adapter;
-      try { adapter = await getAdapter(c); } catch { continue; }
+      try { adapter = await getAdapter(key); } catch { continue; }
       const keyfilePath = expandHome(chainConfig.keyfile);
       let address: string;
       try { const result = await adapter.setupWallet(keyfilePath); address = result.address; } catch { continue; }
       const resolvedToken = token ?? chainConfig.defaultToken;
       try {
         const bal = await adapter.getBalance(address, resolvedToken);
-        results.push({ chain: c, address, amount: bal.amount, token: bal.token });
+        results.push({ chain: key, address, amount: bal.amount, token: bal.token });
       } catch { continue; }
     }
     return results;
@@ -178,7 +199,9 @@ export const money = {
 
     const config = await loadConfig();
     const configuredChains = Object.keys(config.chains);
-    const chain = opts?.chain ?? detectChain(to, configuredChains);
+    // For chain detection, use bare chain names from configured keys
+    const bareChains = configuredChains.map(k => parseConfigKey(k).chain);
+    const chain = opts?.chain ?? detectChain(to, bareChains);
 
     if (!chain) {
       throw new MoneyError('INVALID_ADDRESS', `Could not detect chain from address "${to}". Specify opts.chain explicitly.`, { details: { address: to } });
@@ -187,12 +210,22 @@ export const money = {
       throw new MoneyError('INVALID_ADDRESS', `Address "${to}" is not valid for chain "${chain}".`, { chain, details: { address: to } });
     }
 
-    const chainConfig = config.chains[chain];
+    // Find the config key — prefer exact match, then bare chain name
+    let key = chain;
+    let chainConfig = config.chains[chain];
+    if (!chainConfig) {
+      // Check if there's a mainnet config
+      const mainnetKey = `${chain}:mainnet`;
+      if (config.chains[mainnetKey]) {
+        key = mainnetKey;
+        chainConfig = config.chains[mainnetKey];
+      }
+    }
     if (!chainConfig) {
       throw new MoneyError('CHAIN_NOT_CONFIGURED', `Chain "${chain}" is not configured. Run money.setup("${chain}") first.`, { chain });
     }
 
-    const adapter = await getAdapter(chain);
+    const adapter = await getAdapter(key);
     const keyfilePath = expandHome(chainConfig.keyfile);
     const { address: from } = await adapter.setupWallet(keyfilePath);
     const token = opts?.token ?? chainConfig.defaultToken;
@@ -234,11 +267,11 @@ export const money = {
     const chains = chain ? [chain] : Object.keys(config.chains);
     const allEntries: HistoryEntry[] = [];
 
-    for (const c of chains) {
-      const chainConfig = config.chains[c];
+    for (const key of chains) {
+      const chainConfig = config.chains[key];
       if (!chainConfig) continue;
       let adapter;
-      try { adapter = await getAdapter(c); } catch { continue; }
+      try { adapter = await getAdapter(key); } catch { continue; }
       if (typeof adapter.getHistory !== 'function') continue;
       const keyfilePath = expandHome(chainConfig.keyfile);
       let address: string;
@@ -252,6 +285,6 @@ export const money = {
   },
 
   detect(address: string): string | null {
-    return detectChain(address, Object.keys(DEFAULT_CHAIN_CONFIGS));
+    return detectChain(address, supportedChains());
   },
 };

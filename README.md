@@ -18,19 +18,28 @@ await money.faucet("fast");
 await money.send("set1qxy2...", 10);
 ```
 
+### Mainnet
+
+```js
+await money.setup("fast", { network: "mainnet" });
+await money.send("set1qxy2...", 10);
+```
+
+Both testnet and mainnet configs coexist. Testnet is always the default.
+
 ## For AI Agents
 
 See [SKILL.md](./SKILL.md) for agent-optimized instructions.
 
 ## Supported Chains
 
-| Chain | Token | Network | Faucet |
-|-------|-------|---------|--------|
-| Fast | SET | testnet | ✅ programmatic |
-| Base | USDC | sepolia | manual |
-| Ethereum | USDC | sepolia | manual |
-| Arbitrum | USDC | sepolia | manual |
-| Solana | SOL/USDC | devnet | ✅ programmatic |
+| Chain | Token | Testnet | Mainnet | Faucet |
+|-------|-------|---------|---------|--------|
+| Fast | SET | ✅ (default) | ✅ | testnet only |
+| Base | USDC | ✅ sepolia (default) | ✅ | — |
+| Ethereum | USDC | ✅ sepolia (default) | ✅ | — |
+| Arbitrum | USDC | ✅ sepolia (default) | ✅ | — |
+| Solana | SOL/USDC | ✅ devnet (default) | ✅ | testnet only |
 
 ## License
 

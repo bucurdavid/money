@@ -1,6 +1,9 @@
 // Chain names
 export type ChainName = 'fast' | 'base' | 'ethereum' | 'arbitrum' | 'solana';
 
+// Network types
+export type NetworkType = 'testnet' | 'mainnet';
+
 // Config file structure (~/.money/config.json)
 export interface TokenConfig {
   address?: string;  // EVM contract address

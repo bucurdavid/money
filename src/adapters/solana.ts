@@ -55,6 +55,7 @@ async function getSpl(): Promise<typeof import('@solana/spl-token')> {
 export function createSolanaAdapter(
   rpcUrl: string,
   tokens: Record<string, { mint: string; decimals: number }> = {},
+  network: string = 'testnet',
 ): ChainAdapter {
   // ─── Lazy connection ───────────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ export function createSolanaAdapter(
   // ─── Explorer URL builder ──────────────────────────────────────────────────
 
   function explorerUrl(txHash: string): string {
-    const suffix = rpcUrl.toLowerCase().includes('devnet') ? '?cluster=devnet' : '';
+    const suffix = network === 'mainnet' ? '' : '?cluster=devnet';
     return `${EXPLORER_BASE}/${txHash}${suffix}`;
   }
 
@@ -256,6 +257,12 @@ export function createSolanaAdapter(
   // ─── faucet ───────────────────────────────────────────────────────────────
 
   async function faucet(address: string): Promise<{ amount: string; token: string; txHash: string }> {
+    if (network === 'mainnet') {
+      throw new MoneyError('TX_FAILED',
+        'Faucet is not available on mainnet.',
+        { chain: 'solana' },
+      );
+    }
     const { PublicKey, LAMPORTS_PER_SOL } = await getWeb3();
     const connection = await getConnection();
     const pubkey = new PublicKey(address);

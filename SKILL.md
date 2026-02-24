@@ -9,6 +9,21 @@ import { money } from '@fast/money';
 await money.setup("fast");  // creates wallet at ~/.money/keys/fast.json
 ```
 
+## Network Selection
+
+By default, all chains use **testnet**. To use mainnet:
+
+```js
+await money.setup("fast", { network: "mainnet" });
+```
+
+⚠️ **Mainnet uses real money.** Faucets are disabled on mainnet. Both testnet and mainnet wallets can coexist. Each uses a separate keyfile.
+
+| Network | Faucet | Keyfile suffix |
+|---------|--------|----------------|
+| testnet (default) | ✅ Fast, Solana | `keys/<chain>.json` |
+| mainnet | ❌ disabled | `keys/<chain>-mainnet.json` |
+
 ## Send Tokens
 
 1. Check balance
@@ -62,7 +77,7 @@ try {
 
 | Method | Returns |
 |--------|---------|
-| `money.setup(chain)` | `{ chain, address, network }` |
+| `money.setup(chain, opts?)` | `{ chain, address, network }` |
 | `money.balance(chain?)` | `{ amount, token, chain }` |
 | `money.send(to, amount, opts?)` | `{ txHash, explorerUrl, chain }` |
 | `money.faucet(chain)` | `{ amount, token, txHash }` |
@@ -71,4 +86,5 @@ try {
 | `money.detect(address)` | `string` or `null` |
 | `money.history(chain?, limit?)` | `[{ txHash, direction, amount }]` |
 
-`opts`: `{ chain?, token?, memo? }`
+`opts` for setup: `{ network?: "testnet" | "mainnet" }`
+`opts` for send: `{ chain?, token?, memo? }`

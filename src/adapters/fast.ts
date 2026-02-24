@@ -176,7 +176,7 @@ async function rpcCall(
 // Factory
 // ---------------------------------------------------------------------------
 
-export function createFastAdapter(rpcUrl: string): ChainAdapter {
+export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): ChainAdapter {
   return {
     chain: 'fast',
     addressPattern: ADDRESS_PATTERN,
@@ -323,10 +323,15 @@ export function createFastAdapter(rpcUrl: string): ChainAdapter {
     // -----------------------------------------------------------------------
     // faucet: proxy_faucetDrip (returns null on success)
     // -----------------------------------------------------------------------
-    // TODO: Faucet is testnet/staging only. Disable or gate behind network check for production.
     async faucet(
       address: string,
     ): Promise<{ amount: string; token: string; txHash: string }> {
+      if (network === 'mainnet') {
+        throw new MoneyError('TX_FAILED',
+          'Faucet is not available on mainnet.',
+          { chain: 'fast' },
+        );
+      }
       const pubkey = addressToPubkey(address);
       const faucetAmount = '21e19e0c9bab2400000'; // 10,000 SET in hex
 

@@ -15,6 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { money, MoneyError } from './index.js';
+import type { NetworkType } from './types.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
