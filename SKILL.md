@@ -13,19 +13,21 @@ Everything works out of the box. RPCs, token addresses, explorer URLs — all bu
 ## Install
 
 ```bash
-mkdir -p ~/.openclaw-work/skills/money
-curl -sL https://raw.githubusercontent.com/bucurdavid/money/main/SKILL.md -o ~/.openclaw-work/skills/money/SKILL.md
-curl -sL https://raw.githubusercontent.com/bucurdavid/money/main/money.bundle.js -o ~/.openclaw-work/skills/money/money.bundle.js
+mkdir -p ~/.openclaw/workspace/skills/money
+curl -sL https://raw.githubusercontent.com/bucurdavid/money/main/SKILL.md \
+  -o ~/.openclaw/workspace/skills/money/SKILL.md
+curl -sL https://raw.githubusercontent.com/bucurdavid/money/main/money.bundle.js \
+  -o ~/.openclaw/workspace/skills/money/money.bundle.js
 ```
 
-Two files. No git, no npm, no build. Re-run anytime to update.
+Two files. No git, no npm, no build. Re-run anytime to update. Restart the gateway after install so the skill is discovered.
 
 ---
 
 The entire SDK is 3 steps:
 
 ```js
-import { money } from './money.bundle.js';
+const { money } = await import(`${process.env.HOME}/.openclaw/workspace/skills/money/money.bundle.js`);
 await money.setup("fast");                          // 1. create wallet (once)
 const bal = await money.balance("fast");            // 2. check balance
 const tx = await money.send("set1qxy...", 10);      // 3. send tokens
@@ -67,7 +69,7 @@ Stop. Tell the user this skill cannot help with: trading, swapping, DeFi, yield,
 Call once per chain. Creates a wallet, stores RPC config. All defaults are built in — you only pass options to override.
 
 ```js
-import { money } from './money.bundle.js';
+const { money } = await import(`${process.env.HOME}/.openclaw/workspace/skills/money/money.bundle.js`);
 
 // testnet (default) — safe, faucet available, RPC built in
 const w = await money.setup("fast");
