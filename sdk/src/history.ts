@@ -1,5 +1,5 @@
 /**
- * history.ts — Internal send history store for @fast/money SDK
+ * history.ts — Internal send history store for money SDK
  *
  * Append-only CSV at ~/.money/history.csv
  * Format: ts,chain,to,amount,token,txHash

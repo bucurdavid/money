@@ -1,5 +1,5 @@
 /**
- * aliases.ts — Internal alias store for @fast/money SDK
+ * aliases.ts — Internal alias store for money SDK
  *
  * Named token aliases are stored in ~/.money/aliases.json.
  * Format: { "<configKey>": { "<name>": { address?, mint?, decimals? } } }

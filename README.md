@@ -1,9 +1,9 @@
-# @fast/money
+# money
 
 Universal payment SDK for AI agents. RPCs, token addresses, and explorer URLs are built in for all 5 chains — testnet and mainnet. Zero config required.
 
 ```js
-import { money } from '@fast/money';
+const { money } = await import('./money.bundle.js');
 await money.setup("fast");               // create wallet
 await money.balance("fast");            // check balance
 await money.send("set1qxy2...", 10);    // send tokens
@@ -13,9 +13,15 @@ That pattern is identical on every chain. Only the chain name and address change
 
 ## Install
 
+```bash
+mkdir -p ~/.openclaw/workspace/skills/money
+curl -sL https://your-domain.com/skill.md \
+  -o ~/.openclaw/workspace/skills/money/SKILL.md
+curl -sL https://your-domain.com/money.bundle.js \
+  -o ~/.openclaw/workspace/skills/money/money.bundle.js
 ```
-npm install @fast/money
-```
+
+Two files. No git, no npm, no build.
 
 ## Supported Chains
 
@@ -38,7 +44,7 @@ await money.setup("base", { network: "mainnet" });
 | Method | Returns |
 |--------|---------|
 | `money.setup(chain, opts?)` | `{ chain, address, network }` |
-| `money.balance(chain?, opts?)` | `{ amount, token, chain, network, address }` or array |
+| `money.balance(chain?, token?)` | `{ amount, token, chain, network, address }` or array |
 | `money.send(to, amount, opts?)` | `{ txHash, explorerUrl, fee, chain, network }` |
 | `money.faucet(chain)` | `{ amount, token, txHash, chain, network }` |
 | `money.wallets()` | `[{ chain, network, address, balances }]` |

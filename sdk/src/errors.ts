@@ -1,5 +1,5 @@
 /**
- * errors.ts — Structured error codes for @fast/money SDK.
+ * errors.ts — Structured error codes for money SDK.
  *
  * Every throwable error from the SDK is a MoneyError with a machine-readable
  * `code`, optional `chain`, and optional `details` bag. Agents can switch on
@@ -11,7 +11,8 @@ export type MoneyErrorCode =
   | 'CHAIN_NOT_CONFIGURED'
   | 'TX_FAILED'
   | 'FAUCET_THROTTLED'
-  | 'INVALID_ADDRESS';
+  | 'INVALID_ADDRESS'
+  | 'TOKEN_NOT_FOUND';
 
 export class MoneyError extends Error {
   readonly code: MoneyErrorCode;

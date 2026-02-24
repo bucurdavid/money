@@ -1,5 +1,5 @@
 /**
- * utils.ts — Shared utilities for @fast/money SDK
+ * utils.ts — Shared utilities for money SDK
  *
  * Decimal/amount conversion and path helpers.
  */
@@ -27,13 +27,13 @@ export function toRaw(humanAmount: string, decimals: number): bigint {
     : humanAmount;
   const [intPart, fracPart = ''] = normalised.split('.');
   const paddedFrac = fracPart.padEnd(decimals, '0').slice(0, decimals);
-  return BigInt(intPart) * BigInt(10 ** decimals) + BigInt(paddedFrac);
+  return BigInt(intPart) * BigInt(10) ** BigInt(decimals) + BigInt(paddedFrac);
 }
 
 /** Convert raw amount to human-readable decimal */
 export function toHuman(rawAmount: bigint | number | string, decimals: number): string {
   const raw = BigInt(rawAmount);
-  const divisor = BigInt(10 ** decimals);
+  const divisor = BigInt(10) ** BigInt(decimals);
   const intPart = raw / divisor;
   const fracPart = raw % divisor;
   if (fracPart === 0n) return intPart.toString();

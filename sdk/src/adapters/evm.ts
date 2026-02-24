@@ -122,7 +122,7 @@ export function createEvmAdapter(
       return { type: 'erc20', address: aliasConfig.address, decimals: aliasConfig.decimals };
     }
 
-    throw new MoneyError('TX_FAILED', `Token "${t}" is not configured for chain "${chainName}".`, { chain: chainName });
+    throw new MoneyError('TOKEN_NOT_FOUND', `Token "${t}" is not configured for chain "${chainName}".`, { chain: chainName });
   }
 
   // ─── setupWallet ────────────────────────────────────────────────────────────

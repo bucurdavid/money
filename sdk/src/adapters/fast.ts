@@ -10,6 +10,7 @@
 
 import { bcs } from '@mysten/bcs';
 import { bech32m } from 'bech32';
+import { keccak_256 } from '@noble/hashes/sha3';
 import type { ChainAdapter } from './adapter.js';
 import {
   generateEd25519Key,
@@ -29,6 +30,7 @@ import { toHex, fromHex } from '../utils.js';
 const FAST_DECIMALS = 18;
 const DEFAULT_TOKEN = 'SET';
 const ADDRESS_PATTERN = /^set1[a-z0-9]{38,}$/;
+const EXPLORER_BASE = 'https://explorer.fastset.xyz/txs';
 /** Native SET token ID: [0xfa, 0x57, 0x5e, 0x70, 0, 0, ..., 0] */
 const SET_TOKEN_ID = new Uint8Array(32);
 SET_TOKEN_ID.set([0xfa, 0x57, 0x5e, 0x70], 0);
@@ -137,9 +139,20 @@ function addressToPubkey(address: string): Uint8Array {
 function toJSON(data: unknown): string {
   return JSON.stringify(data, (_k, v) => {
     if (v instanceof Uint8Array) return Array.from(v);
-    if (typeof v === 'bigint') return Number(v);
+    if (typeof v === 'bigint') return v.toString();
     return v;
   });
+}
+
+// ---------------------------------------------------------------------------
+// Transaction hashing: keccak256(BCS(transaction))
+// ---------------------------------------------------------------------------
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function hashTransaction(transaction: any): string {
+  const serialized = TransactionBcs.serialize(transaction).toBytes();
+  const hash = keccak_256(serialized);
+  return `0x${Buffer.from(hash).toString('hex')}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -200,38 +213,31 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
     // -----------------------------------------------------------------------
     // getBalance: proxy_getAccountInfo → parse hex balance
     // -----------------------------------------------------------------------
-    async getBalance(
-      address: string,
-      token?: string,
-    ): Promise<{ amount: string; token: string }> {
+    async getBalance(address: string, token?: string): Promise<{ amount: string; token: string }> {
       const tok = token ?? DEFAULT_TOKEN;
+
+      let pubkey: Uint8Array;
       try {
-        const pubkey = addressToPubkey(address);
-        const result = (await rpcCall(rpcUrl, 'proxy_getAccountInfo', {
-          address: pubkey,
-          token_balances_filter: null,
-          state_key_filter: null,
-          certificate_by_nonce: null,
-        })) as {
-          balance?: string;
-          token_balance?: Array<{ token_id: number[]; balance: string }>;
-        } | null;
-
-        if (!result) return { amount: '0', token: tok };
-
-        // Native SET balance
-        const hexBalance = result.balance ?? '0';
-        const amount = fromHex(hexBalance, FAST_DECIMALS);
-        return { amount, token: tok };
-      } catch (err) {
-        // Only return "0" for address-parsing errors (invalid address format).
-        // Propagate RPC/network errors so callers know something is wrong.
-        const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes('Invalid') || msg.includes('bech32') || msg.includes('decode')) {
-          return { amount: '0', token: tok };
-        }
-        throw err;
+        pubkey = addressToPubkey(address);
+      } catch {
+        return { amount: '0', token: tok };
       }
+
+      const result = (await rpcCall(rpcUrl, 'proxy_getAccountInfo', {
+        address: pubkey,
+        token_balances_filter: null,
+        state_key_filter: null,
+        certificate_by_nonce: null,
+      })) as {
+        balance?: string;
+        token_balance?: Array<{ token_id: number[]; balance: string }>;
+      } | null;
+
+      if (!result) return { amount: '0', token: tok };
+
+      const hexBalance = result.balance ?? '0';
+      const amount = fromHex(hexBalance, FAST_DECIMALS);
+      return { amount, token: tok };
     },
 
     // -----------------------------------------------------------------------
@@ -288,23 +294,18 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
 
             const signature = await signEd25519(msg, keypair.privateKey);
 
+            // Compute transaction hash: keccak256(BCS(transaction))
+            const txHash = hashTransaction(transaction);
+
             // Submit
-            const result = (await rpcCall(rpcUrl, 'proxy_submitTransaction', {
+            await rpcCall(rpcUrl, 'proxy_submitTransaction', {
               transaction,
               signature: { Signature: signature },
-            })) as Record<string, unknown> | null;
-
-            // Response: { Success: { envelope: { transaction, signature }, signatures: [...] } }
-            // Extract nonce as tx identifier (FastSet uses sender+nonce as unique tx ref)
-            const success = result?.Success as Record<string, unknown> | undefined;
-            const envelope = success?.envelope as Record<string, unknown> | undefined;
-            const envelopeTx = envelope?.transaction as Record<string, unknown> | undefined;
-            const txNonce = envelopeTx?.nonce ?? nonce;
-            const txHash = `${Buffer.from(senderPubkey).toString('hex').slice(0, 16)}:${txNonce}`;
+            });
 
             return {
               txHash,
-              explorerUrl: '',
+              explorerUrl: `${EXPLORER_BASE}/${txHash}`,
               fee: '0.01',
             };
           },

@@ -1,5 +1,5 @@
 /**
- * mainnet.test.ts — Tests for mainnet support in @fast/money
+ * mainnet.test.ts — Tests for mainnet support in money SDK
  */
 
 import { describe, it, beforeEach, afterEach } from 'node:test';

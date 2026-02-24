@@ -1,5 +1,5 @@
 /**
- * index.test.ts — Comprehensive unit tests for the money SDK (@fast/money)
+ * index.test.ts — Comprehensive unit tests for the money SDK
  */
 
 import { describe, it, beforeEach, afterEach } from 'node:test';

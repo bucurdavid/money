@@ -1,5 +1,5 @@
 /**
- * index.ts — Main entry point for the @fast/money SDK
+ * index.ts — Main entry point for the money SDK
  */
 
 import { loadConfig, setChainConfig, getChainConfig } from './config.js';

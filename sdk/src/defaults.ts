@@ -1,5 +1,5 @@
 /**
- * defaults.ts — Default chain configurations for @fast/money SDK
+ * defaults.ts — Default chain configurations for money SDK
  *
  * Structured as chain → network → config to support both testnet and mainnet.
  */

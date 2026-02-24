@@ -1,5 +1,5 @@
 /**
- * keys.ts — Key management for @fast/money SDK
+ * keys.ts — Key management for money SDK
  *
  * SECURITY INVARIANT: Private keys MUST NEVER appear in any return value,
  * log, error message, or console output (except the internal generate/load

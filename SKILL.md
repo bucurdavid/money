@@ -1,7 +1,8 @@
 ---
-name: money-skill
+name: money
+version: {{VERSION}}
 description: >
-  Send tokens on Fast, Base, Ethereum, Arbitrum, or Solana using @fast/money.
+  Send tokens on Fast, Base, Ethereum, Arbitrum, or Solana using the money SDK.
   Use when asked to pay, transfer tokens, fund a wallet, or check a balance.
   Do NOT use for trading, DeFi, yield farming, price advice, or detecting incoming payments.
 ---
@@ -13,21 +14,17 @@ Everything works out of the box. RPCs, token addresses, explorer URLs — all bu
 ## Install
 
 ```bash
-mkdir -p ~/.openclaw/workspace/skills/money
-curl -sL https://raw.githubusercontent.com/bucurdavid/money/main/SKILL.md \
-  -o ~/.openclaw/workspace/skills/money/SKILL.md
-curl -sL https://raw.githubusercontent.com/bucurdavid/money/main/money.bundle.js \
-  -o ~/.openclaw/workspace/skills/money/money.bundle.js
+curl -sL {{HOST}}/install.sh | sh
 ```
 
-Two files. No git, no npm, no build. Re-run anytime to update. Restart the gateway after install so the skill is discovered.
+v{{VERSION}}. Two files. Integrity verified via SHA-256. No dependencies.
 
 ---
 
 The entire SDK is 3 steps:
 
 ```js
-const { money } = await import(`${process.env.HOME}/.openclaw/workspace/skills/money/money.bundle.js`);
+const { money } = await import(`${process.env.HOME}/.config/opencode/skills/money/money.bundle.js`);
 await money.setup("fast");                          // 1. create wallet (once)
 const bal = await money.balance("fast");            // 2. check balance
 const tx = await money.send("set1qxy...", 10);      // 3. send tokens
@@ -69,7 +66,7 @@ Stop. Tell the user this skill cannot help with: trading, swapping, DeFi, yield,
 Call once per chain. Creates a wallet, stores RPC config. All defaults are built in — you only pass options to override.
 
 ```js
-const { money } = await import(`${process.env.HOME}/.openclaw/workspace/skills/money/money.bundle.js`);
+const { money } = await import(`${process.env.HOME}/.config/opencode/skills/money/money.bundle.js`);
 
 // testnet (default) — safe, faucet available, RPC built in
 const w = await money.setup("fast");
@@ -255,7 +252,7 @@ const last5 = await money.history(5);        // last N across all chains
 | Method | Returns |
 |--------|---------|
 | `money.setup(chain, opts?)` | `{ chain, address, network }` |
-| `money.balance(chain?, opts?)` | `{ amount, token, chain, network, address }` or array |
+| `money.balance(chain?, token?)` | `{ amount, token, chain, network, address }` or array |
 | `money.send(to, amount, opts?)` | `{ txHash, explorerUrl, fee, chain, network }` |
 | `money.faucet(chain)` | `{ amount, token, txHash, chain, network }` |
 | `money.wallets()` | `[{ chain, network, address, balances }]` |
@@ -269,3 +266,4 @@ const last5 = await money.history(5);        // last N across all chains
 `opts` for `setup`: `{ network?: "testnet" | "mainnet", rpc?: string }`
 `opts` for `send`: `{ chain?: string, token?: string, memo?: string }`
 `config` for `alias`: `{ address?: string, mint?: string, decimals?: number }`
+

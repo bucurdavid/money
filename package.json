@@ -1,43 +1,22 @@
 {
-  "name": "@fast/money",
+  "name": "money",
   "version": "0.1.0",
   "description": "Universal payment SDK for AI agents",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "bundle": "npm run build && esbuild dist/index.js --bundle --platform=node --format=esm --outfile=money.bundle.js",
-    "dev": "tsc --watch",
-    "test": "tsc && node --test --test-force-exit dist/*.test.js dist/**/*.test.js",
-    "test:coverage": "tsc && node --experimental-test-coverage --test --test-force-exit dist/*.test.js dist/**/*.test.js",
-    "prepublishOnly": "npm run build"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "build:sdk": "tsc -p sdk/tsconfig.build.json",
+    "bundle": "npm run build:sdk && esbuild dist/index.js --bundle --platform=node --format=esm --outfile=public/money.bundle.js && shasum -a 256 public/money.bundle.js > public/money.bundle.js.sha256",
+    "test": "tsc -p sdk/tsconfig.json && node --test --test-force-exit dist/*.test.js dist/**/*.test.js",
+    "test:coverage": "tsc -p sdk/tsconfig.json --experimental-test-coverage && node --test --test-force-exit dist/*.test.js dist/**/*.test.js"
   },
-  "files": [
-    "dist/",
-    "SKILL.md",
-    "README.md"
-  ],
   "engines": {
     "node": ">=18"
   },
   "author": "Fast Protocol",
   "license": "UNLICENSED",
-  "keywords": [
-    "ai",
-    "agent",
-    "payment",
-    "sdk",
-    "fastset",
-    "evm",
-    "solana"
-  ],
   "dependencies": {
     "@mysten/bcs": "^2.0.2",
     "@noble/ed25519": "^2.1.0",
@@ -45,10 +24,15 @@
     "@solana/spl-token": "^0.4.14",
     "@solana/web3.js": "^1.98.4",
     "bech32": "^2.0.0",
+    "next": "^16.1.6",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
     "viem": "^2.46.2"
   },
   "devDependencies": {
     "@types/node": "^22.19.11",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
     "esbuild": "^0.25.0",
     "typescript": "^5.9.3"
   }

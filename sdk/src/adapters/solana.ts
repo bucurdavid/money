@@ -1,5 +1,5 @@
 /**
- * solana.ts — Solana chain adapter for @fast/money SDK
+ * solana.ts — Solana chain adapter for money SDK
  *
  * Uses @solana/web3.js (v1.x) for all on-chain interactions.
  * @solana/web3.js and @solana/spl-token are lazy-loaded so they don't
@@ -126,7 +126,7 @@ export function createSolanaAdapter(
       return { type: 'spl', mint: t, decimals };
     }
 
-    throw new MoneyError('TX_FAILED', `Token "${t}" is not configured for chain "solana".`, { chain: 'solana' });
+    throw new MoneyError('TOKEN_NOT_FOUND', `Token "${t}" is not configured for chain "solana".`, { chain: 'solana' });
   }
 
   // ─── setupWallet ──────────────────────────────────────────────────────────
