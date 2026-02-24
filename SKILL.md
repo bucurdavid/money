@@ -92,7 +92,7 @@ const recent = await money.history(undefined, 10); // last 10 across all chains
 
 Address format determines the chain automatically:
 - `set1...` → Fast (token: SET)
-- `0x` + 40 hex chars → Base (token: USDC). Override with `{ chain: "ethereum" }` or `{ chain: "arbitrum" }`
+- `0x` + 40 hex chars → first configured EVM chain (Base, Ethereum, or Arbitrum), defaulting to Base. Override with `{ chain: "ethereum" }` or `{ chain: "arbitrum" }`
 - Base58, 32-44 chars → Solana (token: SOL)
 
 To send USDC on Ethereum instead of Base:

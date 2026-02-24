@@ -98,8 +98,6 @@ export function createSolanaAdapter(
 
   // ─── resolveSplToken ──────────────────────────────────────────────────────
 
-  const SPL_ADDRESS_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
-
   type ResolvedSplToken =
     | { type: 'native' }
     | { type: 'spl'; mint: string; decimals: number };
@@ -115,7 +113,7 @@ export function createSolanaAdapter(
     }
 
     // Raw SPL mint address (base58, 32-44 chars) — fetches decimals on-chain
-    if (SPL_ADDRESS_PATTERN.test(t)) {
+    if (ADDRESS_PATTERN.test(t)) {
       let decimals = decimalsCache.get(t);
       if (decimals === undefined) {
         const { PublicKey } = await getWeb3();

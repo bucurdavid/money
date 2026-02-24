@@ -177,7 +177,7 @@ async function rpcCall(
 // ---------------------------------------------------------------------------
 
 export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): ChainAdapter {
-  return {
+  const adapter: ChainAdapter = {
     chain: 'fast',
     addressPattern: ADDRESS_PATTERN,
 
@@ -357,7 +357,7 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
       // Check actual on-chain balance instead of trusting the drip amount
       // (faucet tx incurs fees, so received < requested)
       try {
-        const bal = await this.getBalance(address);
+        const bal = await adapter.getBalance(address);
         return {
           amount: bal.amount,
           token: DEFAULT_TOKEN,
@@ -373,4 +373,5 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
       }
     },
   };
+  return adapter;
 }

@@ -60,7 +60,7 @@ const ERC20_ABI = [
 // ─── Faucet URLs ──────────────────────────────────────────────────────────────
 
 const FAUCET_URLS: Record<string, string> = {
-  base: 'https://www.coinbase.com/faucets/base-ethereum-goerli-faucet',
+  base: 'https://www.coinbase.com/faucets/base-ethereum-sepolia-faucet',
   ethereum: 'https://sepoliafaucet.com',
   arbitrum: 'https://faucet.arbitrum.io',
 };

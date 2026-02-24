@@ -63,9 +63,7 @@ export async function getAdapter(cacheKey: string): Promise<ChainAdapter> {
   if (chain === 'fast') {
     adapter = createFastAdapter(chainConfig.rpc, network);
   } else if (EVM_CHAINS.includes(chain)) {
-    const explorerUrl = EVM_EXPLORER_URLS[chain]?.[chainConfig.network]
-      ?? EVM_EXPLORER_URLS[chain]?.['testnet']
-      ?? '';
+    const explorerUrl = EVM_EXPLORER_URLS[chain]?.[chainConfig.network] ?? '';
     const aliases = await getEvmAliases(cacheKey);
     adapter = createEvmAdapter(chain, chainConfig.rpc, explorerUrl, aliases);
   } else if (chain === 'solana') {

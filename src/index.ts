@@ -148,8 +148,9 @@ export const money = {
         const result = await adapter.setupWallet(keyfilePath);
         address = result.address;
       } catch (err) {
-        const msg = (err as Error).message ?? '';
-        status = (msg.includes('not configured') || msg.includes('no-rpc')) ? 'no-rpc' : 'error';
+        status = (err instanceof MoneyError && err.code === 'CHAIN_NOT_CONFIGURED')
+          ? 'no-rpc'
+          : 'error';
       }
 
       results.push({ chain: key, address, network: chainConfig.network, defaultToken: chainConfig.defaultToken, status });
@@ -286,7 +287,7 @@ export const money = {
       txHash: result.txHash,
     });
 
-    return { txHash: result.txHash, explorerUrl: result.explorerUrl, fee: result.fee, chain };
+    return { txHash: result.txHash, explorerUrl: result.explorerUrl, fee: result.fee, chain: key };
   },
 
   async faucet(chain: string): Promise<FaucetResult> {

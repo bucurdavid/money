@@ -8,7 +8,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { money, MoneyError } from './index.js';
+import { money, MoneyError, _resetAdapterCache } from './index.js';
 import { configKey, parseConfigKey } from './defaults.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -66,6 +66,7 @@ beforeEach(async () => {
   tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'money-mainnet-test-'));
   process.env.MONEY_CONFIG_DIR = tmpDir;
   originalFetch = globalThis.fetch;
+  _resetAdapterCache();
 });
 
 afterEach(async () => {

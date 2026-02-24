@@ -29,14 +29,32 @@ function entryToRow(e: HistoryEntry): string {
 }
 
 function rowToEntry(row: string): HistoryEntry | null {
-  // Simple CSV parse — fields may be quoted
+  // RFC 4180 CSV parse with "" unescape support
   const parts: string[] = [];
   let current = '';
   let inQuotes = false;
-  for (const ch of row) {
-    if (ch === '"') { inQuotes = !inQuotes; continue; }
-    if (ch === ',' && !inQuotes) { parts.push(current); current = ''; continue; }
+  let i = 0;
+  while (i < row.length) {
+    const ch = row[i];
+    if (ch === '"') {
+      if (inQuotes && row[i + 1] === '"') {
+        // Escaped quote — unescape "" → "
+        current += '"';
+        i += 2;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      i++;
+      continue;
+    }
+    if (ch === ',' && !inQuotes) {
+      parts.push(current);
+      current = '';
+      i++;
+      continue;
+    }
     current += ch;
+    i++;
   }
   parts.push(current);
   if (parts.length < 6) return null;
