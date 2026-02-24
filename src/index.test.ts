@@ -572,27 +572,6 @@ describe('money.history with chain filter', () => {
   });
 });
 
-// ─── money.setup — seedAliases idempotency ────────────────────────────────────
-
-describe('money.setup seedAliases idempotency', () => {
-  it('user-set alias is not overwritten by re-setup', async () => {
-    await seedConfig(tmpDir);
-    await money.setup('fast');
-
-    // User sets a custom alias
-    await money.alias('fast', 'MYTOKEN', { address: '0x' + 'a'.repeat(40), decimals: 18 });
-
-    // Re-run setup (simulates agent restarting)
-    await money.setup('fast');
-
-    // User alias should still be present and unchanged
-    const result = await money.alias('fast', 'MYTOKEN');
-    assert.ok(result !== null, 'user alias should survive re-setup');
-    assert.equal(result!.address, '0x' + 'a'.repeat(40));
-    assert.equal(result!.decimals, 18);
-  });
-});
-
 // ─── history.ts CSV round-trip ────────────────────────────────────────────────
 
 describe('history CSV round-trip', () => {

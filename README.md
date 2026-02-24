@@ -19,13 +19,13 @@ npm install @fast/money
 
 ## Supported Chains
 
-| Chain | Token | Testnet | Mainnet | Faucet |
-|-------|-------|---------|---------|--------|
+| Chain | Native Token | Testnet | Mainnet | Faucet |
+|-------|-------------|---------|---------|--------|
 | Fast | SET | ✅ (default) | ✅ | testnet only |
-| Base | USDC | ✅ sepolia | ✅ | — |
-| Ethereum | USDC | ✅ sepolia | ✅ | — |
-| Arbitrum | USDC | ✅ sepolia | ✅ | — |
-| Solana | SOL/USDC | ✅ devnet | ✅ | testnet only |
+| Base | ETH | ✅ sepolia | ✅ | — |
+| Ethereum | ETH | ✅ sepolia | ✅ | — |
+| Arbitrum | ETH | ✅ sepolia | ✅ | — |
+| Solana | SOL | ✅ devnet | ✅ | testnet only |
 
 Testnet is always the default. Opt in to mainnet explicitly:
 
@@ -67,11 +67,15 @@ Every error is a `MoneyError` with a `.code`:
 
 ## Tokens
 
-USDC is pre-registered on Base, Ethereum, Arbitrum, and Solana after `setup()`. Pass any raw ERC-20 or SPL mint address directly — decimals are fetched on-chain automatically.
+Native token works immediately. For other tokens, pass the contract/mint address directly — decimals are fetched on-chain automatically. Or register a named alias once and reuse it:
 
 ```js
-await money.send("0x1234...abcd", 25, { token: "USDC" });
+// Raw address — no registration needed
 await money.send("0x1234...abcd", 0.5, { token: "0x4200000000000000000000000000000000000006" });
+
+// Register an alias, then use by name
+await money.alias("base", "USDC", { address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 });
+await money.send("0x1234...abcd", 25, { token: "USDC" });
 ```
 
 ## For AI Agents

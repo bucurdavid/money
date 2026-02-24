@@ -8,8 +8,8 @@ import { loadKeyfile, scrubKeyFromError } from './keys.js';
 import { detectChain, isValidAddress } from './detect.js';
 import { MoneyError } from './errors.js';
 import { getAdapter, evictAdapter, _resetAdapterCache } from './registry.js';
-import { DEFAULT_CHAIN_CONFIGS, DEFAULT_ALIASES, configKey, parseConfigKey, supportedChains } from './defaults.js';
-import { getAlias, setAlias, getAliases, seedAliases } from './aliases.js';
+import { DEFAULT_CHAIN_CONFIGS, configKey, parseConfigKey, supportedChains } from './defaults.js';
+import { getAlias, setAlias, getAliases } from './aliases.js';
 import { appendHistory, readHistory } from './history.js';
 import type {
   NetworkType,
@@ -25,7 +25,6 @@ import type {
   FaucetResult,
   HistoryEntry,
   ChainConfig,
-  ChainName,
 } from './types.js';
 
 // ─── Re-exports ───────────────────────────────────────────────────────────────
@@ -113,10 +112,6 @@ export const money = {
     } catch (err) {
       throw scrubKeyFromError(err);
     }
-
-    // Seed default aliases (e.g. USDC) for this chain+network — idempotent
-    const chainName = chain as ChainName;
-    await seedAliases(key, DEFAULT_ALIASES[chainName]?.[network]);
 
     return { chain, address, network: chainConfig.network };
   },

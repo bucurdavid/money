@@ -13,6 +13,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "bundle": "npm run build && esbuild dist/index.js --bundle --platform=node --format=esm --outfile=money.bundle.js",
     "dev": "tsc --watch",
     "test": "tsc && node --test --test-force-exit dist/*.test.js dist/**/*.test.js",
     "test:coverage": "tsc && node --experimental-test-coverage --test --test-force-exit dist/*.test.js dist/**/*.test.js",
@@ -48,6 +49,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.19.11",
+    "esbuild": "^0.25.0",
     "typescript": "^5.9.3"
   }
 }
