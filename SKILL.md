@@ -1,6 +1,6 @@
 # I-WANT-TO-USE-MONEY
 
-Send and receive tokens across chains. Fast (SET), Base/Ethereum/Arbitrum (USDC), Solana (SOL/USDC).
+Send tokens across chains. Fast (SET), Base/Ethereum/Arbitrum (USDC), Solana (SOL/USDC).
 
 ## Setup
 
@@ -17,7 +17,7 @@ By default, all chains use **testnet**. To use mainnet:
 await money.setup("fast", { network: "mainnet" });
 ```
 
-⚠️ **Mainnet uses real money.** Faucets are disabled on mainnet. Both testnet and mainnet wallets can coexist. Each uses a separate keyfile.
+⚠️ **Mainnet uses real money.** Faucets are disabled on mainnet. Both testnet and mainnet wallets can coexist — each uses a separate keyfile.
 
 | Network | Faucet | Keyfile suffix |
 |---------|--------|----------------|
@@ -26,28 +26,33 @@ await money.setup("fast", { network: "mainnet" });
 
 ## Custom RPC
 
-Bring your own RPC endpoint (e.g. Alchemy, Infura):
-
 ```js
 await money.setup("base", { network: "mainnet", rpc: "https://your-alchemy-url.com" });
 ```
 
 The RPC is stored in config and persists — no need to pass it on every call.
 
-## Custom Tokens
+## Tokens
 
-USDC is configured by default on all chains. Add any ERC-20 or SPL token:
+USDC is automatically seeded as an alias on `setup()` for Base, Ethereum, Arbitrum, and Solana.
 
 ```js
-// EVM
-await money.addToken("base", "WETH", { address: "0x4200000000000000000000000000000000000006", decimals: 18 });
-await money.send("0x1234...abcd", 0.5, { token: "WETH" });
+// USDC works immediately after setup — no registration
+await money.send("0x1234...abcd", 25, { token: "USDC" });
 
-// Solana
-await money.addToken("solana", "USDT", { mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", decimals: 6 });
+// Pass any raw ERC-20/SPL address directly — decimals fetched on-chain automatically
+await money.send("0x1234...abcd", 0.5, { token: "0x4200000000000000000000000000000000000006" });
 
-// List configured tokens
-const tokens = await money.tokens("base");
+// Or register a named alias (stored in ~/.money/aliases.json)
+await money.alias("base", "WETH", { address: "0x4200000000000000000000000000000000000006", decimals: 18 });
+await money.alias("solana", "USDT", { mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB", decimals: 6 });
+
+// GET an alias
+const info = await money.alias("base", "WETH");
+// → { chain: "base", name: "WETH", address: "0x42...", decimals: 18 }
+
+// List all aliases for a chain
+const aliases = await money.aliases("base");
 ```
 
 ## Send Tokens
@@ -70,6 +75,17 @@ await money.send("set1qxy2kfcg...", 10);  // chain auto-detected from address
 ```js
 const wallets = await money.wallets();
 for (const w of wallets) console.log(w.chain, w.balances);
+```
+
+## Transaction History
+
+Sends are recorded locally in `~/.money/history.csv`.
+
+```js
+const all = await money.history();
+const fast = await money.history("fast");        // filter by chain
+const recent = await money.history(undefined, 10); // last 10 across all chains
+// → [{ ts, chain, to, amount, token, txHash }, ...]
 ```
 
 ## Which Chain?
@@ -104,16 +120,29 @@ try {
 | Method | Returns |
 |--------|---------|
 | `money.setup(chain, opts?)` | `{ chain, address, network }` |
-| `money.balance(chain?)` | `{ amount, token, chain }` |
-| `money.send(to, amount, opts?)` | `{ txHash, explorerUrl, chain }` |
-| `money.faucet(chain)` | `{ amount, token, txHash }` |
+| `money.balance(chain?)` | `{ amount, token, chain, address }` or array |
+| `money.send(to, amount, opts?)` | `{ txHash, explorerUrl, fee, chain }` |
+| `money.faucet(chain)` | `{ amount, token, txHash, chain }` |
 | `money.wallets()` | `[{ chain, address, balances }]` |
-| `money.chains()` | `[{ chain, address, status }]` |
+| `money.chains()` | `[{ chain, address, network, status }]` |
 | `money.detect(address)` | `string` or `null` |
-| `money.history(chain?, limit?)` | `[{ txHash, direction, amount }]` |
-| `money.addToken(chain, name, config)` | `void` |
-| `money.tokens(chain?)` | `[{ chain, name, address?, mint?, decimals }]` |
+| `money.history(chain?, limit?)` | `[{ ts, chain, to, amount, token, txHash }]` |
+| `money.alias(chain, name)` | `TokenInfo \| null` |
+| `money.alias(chain, name, config)` | `null` |
+| `money.aliases(chain)` | `TokenInfo[]` |
 
-`opts` for setup: `{ network?: "testnet" | "mainnet", rpc?: string }`
-`config` for addToken: `{ address?, mint?, decimals? }`
-`opts` for send: `{ chain?, token?, memo? }`
+`opts` for setup: `{ network?: "testnet" \| "mainnet", rpc?: string }`  
+`opts` for send: `{ chain?, token?, memo? }`  
+`config` for alias: `{ address?, mint?, decimals? }`
+
+### TokenInfo
+
+```ts
+{
+  chain: string;     // config key, e.g. "base", "base:mainnet"
+  name: string;      // token symbol, e.g. "USDC"
+  address?: string;  // EVM contract address
+  mint?: string;     // Solana SPL mint address
+  decimals: number;
+}
+```

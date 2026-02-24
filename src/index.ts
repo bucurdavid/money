@@ -251,12 +251,18 @@ export const money = {
     const { address: from } = await adapter.setupWallet(keyfilePath);
     const token = opts?.token ?? chainConfig.defaultToken;
 
+    // Best-effort pre-flight balance check. parseFloat may lose precision for
+    // amounts with >15 significant digits (e.g. 18-decimal tokens). The RPC
+    // layer enforces the real constraint — this check only provides a cleaner
+    // error message in the common case.
     try {
       const bal = await adapter.getBalance(from, token);
       if (parseFloat(bal.amount) < parseFloat(amountStr)) {
         throw new MoneyError('INSUFFICIENT_BALANCE', `Need ${amount} ${token}, have ${bal.amount}`, { chain, details: { have: bal.amount, need: amountStr, token } });
       }
     } catch (err) {
+      // Non-MoneyError (e.g. RPC timeout) is intentionally swallowed — best-effort
+      // only. The send() call below will surface the real error if the RPC is down.
       if (err instanceof MoneyError) throw err;
     }
 
@@ -293,7 +299,7 @@ export const money = {
     return { chain, amount: result.amount, token: result.token, txHash: result.txHash };
   },
 
-  async alias(chain: string, name: string, config?: TokenConfig): Promise<TokenInfo | null | void> {
+  async alias(chain: string, name: string, config?: TokenConfig): Promise<TokenInfo | null> {
     const config2 = await loadConfig();
     const resolved = resolveChainKey(chain, config2.chains);
     if (!resolved) {
@@ -302,7 +308,7 @@ export const money = {
     const { key } = resolved;
     if (config !== undefined) {
       await setAlias(key, name, config);
-      return;
+      return null;
     }
     return getAlias(key, name);
   },

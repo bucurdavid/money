@@ -1,6 +1,6 @@
 # @fast/money
 
-Universal payment SDK for AI agents. Send and receive tokens on Fast, Base, Ethereum, Arbitrum, and Solana.
+Universal payment SDK for AI agents. Send tokens on Fast, Base, Ethereum, Arbitrum, and Solana.
 
 ## Install
 
@@ -27,18 +27,22 @@ await money.send("set1qxy2...", 10);
 
 Both testnet and mainnet configs coexist. Testnet is always the default.
 
-## Custom Tokens
+## Tokens
 
-USDC is pre-configured on all chains. Add any ERC-20 or SPL token at runtime:
+USDC is automatically available on Base, Ethereum, Arbitrum, and Solana after `setup()`. No registration needed.
 
 ```js
-// Register a token
-await money.addToken("base", "WETH", { address: "0x4200000000000000000000000000000000000006", decimals: 18 });
+// Use USDC directly
+await money.send("0x1234...abcd", 25, { token: "USDC" });
 
-// Use it
+// Pass any raw contract address without registration
+await money.send("0x1234...abcd", 0.5, { token: "0x4200000000000000000000000000000000000006" });
+
+// Or register a named alias
+await money.alias("base", "WETH", { address: "0x4200000000000000000000000000000000000006", decimals: 18 });
 await money.send("0x1234...abcd", 0.5, { token: "WETH" });
 
-// Bring your own RPC
+// Custom RPC
 await money.setup("base", { network: "mainnet", rpc: "https://your-alchemy-url.com" });
 ```
 

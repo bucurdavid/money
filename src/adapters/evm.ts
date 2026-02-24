@@ -104,12 +104,13 @@ export function createEvmAdapter(
     if (/^0x[0-9a-fA-F]{40}$/.test(t)) {
       let decimals = decimalsCache.get(t);
       if (decimals === undefined) {
-        decimals = await publicClient.readContract({
+        const raw = await publicClient.readContract({
           address: t as `0x${string}`,
           abi: ERC20_ABI,
           functionName: 'decimals',
           args: [],
-        }) as number;
+        });
+        decimals = typeof raw === 'bigint' ? Number(raw) : (raw as number);
         decimalsCache.set(t, decimals);
       }
       return { type: 'erc20', address: t, decimals };

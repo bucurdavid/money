@@ -516,3 +516,74 @@ describe('money.send with opts.chain', () => {
     assert.ok(typeof result.txHash === 'string');
   });
 });
+
+// ─── money.history — chain filter ─────────────────────────────────────────────
+
+describe('money.history with chain filter', () => {
+  it('returns only entries matching the given chain', async () => {
+    await seedConfig(tmpDir);
+    const setupResult = await money.setup('fast');
+    const from = setupResult.address;
+
+    globalThis.fetch = standardFastFetch({
+      proxy_getAccountInfo: { balance: '56bc75e2d630fffff', next_nonce: 1 },
+    });
+
+    // Send on fast chain — writes to history.csv
+    await money.send(from, '0.001');
+
+    // fast entries should appear
+    const fastEntries = await money.history('fast');
+    assert.equal(fastEntries.length, 1);
+    assert.equal(fastEntries[0].chain, 'fast');
+
+    // base entries should be empty (nothing sent on base)
+    const baseEntries = await money.history('base');
+    assert.equal(baseEntries.length, 0);
+  });
+});
+
+// ─── money.setup — seedAliases idempotency ────────────────────────────────────
+
+describe('money.setup seedAliases idempotency', () => {
+  it('user-set alias is not overwritten by re-setup', async () => {
+    await seedConfig(tmpDir);
+    await money.setup('fast');
+
+    // User sets a custom alias
+    await money.alias('fast', 'MYTOKEN', { address: '0x' + 'a'.repeat(40), decimals: 18 });
+
+    // Re-run setup (simulates agent restarting)
+    await money.setup('fast');
+
+    // User alias should still be present and unchanged
+    const result = await money.alias('fast', 'MYTOKEN');
+    assert.ok(result !== null, 'user alias should survive re-setup');
+    assert.equal(result!.address, '0x' + 'a'.repeat(40));
+    assert.equal(result!.decimals, 18);
+  });
+});
+
+// ─── history.ts CSV round-trip ────────────────────────────────────────────────
+
+describe('history CSV round-trip', () => {
+  it('round-trips an entry with a comma in the token name', async () => {
+    // Directly import appendHistory and readHistory via the internal module
+    // by writing and reading history through money.send is complex for custom tokens,
+    // so we test via the public history file path instead.
+    // Write a history.csv manually with a quoted token name, then read it back.
+    const csvPath = `${tmpDir}/history.csv`;
+    const header = 'ts,chain,to,amount,token,txHash';
+    const ts = '2024-01-01T00:00:00.000Z';
+    const row = `${ts},fast,set1abc,1.0,"TOKEN,A",0xdeadbeef`;
+    await fs.mkdir(tmpDir, { recursive: true });
+    await fs.writeFile(csvPath, `${header}\n${row}\n`, 'utf-8');
+
+    process.env.MONEY_CONFIG_DIR = tmpDir;
+    const entries = await money.history();
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].token, 'TOKEN,A');
+    assert.equal(entries[0].chain, 'fast');
+    assert.equal(entries[0].amount, '1.0');
+  });
+});

@@ -18,9 +18,14 @@ function getHistoryPath(): string {
 const CSV_HEADER = 'ts,chain,to,amount,token,txHash';
 
 function entryToRow(e: HistoryEntry): string {
-  // Escape commas in fields by wrapping in quotes if needed
   const fields = [e.ts, e.chain, e.to, e.amount, e.token, e.txHash];
-  return fields.map(f => (f.includes(',') ? `"${f}"` : f)).join(',');
+  const escape = (f: string): string => {
+    if (f.includes('"') || f.includes(',') || f.includes('\n')) {
+      return `"${f.replace(/"/g, '""')}"`;
+    }
+    return f;
+  };
+  return fields.map(escape).join(',');
 }
 
 function rowToEntry(row: string): HistoryEntry | null {
@@ -45,19 +50,17 @@ export async function appendHistory(entry: HistoryEntry): Promise<void> {
   const histPath = getHistoryPath();
   await fs.mkdir(path.dirname(histPath), { recursive: true, mode: 0o700 });
 
-  // Check if file exists; if not, write header first
-  let fileExists = true;
+  // Open for append, create with 0o600 if missing — atomic, no TOCTOU
+  const fh = await fs.open(histPath, 'a', 0o600);
   try {
-    await fs.access(histPath);
-  } catch {
-    fileExists = false;
+    const { size } = await fh.stat();
+    if (size === 0) {
+      await fh.write(CSV_HEADER + '\n');
+    }
+    await fh.write(entryToRow(entry) + '\n');
+  } finally {
+    await fh.close();
   }
-
-  if (!fileExists) {
-    await fs.writeFile(histPath, CSV_HEADER + '\n', { encoding: 'utf-8', mode: 0o600 });
-  }
-
-  await fs.appendFile(histPath, entryToRow(entry) + '\n', 'utf-8');
 }
 
 /**
@@ -75,7 +78,7 @@ export async function readHistory(chain?: string, limit?: number): Promise<Histo
     throw err;
   }
 
-  const lines = raw.split('\n').filter(l => l.trim() && l !== CSV_HEADER);
+  const lines = raw.split('\n').filter(l => l.trim() && l.trim() !== CSV_HEADER);
   const entries: HistoryEntry[] = [];
 
   for (const line of lines) {
@@ -85,8 +88,15 @@ export async function readHistory(chain?: string, limit?: number): Promise<Histo
     entries.push(entry);
   }
 
-  // Newest first
-  entries.sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
+  // Newest first — guard against NaN from malformed timestamps
+  entries.sort((a, b) => {
+    const ta = Date.parse(a.ts);
+    const tb = Date.parse(b.ts);
+    if (isNaN(ta) && isNaN(tb)) return 0;
+    if (isNaN(ta)) return 1;
+    if (isNaN(tb)) return -1;
+    return tb - ta;
+  });
 
   if (limit !== undefined) return entries.slice(0, limit);
   return entries;

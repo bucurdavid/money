@@ -72,7 +72,7 @@ export async function getAdapter(cacheKey: string): Promise<ChainAdapter> {
     const aliases = await getSolanaAliases(cacheKey);
     adapter = createSolanaAdapter(chainConfig.rpc, aliases, network);
   } else {
-    throw new Error(`Unknown chain "${chain}".`);
+    throw new MoneyError('CHAIN_NOT_CONFIGURED', `Unknown chain "${chain}".`, { chain });
   }
 
   adapterCache.set(cacheKey, adapter);

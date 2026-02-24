@@ -89,6 +89,9 @@ export function createSolanaAdapter(
   // ─── Explorer URL builder ──────────────────────────────────────────────────
 
   function explorerUrl(txHash: string): string {
+    // SDK maps all non-mainnet Solana to devnet explorer cluster.
+    // parseConfigKey returns 'testnet' for bare keys, but the actual RPC
+    // is devnet — so any non-mainnet value correctly resolves to devnet.
     const suffix = network === 'mainnet' ? '' : '?cluster=devnet';
     return `${EXPLORER_BASE}/${txHash}${suffix}`;
   }
@@ -105,7 +108,13 @@ export function createSolanaAdapter(
     const t = token ?? DEFAULT_TOKEN;
     if (t === DEFAULT_TOKEN) return { type: 'native' };
 
-    // Raw SPL mint address (base58, not SOL)
+    // Named alias — checked first (O(1), free, always wins over raw address)
+    const aliasConfig = aliases[t];
+    if (aliasConfig) {
+      return { type: 'spl', mint: aliasConfig.mint, decimals: aliasConfig.decimals };
+    }
+
+    // Raw SPL mint address (base58, 32-44 chars) — fetches decimals on-chain
     if (SPL_ADDRESS_PATTERN.test(t)) {
       let decimals = decimalsCache.get(t);
       if (decimals === undefined) {
@@ -119,13 +128,7 @@ export function createSolanaAdapter(
       return { type: 'spl', mint: t, decimals };
     }
 
-    // Named alias
-    const aliasConfig = aliases[t];
-    if (aliasConfig) {
-      return { type: 'spl', mint: aliasConfig.mint, decimals: aliasConfig.decimals };
-    }
-
-    throw new Error(`Token "${t}" is not configured for chain "solana".`);
+    throw new MoneyError('TX_FAILED', `Token "${t}" is not configured for chain "solana".`, { chain: 'solana' });
   }
 
   // ─── setupWallet ──────────────────────────────────────────────────────────
