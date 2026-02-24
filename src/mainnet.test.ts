@@ -8,7 +8,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { money, MoneyError, _resetAdapterCache } from './index.js';
+import { money, MoneyError } from './index.js';
+import { _resetAdapterCache } from './registry.js';
 import { configKey, parseConfigKey } from './defaults.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

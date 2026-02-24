@@ -53,7 +53,6 @@ export type {
 
 export { MoneyError } from './errors.js';
 export type { MoneyErrorCode } from './errors.js';
-export { _resetAdapterCache } from './registry.js';
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 

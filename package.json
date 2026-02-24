@@ -12,7 +12,7 @@
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "dev": "tsc --watch",
     "test": "tsc && node --test --test-force-exit dist/*.test.js dist/**/*.test.js",
     "test:coverage": "tsc && node --experimental-test-coverage --test --test-force-exit dist/*.test.js dist/**/*.test.js",
@@ -21,8 +21,7 @@
   "files": [
     "dist/",
     "SKILL.md",
-    "README.md",
-    "LICENSE"
+    "README.md"
   ],
   "engines": {
     "node": ">=18"

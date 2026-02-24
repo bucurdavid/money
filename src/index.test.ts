@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { money, MoneyError } from './index.js';
-import { _resetAdapterCache } from './index.js';
+import { _resetAdapterCache } from './registry.js';
 import type { NetworkType } from './types.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
