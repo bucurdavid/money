@@ -251,20 +251,20 @@ describe('money.send', () => {
     );
   });
 
-  it('throws INVALID_ADDRESS for garbage input', async () => {
+  it('throws CONTACT_NOT_FOUND for garbage input (not a valid address or known contact)', async () => {
     await seedConfig(tmpDir);
     await money.setup({ chain: 'fast' });
     await assert.rejects(
       () => money.send({ to: 'GARBAGE_NOT_AN_ADDRESS_!!!', amount: '1', chain: 'fast' }),
       (err: unknown) => {
         assert.ok(err instanceof MoneyError);
-        assert.equal((err as MoneyError).code, 'INVALID_ADDRESS');
+        assert.equal((err as MoneyError).code, 'CONTACT_NOT_FOUND');
         return true;
       },
     );
   });
 
-  it('throws INVALID_ADDRESS for EVM address when chain is fast', async () => {
+  it('throws CONTACT_NOT_FOUND for EVM address when chain is fast (not valid, not a contact)', async () => {
     await seedConfig(tmpDir);
     await money.setup({ chain: 'fast' });
     const evmAddress = '0x742d35Cc6634C0532925a3b8D4C9b34EcFedBCfB';
@@ -272,7 +272,7 @@ describe('money.send', () => {
       () => money.send({ to: evmAddress, amount: '1', chain: 'fast' }),
       (err: unknown) => {
         assert.ok(err instanceof MoneyError);
-        assert.equal((err as MoneyError).code, 'INVALID_ADDRESS');
+        assert.equal((err as MoneyError).code, 'CONTACT_NOT_FOUND');
         return true;
       },
     );
@@ -544,7 +544,7 @@ describe('money.send with chain param', () => {
     assert.ok(typeof result.txHash === 'string');
   });
 
-  it('chain="fast" with an EVM address throws INVALID_ADDRESS', async () => {
+  it('chain="fast" with an EVM address throws CONTACT_NOT_FOUND (not valid fast address, not a contact)', async () => {
     await seedConfig(tmpDir);
     await money.setup({ chain: 'fast' });
     const evmAddress = '0x742d35Cc6634C0532925a3b8D4C9b34EcFedBCfB';
@@ -552,7 +552,7 @@ describe('money.send with chain param', () => {
       () => money.send({ to: evmAddress, amount: 1, chain: 'fast' }),
       (err: unknown) => {
         assert.ok(err instanceof MoneyError);
-        assert.equal((err as MoneyError).code, 'INVALID_ADDRESS');
+        assert.equal((err as MoneyError).code, 'CONTACT_NOT_FOUND');
         return true;
       },
     );

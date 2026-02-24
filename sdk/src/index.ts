@@ -11,6 +11,7 @@ import { getAdapter, evictAdapter, _resetAdapterCache } from './registry.js';
 import { DEFAULT_CHAIN_CONFIGS, configKey, parseConfigKey, supportedChains } from './defaults.js';
 import { getAlias, setAlias, getAliases } from './aliases.js';
 import { appendHistory, readHistory } from './history.js';
+import { addContact, removeContact, getContacts, resolveContact } from './contacts.js';
 import type {
   NetworkType,
   SetupParams,
@@ -35,6 +36,13 @@ import type {
   HistoryResult,
   HistoryEntry,
   ChainConfig,
+  AddContactParams,
+  RemoveContactParams,
+  ContactsParams,
+  AddContactResult,
+  RemoveContactResult,
+  ContactsResult,
+  ContactEntry,
 } from './types.js';
 
 // ─── Re-exports ───────────────────────────────────────────────────────────────
@@ -68,6 +76,16 @@ export type {
   MoneyConfig,
   ChainName,
   TokenConfig,
+} from './types.js';
+
+export type {
+  AddContactParams,
+  RemoveContactParams,
+  ContactsParams,
+  AddContactResult,
+  RemoveContactResult,
+  ContactsResult,
+  ContactEntry,
 } from './types.js';
 
 export { MoneyError } from './errors.js';
@@ -227,7 +245,8 @@ export const money = {
   },
 
   async send(params: SendParams): Promise<SendResult> {
-    const { to, amount: amountRaw, chain, token: tokenOpt } = params;
+    let { to } = params;
+    const { amount: amountRaw, chain, token: tokenOpt } = params;
 
     if (!to) {
       throw new MoneyError('INVALID_PARAMS', 'Missing required param: to', {
@@ -251,8 +270,18 @@ export const money = {
       throw new MoneyError('TX_FAILED', `Invalid amount: "${amountStr}". Must be a positive number.`, { chain, note: `Amount must be a positive number:\n  await money.send({ to, amount: "1", chain: "${chain}" })` });
     }
 
+    // Resolve contact name if `to` is not a valid address
+    const bareChain = chain.includes(':') ? chain.split(':')[0] : chain;
     if (!isValidAddress(to, chain)) {
-      throw new MoneyError('INVALID_ADDRESS', `Address "${to}" is not valid for chain "${chain}".`, { chain, details: { address: to }, note: `Verify the address format. Use identifyChains to check:\n  money.identifyChains({ address: "${to}" })` });
+      const resolved = await resolveContact(to, bareChain);
+      if (resolved) {
+        to = resolved;
+      } else {
+        throw new MoneyError('CONTACT_NOT_FOUND', `Contact "${to}" not found for chain "${bareChain}"`, {
+          chain: bareChain,
+          note: `No contact named "${to}" with a ${bareChain} address. Add one with money.addContact({ name: "${to}", chain: "${bareChain}", address: "..." })`,
+        });
+      }
     }
 
     const config = await loadConfig();
@@ -392,6 +421,18 @@ export const money = {
   async history(params?: HistoryParams): Promise<HistoryResult> {
     const results = await readHistory(params);
     return { entries: results, note: '' };
+  },
+
+  async addContact(params: AddContactParams): Promise<AddContactResult> {
+    return addContact(params);
+  },
+
+  async removeContact(params: RemoveContactParams): Promise<RemoveContactResult> {
+    return removeContact(params);
+  },
+
+  async contacts(params: ContactsParams = {}): Promise<ContactsResult> {
+    return getContacts(params);
   },
 
   identifyChains(params: IdentifyChainsParams): IdentifyChainsResult {
