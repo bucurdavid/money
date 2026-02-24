@@ -54988,7 +54988,8 @@ function createFastAdapter(rpcUrl, network = "testnet") {
         const amount = fromHex(rawBalance, FAST_DECIMALS);
         return { amount, token: tok };
       }
-      throw new MoneyError("TOKEN_NOT_FOUND", `Token '${tok}' not found on Fast chain`, { chain: "fast" });
+      throw new MoneyError("TOKEN_NOT_FOUND", `Token '${tok}' not found on Fast chain`, { chain: "fast", note: `Register the token first:
+  await money.registerToken({ chain: "fast", name: "${tok}", address: "0x...", decimals: 18 })` });
     },
     // -----------------------------------------------------------------------
     // send: BCS-encode tx, sign with "Transaction::" prefix, submit
@@ -55043,9 +55044,10 @@ function createFastAdapter(rpcUrl, network = "testnet") {
         const scrubbed = scrubKeyFromError(err2 instanceof Error ? err2 : new Error(String(err2)));
         const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
         if (msg.includes("InsufficientFunding") || msg.includes("insufficient")) {
-          throw new MoneyError("INSUFFICIENT_BALANCE", msg, { chain: "fast" });
+          throw new MoneyError("INSUFFICIENT_BALANCE", msg, { chain: "fast", note: `Get testnet tokens:
+  await money.faucet({ chain: "fast" })` });
         }
-        throw new MoneyError("TX_FAILED", msg, { chain: "fast" });
+        throw new MoneyError("TX_FAILED", msg, { chain: "fast", note: `Wait 5 seconds, then retry the send.` });
       }
     },
     // -----------------------------------------------------------------------
@@ -55053,7 +55055,7 @@ function createFastAdapter(rpcUrl, network = "testnet") {
     // -----------------------------------------------------------------------
     async faucet(address) {
       if (network === "mainnet") {
-        throw new MoneyError("TX_FAILED", "Faucet is not available on mainnet.", { chain: "fast" });
+        throw new MoneyError("TX_FAILED", "Faucet is not available on mainnet.", { chain: "fast", note: "Faucet is testnet only. Fund your wallet directly on mainnet." });
       }
       const pubkey = addressToPubkey(address);
       const faucetAmount = "21e19e0c9bab2400000";
@@ -55068,9 +55070,11 @@ function createFastAdapter(rpcUrl, network = "testnet") {
         if (msg.includes("throttl") || msg.includes("rate") || msg.includes("limit") || msg.includes("wait")) {
           const retryMatch = msg.match(/(\d+)/);
           const retryAfter = retryMatch ? parseInt(retryMatch[1], 10) : 60;
-          throw new MoneyError("FAUCET_THROTTLED", `Faucet throttled. Try again in ~${retryAfter} seconds.`, { chain: "fast", details: { retryAfter } });
+          throw new MoneyError("FAUCET_THROTTLED", `Faucet throttled. Try again in ~${retryAfter} seconds.`, { chain: "fast", details: { retryAfter }, note: `Wait ${retryAfter} seconds, then retry:
+  await money.faucet({ chain: "fast" })` });
         }
-        throw new MoneyError("TX_FAILED", `Faucet failed: ${msg}`, { chain: "fast" });
+        throw new MoneyError("TX_FAILED", `Faucet failed: ${msg}`, { chain: "fast", note: `Wait 5 seconds, then retry:
+  await money.faucet({ chain: "fast" })` });
       }
       try {
         const bal = await adapter.getBalance(address);
@@ -63988,7 +63992,8 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain
     if (aliasConfig) {
       return { type: "erc20", address: aliasConfig.address, decimals: aliasConfig.decimals };
     }
-    throw new MoneyError("TOKEN_NOT_FOUND", `Token "${t}" is not configured for chain "${chainName}".`, { chain: chainName });
+    throw new MoneyError("TOKEN_NOT_FOUND", `Token "${t}" is not configured for chain "${chainName}".`, { chain: chainName, note: `Register the token first:
+  await money.registerToken({ chain: "${chainName}", name: "${t}", address: "0x...", decimals: 18 })` });
   }
   async function setupWallet(keyfilePath) {
     try {
@@ -64062,14 +64067,16 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain
       const scrubbed = scrubKeyFromError(err2);
       const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
       if (msg.includes("insufficient funds") || msg.includes("exceeds balance")) {
-        throw new MoneyError("INSUFFICIENT_BALANCE", msg, { chain: chainName });
+        throw new MoneyError("INSUFFICIENT_BALANCE", msg, { chain: chainName, note: `Get tokens:
+  await money.faucet({ chain: "${chainName}" })` });
       }
-      throw new MoneyError("TX_FAILED", msg, { chain: chainName });
+      throw new MoneyError("TX_FAILED", msg, { chain: chainName, note: `Wait 5 seconds, then retry the send.` });
     }
   }
   async function faucet(address) {
     const faucetUrl = FAUCET_URLS[chainName] ?? "https://faucet.paradigm.xyz";
-    throw new MoneyError("TX_FAILED", `No programmatic faucet for ${chainName}. Fund manually: ${faucetUrl}`, { chain: chainName, details: { faucetUrl } });
+    throw new MoneyError("TX_FAILED", `No programmatic faucet for ${chainName}. Fund manually: ${faucetUrl}`, { chain: chainName, details: { faucetUrl }, note: `Open ${faucetUrl} to get testnet tokens, then check:
+  await money.balance({ chain: "${chainName}" })` });
   }
   return {
     chain: chainName,
@@ -64140,7 +64147,8 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
       }
       return { type: "spl", mint: t, decimals };
     }
-    throw new MoneyError("TOKEN_NOT_FOUND", `Token "${t}" is not configured for chain "solana".`, { chain: "solana" });
+    throw new MoneyError("TOKEN_NOT_FOUND", `Token "${t}" is not configured for chain "solana".`, { chain: "solana", note: `Register the token first:
+  await money.registerToken({ chain: "solana", name: "${t}", mint: "...", decimals: 9 })` });
   }
   async function setupWallet(keyfilePath) {
     const { PublicKey: PublicKey23 } = await getWeb3();
@@ -64219,14 +64227,15 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
       const scrubbed = scrubKeyFromError(err2 instanceof Error ? err2 : new Error(String(err2)));
       const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
       if (msg.includes("debit an account") || msg.includes("insufficient") || msg.includes("0x1")) {
-        throw new MoneyError("INSUFFICIENT_BALANCE", msg, { chain: "solana" });
+        throw new MoneyError("INSUFFICIENT_BALANCE", msg, { chain: "solana", note: `Get testnet tokens:
+  await money.faucet({ chain: "solana" })` });
       }
-      throw new MoneyError("TX_FAILED", msg, { chain: "solana" });
+      throw new MoneyError("TX_FAILED", msg, { chain: "solana", note: `Wait 5 seconds, then retry the send.` });
     }
   }
   async function faucet(address) {
     if (network === "mainnet") {
-      throw new MoneyError("TX_FAILED", "Faucet is not available on mainnet.", { chain: "solana" });
+      throw new MoneyError("TX_FAILED", "Faucet is not available on mainnet.", { chain: "solana", note: "Faucet is testnet only. Fund your wallet directly on mainnet." });
     }
     const { PublicKey: PublicKey23, LAMPORTS_PER_SOL } = await getWeb3();
     const connection = await getConnection();
@@ -64800,11 +64809,13 @@ var money = {
     const network = networkOpt ?? "testnet";
     const chainDefaults = DEFAULT_CHAIN_CONFIGS[chain2];
     if (!chainDefaults) {
-      throw new MoneyError("CHAIN_NOT_CONFIGURED", `No default config for chain "${chain2}". Supported chains: ${supportedChains().join(", ")}.`, { chain: chain2 });
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `No default config for chain "${chain2}". Supported chains: ${supportedChains().join(", ")}.`, { chain: chain2, note: `Supported chains: ${supportedChains().join(", ")}.
+  await money.setup({ chain: "fast" })` });
     }
     const defaults = chainDefaults[network];
     if (!defaults) {
-      throw new MoneyError("CHAIN_NOT_CONFIGURED", `No config for chain "${chain2}" on network "${network}".`, { chain: chain2 });
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `No config for chain "${chain2}" on network "${network}".`, { chain: chain2, note: `Use network "testnet" or "mainnet":
+  await money.setup({ chain: "${chain2}", network: "testnet" })` });
     }
     const key = configKey(chain2, network);
     const existing = await getChainConfig(key);
@@ -64910,10 +64921,12 @@ var money = {
     const amountStr = String(amountRaw);
     const amountNum = parseFloat(amountStr);
     if (isNaN(amountNum) || amountNum <= 0) {
-      throw new MoneyError("TX_FAILED", `Invalid amount: "${amountStr}". Must be a positive number.`, { chain: chain2 });
+      throw new MoneyError("TX_FAILED", `Invalid amount: "${amountStr}". Must be a positive number.`, { chain: chain2, note: `Amount must be a positive number:
+  await money.send({ to, amount: "1", chain: "${chain2}" })` });
     }
     if (!isValidAddress(to, chain2)) {
-      throw new MoneyError("INVALID_ADDRESS", `Address "${to}" is not valid for chain "${chain2}".`, { chain: chain2, details: { address: to } });
+      throw new MoneyError("INVALID_ADDRESS", `Address "${to}" is not valid for chain "${chain2}".`, { chain: chain2, details: { address: to }, note: `Verify the address format. Use identifyChains to check:
+  money.identifyChains({ address: "${to}" })` });
     }
     const config = await loadConfig();
     const resolved = resolveChainKey(chain2, config.chains);
@@ -64952,7 +64965,8 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
         throw err2;
       const scrubbed = scrubKeyFromError(err2);
       const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
-      throw new MoneyError("TX_FAILED", msg, { chain: chain2 });
+      throw new MoneyError("TX_FAILED", msg, { chain: chain2, note: `Wait 5 seconds, then retry:
+  await money.send({ to: "${to}", amount: "${amountStr}", chain: "${chain2}" })` });
     }
     const { chain: sentChain, network: sentNetwork } = parseConfigKey(key);
     await appendHistory({

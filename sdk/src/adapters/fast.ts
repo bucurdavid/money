@@ -287,7 +287,7 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
       }
 
       // Unknown token name (no alias system in Fast adapter yet)
-      throw new MoneyError('TOKEN_NOT_FOUND', `Token '${tok}' not found on Fast chain`, { chain: 'fast' });
+      throw new MoneyError('TOKEN_NOT_FOUND', `Token '${tok}' not found on Fast chain`, { chain: 'fast', note: `Register the token first:\n  await money.registerToken({ chain: "fast", name: "${tok}", address: "0x...", decimals: 18 })` });
     },
 
     // -----------------------------------------------------------------------
@@ -364,9 +364,9 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
         const scrubbed = scrubKeyFromError(err instanceof Error ? err : new Error(String(err)));
         const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
         if (msg.includes('InsufficientFunding') || msg.includes('insufficient')) {
-          throw new MoneyError('INSUFFICIENT_BALANCE', msg, { chain: 'fast' });
+          throw new MoneyError('INSUFFICIENT_BALANCE', msg, { chain: 'fast', note: `Get testnet tokens:\n  await money.faucet({ chain: "fast" })` });
         }
-        throw new MoneyError('TX_FAILED', msg, { chain: 'fast' });
+        throw new MoneyError('TX_FAILED', msg, { chain: 'fast', note: `Wait 5 seconds, then retry the send.` });
       }
     },
 
@@ -379,7 +379,7 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
       if (network === 'mainnet') {
         throw new MoneyError('TX_FAILED',
           'Faucet is not available on mainnet.',
-          { chain: 'fast' },
+          { chain: 'fast', note: 'Faucet is testnet only. Fund your wallet directly on mainnet.' },
         );
       }
       const pubkey = addressToPubkey(address);
@@ -398,10 +398,10 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
           const retryAfter = retryMatch ? parseInt(retryMatch[1], 10) : 60;
           throw new MoneyError('FAUCET_THROTTLED',
             `Faucet throttled. Try again in ~${retryAfter} seconds.`,
-            { chain: 'fast', details: { retryAfter } },
+            { chain: 'fast', details: { retryAfter }, note: `Wait ${retryAfter} seconds, then retry:\n  await money.faucet({ chain: "fast" })` },
           );
         }
-        throw new MoneyError('TX_FAILED', `Faucet failed: ${msg}`, { chain: 'fast' });
+        throw new MoneyError('TX_FAILED', `Faucet failed: ${msg}`, { chain: 'fast', note: `Wait 5 seconds, then retry:\n  await money.faucet({ chain: "fast" })` });
       }
 
       // Check actual on-chain balance instead of trusting the drip amount

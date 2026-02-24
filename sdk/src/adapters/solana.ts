@@ -126,7 +126,7 @@ export function createSolanaAdapter(
       return { type: 'spl', mint: t, decimals };
     }
 
-    throw new MoneyError('TOKEN_NOT_FOUND', `Token "${t}" is not configured for chain "solana".`, { chain: 'solana' });
+    throw new MoneyError('TOKEN_NOT_FOUND', `Token "${t}" is not configured for chain "solana".`, { chain: 'solana', note: `Register the token first:\n  await money.registerToken({ chain: "solana", name: "${t}", mint: "...", decimals: 9 })` });
   }
 
   // ─── setupWallet ──────────────────────────────────────────────────────────
@@ -262,9 +262,9 @@ export function createSolanaAdapter(
       const scrubbed = scrubKeyFromError(err instanceof Error ? err : new Error(String(err)));
       const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
       if (msg.includes('debit an account') || msg.includes('insufficient') || msg.includes('0x1')) {
-        throw new MoneyError('INSUFFICIENT_BALANCE', msg, { chain: 'solana' });
+        throw new MoneyError('INSUFFICIENT_BALANCE', msg, { chain: 'solana', note: `Get testnet tokens:\n  await money.faucet({ chain: "solana" })` });
       }
-      throw new MoneyError('TX_FAILED', msg, { chain: 'solana' });
+      throw new MoneyError('TX_FAILED', msg, { chain: 'solana', note: `Wait 5 seconds, then retry the send.` });
     }
   }
 
@@ -274,7 +274,7 @@ export function createSolanaAdapter(
     if (network === 'mainnet') {
       throw new MoneyError('TX_FAILED',
         'Faucet is not available on mainnet.',
-        { chain: 'solana' },
+        { chain: 'solana', note: 'Faucet is testnet only. Fund your wallet directly on mainnet.' },
       );
     }
     const { PublicKey, LAMPORTS_PER_SOL } = await getWeb3();

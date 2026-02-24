@@ -23,6 +23,8 @@ Or install manually:
 mkdir -p ~/.money
 curl -sL {{HOST}}/skill.md -o ~/.money/SKILL.md
 curl -sL {{HOST}}/money.bundle.js -o ~/.money/money.bundle.js
+curl -sL {{HOST}}/money.bundle.js.sha256 -o /tmp/money.sha256
+(cd ~/.money && shasum -a 256 -c /tmp/money.sha256) && rm -f /tmp/money.sha256
 ```
 
 Override the install directory: `INSTALL_DIR=~/custom/path curl -sL {{HOST}}/install.sh | sh`
@@ -287,4 +289,4 @@ const { entries } = await money.history({ limit: 5 });              // last 5
 | `money.history({ chain?, limit? })` | `{ entries: [{ ts, chain, network, to, amount, token, txHash }], note }` |
 
 All errors: `{ code, message, note }`. The `note` field contains a code example showing how to fix the error.
-`token` defaults to `"native"` when omitted. `"native"` resolves to SET (Fast), ETH (Base/Ethereum/Arbitrum), SOL (Solana).
+`token` is optional. When omitted, the chain's native token is used: SET (Fast), ETH (Base/Ethereum/Arbitrum), SOL (Solana).

@@ -124,7 +124,7 @@ export function createEvmAdapter(
       return { type: 'erc20', address: aliasConfig.address, decimals: aliasConfig.decimals };
     }
 
-    throw new MoneyError('TOKEN_NOT_FOUND', `Token "${t}" is not configured for chain "${chainName}".`, { chain: chainName });
+    throw new MoneyError('TOKEN_NOT_FOUND', `Token "${t}" is not configured for chain "${chainName}".`, { chain: chainName, note: `Register the token first:\n  await money.registerToken({ chain: "${chainName}", name: "${t}", address: "0x...", decimals: 18 })` });
   }
 
   // ─── setupWallet ────────────────────────────────────────────────────────────
@@ -228,9 +228,9 @@ export function createEvmAdapter(
       const scrubbed = scrubKeyFromError(err);
       const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
       if (msg.includes('insufficient funds') || msg.includes('exceeds balance')) {
-        throw new MoneyError('INSUFFICIENT_BALANCE', msg, { chain: chainName });
+        throw new MoneyError('INSUFFICIENT_BALANCE', msg, { chain: chainName, note: `Get tokens:\n  await money.faucet({ chain: "${chainName}" })` });
       }
-      throw new MoneyError('TX_FAILED', msg, { chain: chainName });
+      throw new MoneyError('TX_FAILED', msg, { chain: chainName, note: `Wait 5 seconds, then retry the send.` });
     }
   }
 
@@ -240,7 +240,7 @@ export function createEvmAdapter(
     const faucetUrl = FAUCET_URLS[chainName] ?? 'https://faucet.paradigm.xyz';
     throw new MoneyError('TX_FAILED',
       `No programmatic faucet for ${chainName}. Fund manually: ${faucetUrl}`,
-      { chain: chainName, details: { faucetUrl } },
+      { chain: chainName, details: { faucetUrl }, note: `Open ${faucetUrl} to get testnet tokens, then check:\n  await money.balance({ chain: "${chainName}" })` },
     );
   }
 

@@ -107,7 +107,7 @@ export const money = {
       throw new MoneyError(
         'CHAIN_NOT_CONFIGURED',
         `No default config for chain "${chain}". Supported chains: ${supportedChains().join(', ')}.`,
-        { chain },
+        { chain, note: `Supported chains: ${supportedChains().join(', ')}.\n  await money.setup({ chain: "fast" })` },
       );
     }
     const defaults = chainDefaults[network];
@@ -115,7 +115,7 @@ export const money = {
       throw new MoneyError(
         'CHAIN_NOT_CONFIGURED',
         `No config for chain "${chain}" on network "${network}".`,
-        { chain },
+        { chain, note: `Use network "testnet" or "mainnet":\n  await money.setup({ chain: "${chain}", network: "testnet" })` },
       );
     }
 
@@ -248,11 +248,11 @@ export const money = {
     const amountStr = String(amountRaw);
     const amountNum = parseFloat(amountStr);
     if (isNaN(amountNum) || amountNum <= 0) {
-      throw new MoneyError('TX_FAILED', `Invalid amount: "${amountStr}". Must be a positive number.`, { chain });
+      throw new MoneyError('TX_FAILED', `Invalid amount: "${amountStr}". Must be a positive number.`, { chain, note: `Amount must be a positive number:\n  await money.send({ to, amount: "1", chain: "${chain}" })` });
     }
 
     if (!isValidAddress(to, chain)) {
-      throw new MoneyError('INVALID_ADDRESS', `Address "${to}" is not valid for chain "${chain}".`, { chain, details: { address: to } });
+      throw new MoneyError('INVALID_ADDRESS', `Address "${to}" is not valid for chain "${chain}".`, { chain, details: { address: to }, note: `Verify the address format. Use identifyChains to check:\n  money.identifyChains({ address: "${to}" })` });
     }
 
     const config = await loadConfig();
@@ -294,7 +294,7 @@ export const money = {
       if (err instanceof MoneyError) throw err;
       const scrubbed = scrubKeyFromError(err);
       const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
-      throw new MoneyError('TX_FAILED', msg, { chain });
+      throw new MoneyError('TX_FAILED', msg, { chain, note: `Wait 5 seconds, then retry:\n  await money.send({ to: "${to}", amount: "${amountStr}", chain: "${chain}" })` });
     }
 
     // Record successful send in history.csv
