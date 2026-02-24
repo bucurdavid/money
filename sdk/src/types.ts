@@ -22,56 +22,129 @@ export interface MoneyConfig {
   chains: Record<string, ChainConfig>;
 }
 
-// Return types for SDK methods
+// ─── Param types (JSON-only method signatures) ───────────────────────────────
+
+/** Params for money.setup() */
+export interface SetupParams {
+  chain: string;
+  network?: NetworkType;
+  rpc?: string;
+}
+
+/** Params for money.balance() */
+export interface BalanceParams {
+  chain: string;
+  token?: string; // defaults to "native" → resolved to chain's native token
+}
+
+/** Params for money.send() */
+export interface SendParams {
+  to: string;
+  amount: number | string;
+  chain: string;
+  token?: string; // defaults to "native"
+}
+
+/** Params for money.faucet() */
+export interface FaucetParams {
+  chain: string;
+}
+
+/** Params for money.identifyChains() */
+export interface IdentifyChainsParams {
+  address: string;
+}
+
+/** Params for money.getToken() */
+export interface GetTokenParams {
+  chain: string;
+  name: string;
+}
+
+/** Params for money.registerToken() */
+export interface RegisterTokenParams {
+  chain: string;
+  name: string;
+  address?: string;  // EVM contract address
+  mint?: string;     // Solana mint address
+  decimals?: number;
+}
+
+/** Params for money.tokens() */
+export interface TokensParams {
+  chain: string;
+}
+
+/** Params for money.history() */
+export interface HistoryParams {
+  chain?: string;
+  limit?: number;
+}
+
+// ─── Return types for SDK methods ────────────────────────────────────────────
+
 export interface SetupResult {
   chain: string;
   address: string;
   network: string;
+  note: string;
 }
 
-export interface ChainInfo {
-  chain: string;       // Bare chain name
+export interface ChainStatus {
+  chain: string;
   address: string;
-  network: string;     // RPC-level network (e.g. "sepolia", "devnet", "mainnet")
+  network: string;
   defaultToken: string;
   status: 'ready' | 'no-key' | 'no-rpc' | 'error';
+  balance?: string;   // best-effort native token balance
 }
 
-export interface WalletInfo {
-  chain: string;       // Bare chain name
-  network: NetworkType; // "testnet" | "mainnet"
-  address: string;
-  balances: Record<string, string>;
+// StatusResult wraps the array
+export interface StatusResult {
+  entries: ChainStatus[];
+  note: string;
 }
 
 export interface BalanceResult {
-  chain: string;       // Bare chain name
-  network: NetworkType; // "testnet" | "mainnet"
+  chain: string;
+  network: NetworkType;
   address: string;
   amount: string;
   token: string;
-}
-
-export interface SendOptions {
-  chain?: string;
-  token?: string;
-  memo?: string;
+  note: string;
 }
 
 export interface SendResult {
   txHash: string;
   explorerUrl: string;
   fee: string;
-  chain: string;       // Bare chain name
-  network: NetworkType; // "testnet" | "mainnet"
+  chain: string;
+  network: NetworkType;
+  note: string;
 }
 
 export interface FaucetResult {
-  chain: string;       // Bare chain name
-  network: NetworkType; // "testnet" | "mainnet"
+  chain: string;
+  network: NetworkType;
   amount: string;
   token: string;
   txHash: string;
+  note: string;
+}
+
+export interface IdentifyChainsResult {
+  chains: string[];
+  note: string;
+}
+
+export interface TokensResult {
+  tokens: TokenInfo[];
+  note: string;
+}
+
+export interface HistoryResult {
+  entries: HistoryEntry[];
+  note: string;
 }
 
 export interface HistoryEntry {
@@ -82,11 +155,6 @@ export interface HistoryEntry {
   amount: string;
   token: string;
   txHash: string;
-}
-
-export interface SetupOptions {
-  network?: NetworkType;
-  rpc?: string;  // Override default RPC endpoint. Stored in config and persists across sessions.
 }
 
 export interface TokenInfo {

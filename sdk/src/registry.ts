@@ -60,8 +60,8 @@ export async function getAdapter(cacheKey: string): Promise<ChainAdapter> {
   if (!chainConfig) {
     const { chain } = parseConfigKey(cacheKey);
     throw new MoneyError('CHAIN_NOT_CONFIGURED',
-      `Chain "${chain}" is not configured. Run money.setup("${chain}") first.`,
-      { chain },
+      `Chain "${chain}" is not configured.`,
+      { chain, note: `Run setup first:\n  await money.setup({ chain: "${chain}" })` },
     );
   }
 
@@ -77,7 +77,7 @@ export async function getAdapter(cacheKey: string): Promise<ChainAdapter> {
     if (!viemChain) {
       throw new MoneyError('CHAIN_NOT_CONFIGURED',
         `Unsupported chain/network combination: "${chain}" on "${chainConfig.network}". No viem chain configuration found.`,
-        { chain },
+        { chain, note: `Run setup first:\n  await money.setup({ chain: "${chain}" })` },
       );
     }
     adapter = createEvmAdapter(chain, chainConfig.rpc, explorerUrl, aliases, viemChain);
@@ -85,7 +85,10 @@ export async function getAdapter(cacheKey: string): Promise<ChainAdapter> {
     const aliases = await getSolanaAliases(cacheKey);
     adapter = createSolanaAdapter(chainConfig.rpc, aliases, network);
   } else {
-    throw new MoneyError('CHAIN_NOT_CONFIGURED', `Unknown chain "${chain}".`, { chain });
+    throw new MoneyError('CHAIN_NOT_CONFIGURED', `Unknown chain "${chain}".`, {
+      chain,
+      note: `Run setup first:\n  await money.setup({ chain: "${chain}" })`,
+    });
   }
 
   adapterCache.set(cacheKey, adapter);

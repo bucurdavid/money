@@ -5758,15 +5758,15 @@ function wNAF2(c, bits) {
       const { windows, windowSize } = calcWOpts(W2, bits);
       const points = [];
       let p = elm;
-      let base = p;
+      let base2 = p;
       for (let window2 = 0; window2 < windows; window2++) {
-        base = p;
-        points.push(base);
+        base2 = p;
+        points.push(base2);
         for (let i = 1; i < windowSize; i++) {
-          base = base.add(p);
-          points.push(base);
+          base2 = base2.add(p);
+          points.push(base2);
         }
-        p = base.double();
+        p = base2.double();
       }
       return points;
     },
@@ -7574,6 +7574,32 @@ function extract(value_, { format }) {
 }
 var init_extract = __esm({
   "node_modules/viem/_esm/utils/formatters/extract.js"() {
+  }
+});
+
+// node_modules/viem/_esm/utils/formatters/formatter.js
+function defineFormatter(type, format) {
+  return ({ exclude, format: overrides }) => {
+    return {
+      exclude,
+      format: (args, action) => {
+        const formatted = format(args, action);
+        if (exclude) {
+          for (const key of exclude) {
+            delete formatted[key];
+          }
+        }
+        return {
+          ...formatted,
+          ...overrides(args, action)
+        };
+      },
+      type
+    };
+  };
+}
+var init_formatter = __esm({
+  "node_modules/viem/_esm/utils/formatters/formatter.js"() {
   }
 });
 
@@ -9597,17 +9623,17 @@ async function call(client, args) {
       }
     }
     const params = (() => {
-      const base = [
+      const base2 = [
         request,
         block
       ];
       if (rpcStateOverride && rpcBlockOverrides)
-        return [...base, rpcStateOverride, rpcBlockOverrides];
+        return [...base2, rpcStateOverride, rpcBlockOverrides];
       if (rpcStateOverride)
-        return [...base, rpcStateOverride];
+        return [...base2, rpcStateOverride];
       if (rpcBlockOverrides)
-        return [...base, {}, rpcBlockOverrides];
-      return base;
+        return [...base2, {}, rpcBlockOverrides];
+      return base2;
     })();
     const response = await client.request({
       method: "eth_call",
@@ -11467,15 +11493,15 @@ var require_curve = __commonJS({
           const { windows, windowSize } = calcWOpts2(W2, bits);
           const points = [];
           let p = elm;
-          let base = p;
+          let base2 = p;
           for (let window2 = 0; window2 < windows; window2++) {
-            base = p;
-            points.push(base);
+            base2 = p;
+            points.push(base2);
             for (let i = 1; i < windowSize; i++) {
-              base = base.add(p);
-              points.push(base);
+              base2 = base2.add(p);
+              points.push(base2);
             }
-            p = base.double();
+            p = base2.double();
           }
           return points;
         },
@@ -12724,7 +12750,7 @@ var require_bn = __commonJS({
         ctor.prototype = new TempCtor();
         ctor.prototype.constructor = ctor;
       }
-      function BN(number, base, endian) {
+      function BN(number, base2, endian) {
         if (BN.isBN(number)) {
           return number;
         }
@@ -12733,11 +12759,11 @@ var require_bn = __commonJS({
         this.length = 0;
         this.red = null;
         if (number !== null) {
-          if (base === "le" || base === "be") {
-            endian = base;
-            base = 10;
+          if (base2 === "le" || base2 === "be") {
+            endian = base2;
+            base2 = 10;
           }
-          this._init(number || 0, base || 10, endian || "be");
+          this._init(number || 0, base2 || 10, endian || "be");
         }
       }
       if (typeof module2 === "object") {
@@ -12770,17 +12796,17 @@ var require_bn = __commonJS({
         if (left.cmp(right) < 0) return left;
         return right;
       };
-      BN.prototype._init = function init(number, base, endian) {
+      BN.prototype._init = function init(number, base2, endian) {
         if (typeof number === "number") {
-          return this._initNumber(number, base, endian);
+          return this._initNumber(number, base2, endian);
         }
         if (typeof number === "object") {
-          return this._initArray(number, base, endian);
+          return this._initArray(number, base2, endian);
         }
-        if (base === "hex") {
-          base = 16;
+        if (base2 === "hex") {
+          base2 = 16;
         }
-        assert8(base === (base | 0) && base >= 2 && base <= 36);
+        assert8(base2 === (base2 | 0) && base2 >= 2 && base2 <= 36);
         number = number.toString().replace(/\s+/g, "");
         var start = 0;
         if (number[0] === "-") {
@@ -12788,17 +12814,17 @@ var require_bn = __commonJS({
           this.negative = 1;
         }
         if (start < number.length) {
-          if (base === 16) {
+          if (base2 === 16) {
             this._parseHex(number, start, endian);
           } else {
-            this._parseBase(number, base, start);
+            this._parseBase(number, base2, start);
             if (endian === "le") {
-              this._initArray(this.toArray(), base, endian);
+              this._initArray(this.toArray(), base2, endian);
             }
           }
         }
       };
-      BN.prototype._initNumber = function _initNumber(number, base, endian) {
+      BN.prototype._initNumber = function _initNumber(number, base2, endian) {
         if (number < 0) {
           this.negative = 1;
           number = -number;
@@ -12822,9 +12848,9 @@ var require_bn = __commonJS({
           this.length = 3;
         }
         if (endian !== "le") return;
-        this._initArray(this.toArray(), base, endian);
+        this._initArray(this.toArray(), base2, endian);
       };
-      BN.prototype._initArray = function _initArray(number, base, endian) {
+      BN.prototype._initArray = function _initArray(number, base2, endian) {
         assert8(typeof number.length === "number");
         if (number.length <= 0) {
           this.words = [0];
@@ -12938,20 +12964,20 @@ var require_bn = __commonJS({
         }
         return r;
       }
-      BN.prototype._parseBase = function _parseBase(number, base, start) {
+      BN.prototype._parseBase = function _parseBase(number, base2, start) {
         this.words = [0];
         this.length = 1;
-        for (var limbLen = 0, limbPow = 1; limbPow <= 67108863; limbPow *= base) {
+        for (var limbLen = 0, limbPow = 1; limbPow <= 67108863; limbPow *= base2) {
           limbLen++;
         }
         limbLen--;
-        limbPow = limbPow / base | 0;
+        limbPow = limbPow / base2 | 0;
         var total = number.length - start;
         var mod2 = total % limbLen;
         var end = Math.min(total, total - mod2) + start;
         var word = 0;
         for (var i = start; i < end; i += limbLen) {
-          word = parseBase(number, i, i + limbLen, base);
+          word = parseBase(number, i, i + limbLen, base2);
           this.imuln(limbPow);
           if (this.words[0] + word < 67108864) {
             this.words[0] += word;
@@ -12961,9 +12987,9 @@ var require_bn = __commonJS({
         }
         if (mod2 !== 0) {
           var pow = 1;
-          word = parseBase(number, i, number.length, base);
+          word = parseBase(number, i, number.length, base2);
           for (i = 0; i < mod2; i++) {
-            pow *= base;
+            pow *= base2;
           }
           this.imuln(pow);
           if (this.words[0] + word < 67108864) {
@@ -13133,11 +13159,11 @@ var require_bn = __commonJS({
         52521875,
         60466176
       ];
-      BN.prototype.toString = function toString2(base, padding) {
-        base = base || 10;
+      BN.prototype.toString = function toString2(base2, padding) {
+        base2 = base2 || 10;
         padding = padding | 0 || 1;
         var out;
-        if (base === 16 || base === "hex") {
+        if (base2 === 16 || base2 === "hex") {
           out = "";
           var off = 0;
           var carry = 0;
@@ -13167,14 +13193,14 @@ var require_bn = __commonJS({
           }
           return out;
         }
-        if (base === (base | 0) && base >= 2 && base <= 36) {
-          var groupSize = groupSizes[base];
-          var groupBase = groupBases[base];
+        if (base2 === (base2 | 0) && base2 >= 2 && base2 <= 36) {
+          var groupSize = groupSizes[base2];
+          var groupBase = groupBases[base2];
           out = "";
           var c = this.clone();
           c.negative = 0;
           while (!c.isZero()) {
-            var r = c.modrn(groupBase).toString(base);
+            var r = c.modrn(groupBase).toString(base2);
             c = c.idivn(groupBase);
             if (!c.isZero()) {
               out = zeros[groupSize - r.length] + r + out;
@@ -15662,7 +15688,7 @@ var require_src = __commonJS({
   "node_modules/base-x/src/index.js"(exports, module) {
     "use strict";
     var _Buffer = require_safe_buffer().Buffer;
-    function base(ALPHABET) {
+    function base2(ALPHABET) {
       if (ALPHABET.length >= 255) {
         throw new TypeError("Alphabet too long");
       }
@@ -15788,7 +15814,7 @@ var require_src = __commonJS({
         decode: decode2
       };
     }
-    module.exports = base;
+    module.exports = base2;
   }
 });
 
@@ -21922,10 +21948,10 @@ var require_url_state_machine = __commonJS({
     function isNormalizedWindowsDriveLetter(string) {
       return /^[A-Za-z]:$/.test(string);
     }
-    function URLStateMachine(input, base, encodingOverride, url, stateOverride) {
+    function URLStateMachine(input, base2, encodingOverride, url, stateOverride) {
       this.pointer = 0;
       this.input = input;
-      this.base = base || null;
+      this.base = base2 || null;
       this.encodingOverride = encodingOverride || "utf-8";
       this.stateOverride = stateOverride;
       this.url = url;
@@ -22594,10 +22620,10 @@ var require_URL_impl = __commonJS({
     exports.implementation = class URLImpl {
       constructor(constructorArgs) {
         const url = constructorArgs[0];
-        const base = constructorArgs[1];
+        const base2 = constructorArgs[1];
         let parsedBase = null;
-        if (base !== void 0) {
-          parsedBase = usm.basicURLParse(base);
+        if (base2 !== void 0) {
+          parsedBase = usm.basicURLParse(base2);
           if (parsedBase === "failure") {
             throw new TypeError("Invalid base URL");
           }
@@ -36508,14 +36534,14 @@ Message: ${transactionMessage}.
         this.checkProgramId(instruction.programId);
         this.checkKeyLength(instruction.keys, 1);
         const {
-          base,
+          base: base2,
           seed,
           space,
           programId
         } = decodeData$1(SYSTEM_INSTRUCTION_LAYOUTS.AllocateWithSeed, instruction.data);
         return {
           accountPubkey: instruction.keys[0].pubkey,
-          basePubkey: new PublicKey23(base),
+          basePubkey: new PublicKey23(base2),
           seed,
           space,
           programId: new PublicKey23(programId)
@@ -36542,13 +36568,13 @@ Message: ${transactionMessage}.
         this.checkProgramId(instruction.programId);
         this.checkKeyLength(instruction.keys, 1);
         const {
-          base,
+          base: base2,
           seed,
           programId
         } = decodeData$1(SYSTEM_INSTRUCTION_LAYOUTS.AssignWithSeed, instruction.data);
         return {
           accountPubkey: instruction.keys[0].pubkey,
-          basePubkey: new PublicKey23(base),
+          basePubkey: new PublicKey23(base2),
           seed,
           programId: new PublicKey23(programId)
         };
@@ -36560,7 +36586,7 @@ Message: ${transactionMessage}.
         this.checkProgramId(instruction.programId);
         this.checkKeyLength(instruction.keys, 2);
         const {
-          base,
+          base: base2,
           seed,
           lamports,
           space,
@@ -36569,7 +36595,7 @@ Message: ${transactionMessage}.
         return {
           fromPubkey: instruction.keys[0].pubkey,
           newAccountPubkey: instruction.keys[1].pubkey,
-          basePubkey: new PublicKey23(base),
+          basePubkey: new PublicKey23(base2),
           seed,
           lamports,
           space,
@@ -44266,15 +44292,15 @@ function clone(configObject) {
     };
   })();
   div = /* @__PURE__ */ (function() {
-    function multiply(x, k, base) {
+    function multiply(x, k, base2) {
       var m, temp, xlo, xhi, carry = 0, i = x.length, klo = k % SQRT_BASE, khi = k / SQRT_BASE | 0;
       for (x = x.slice(); i--; ) {
         xlo = x[i] % SQRT_BASE;
         xhi = x[i] / SQRT_BASE | 0;
         m = khi * xlo + xhi * klo;
         temp = klo * xlo + m % SQRT_BASE * SQRT_BASE + carry;
-        carry = (temp / base | 0) + (m / SQRT_BASE | 0) + khi * xhi;
-        x[i] = temp % base;
+        carry = (temp / base2 | 0) + (m / SQRT_BASE | 0) + khi * xhi;
+        x[i] = temp % base2;
       }
       if (carry) x = [carry].concat(x);
       return x;
@@ -44293,16 +44319,16 @@ function clone(configObject) {
       }
       return cmp;
     }
-    function subtract(a, b, aL, base) {
+    function subtract(a, b, aL, base2) {
       var i = 0;
       for (; aL--; ) {
         a[aL] -= i;
         i = a[aL] < b[aL] ? 1 : 0;
-        a[aL] = i * base + a[aL] - b[aL];
+        a[aL] = i * base2 + a[aL] - b[aL];
       }
       for (; !a[0] && a.length > 1; a.splice(0, 1)) ;
     }
-    return function(x, y, dp, rm, base) {
+    return function(x, y, dp, rm, base2) {
       var cmp, e2, i, more, n, prod, prodL, q, qc, rem, remL, rem0, xi, xL, yc0, yL, yz, s = x.s == y.s ? 1 : -1, xc = x.c, yc = y.c;
       if (!xc || !xc[0] || !yc || !yc[0]) {
         return new BigNumber2(
@@ -44317,8 +44343,8 @@ function clone(configObject) {
       qc = q.c = [];
       e2 = x.e - y.e;
       s = dp + e2 + 1;
-      if (!base) {
-        base = BASE;
+      if (!base2) {
+        base2 = BASE;
         e2 = bitFloor(x.e / LOG_BASE) - bitFloor(y.e / LOG_BASE);
         s = s / LOG_BASE | 0;
       }
@@ -44332,10 +44358,10 @@ function clone(configObject) {
         yL = yc.length;
         i = 0;
         s += 2;
-        n = mathfloor(base / (yc[0] + 1));
+        n = mathfloor(base2 / (yc[0] + 1));
         if (n > 1) {
-          yc = multiply(yc, n, base);
-          xc = multiply(xc, n, base);
+          yc = multiply(yc, n, base2);
+          xc = multiply(xc, n, base2);
           yL = yc.length;
           xL = xc.length;
         }
@@ -44346,22 +44372,22 @@ function clone(configObject) {
         yz = yc.slice();
         yz = [0].concat(yz);
         yc0 = yc[0];
-        if (yc[1] >= base / 2) yc0++;
+        if (yc[1] >= base2 / 2) yc0++;
         do {
           n = 0;
           cmp = compare2(yc, rem, yL, remL);
           if (cmp < 0) {
             rem0 = rem[0];
-            if (yL != remL) rem0 = rem0 * base + (rem[1] || 0);
+            if (yL != remL) rem0 = rem0 * base2 + (rem[1] || 0);
             n = mathfloor(rem0 / yc0);
             if (n > 1) {
-              if (n >= base) n = base - 1;
-              prod = multiply(yc, n, base);
+              if (n >= base2) n = base2 - 1;
+              prod = multiply(yc, n, base2);
               prodL = prod.length;
               remL = rem.length;
               while (compare2(prod, rem, prodL, remL) == 1) {
                 n--;
-                subtract(prod, yL < prodL ? yz : yc, prodL, base);
+                subtract(prod, yL < prodL ? yz : yc, prodL, base2);
                 prodL = prod.length;
                 cmp = 1;
               }
@@ -44373,12 +44399,12 @@ function clone(configObject) {
               prodL = prod.length;
             }
             if (prodL < remL) prod = [0].concat(prod);
-            subtract(rem, prod, remL, base);
+            subtract(rem, prod, remL, base2);
             remL = rem.length;
             if (cmp == -1) {
               while (compare2(yc, rem, yL, remL) < 1) {
                 n++;
-                subtract(rem, yL < remL ? yz : yc, remL, base);
+                subtract(rem, yL < remL ? yz : yc, remL, base2);
                 remL = rem.length;
               }
             }
@@ -44397,7 +44423,7 @@ function clone(configObject) {
         more = rem[0] != null;
         if (!qc[0]) qc.splice(0, 1);
       }
-      if (base == BASE) {
+      if (base2 == BASE) {
         for (i = 1, s = qc[0]; s >= 10; s /= 10, i++) ;
         round(q, dp + (q.e = i + e2 * LOG_BASE - 1) + 1, rm, more);
       } else {
@@ -44468,20 +44494,20 @@ function clone(configObject) {
   parseNumeric = /* @__PURE__ */ (function() {
     var basePrefix = /^(-?)0([xbo])(?=\w[\w.]*$)/i, dotAfter = /^([^.]+)\.$/, dotBefore = /^\.([^.]+)$/, isInfinityOrNaN = /^-?(Infinity|NaN)$/, whitespaceOrPlus = /^\s*\+(?=[\w.])|^\s+|\s+$/g;
     return function(x, str, isNum, b) {
-      var base, s = isNum ? str : str.replace(whitespaceOrPlus, "");
+      var base2, s = isNum ? str : str.replace(whitespaceOrPlus, "");
       if (isInfinityOrNaN.test(s)) {
         x.s = isNaN(s) ? null : s < 0 ? -1 : 1;
       } else {
         if (!isNum) {
           s = s.replace(basePrefix, function(m, p1, p2) {
-            base = (p2 = p2.toLowerCase()) == "x" ? 16 : p2 == "b" ? 2 : 8;
-            return !b || b == base ? p1 : m;
+            base2 = (p2 = p2.toLowerCase()) == "x" ? 16 : p2 == "b" ? 2 : 8;
+            return !b || b == base2 ? p1 : m;
           });
           if (b) {
-            base = b;
+            base2 = b;
             s = s.replace(dotAfter, "$1").replace(dotBefore, "0.$1");
           }
-          if (str != s) return new BigNumber2(s, base);
+          if (str != s) return new BigNumber2(s, base2);
         }
         if (BigNumber2.DEBUG) {
           throw Error(bignumberError + "Not a" + (b ? " base " + b : "") + " number: " + str);
@@ -44809,7 +44835,7 @@ function clone(configObject) {
     return y;
   };
   P2.multipliedBy = P2.times = function(y, b) {
-    var c, e2, i, j, k, m, xcL, xlo, xhi, ycL, ylo, yhi, zc, base, sqrtBase, x = this, xc = x.c, yc = (y = new BigNumber2(y, b)).c;
+    var c, e2, i, j, k, m, xcL, xlo, xhi, ycL, ylo, yhi, zc, base2, sqrtBase, x = this, xc = x.c, yc = (y = new BigNumber2(y, b)).c;
     if (!xc || !yc || !xc[0] || !yc[0]) {
       if (!x.s || !y.s || xc && !xc[0] && !yc || yc && !yc[0] && !xc) {
         y.c = y.e = y.s = null;
@@ -44837,7 +44863,7 @@ function clone(configObject) {
       ycL = i;
     }
     for (i = xcL + ycL, zc = []; i--; zc.push(0)) ;
-    base = BASE;
+    base2 = BASE;
     sqrtBase = SQRT_BASE;
     for (i = ycL; --i >= 0; ) {
       c = 0;
@@ -44848,8 +44874,8 @@ function clone(configObject) {
         xhi = xc[k] / sqrtBase | 0;
         m = yhi * xlo + xhi * ylo;
         xlo = ylo * xlo + m % sqrtBase * sqrtBase + zc[j] + c;
-        c = (xlo / base | 0) + (m / sqrtBase | 0) + yhi * xhi;
-        zc[j--] = xlo % base;
+        c = (xlo / base2 | 0) + (m / sqrtBase | 0) + yhi * xhi;
+        zc[j--] = xlo % base2;
       }
       zc[j] = c;
     }
@@ -52921,9 +52947,15 @@ async function saveConfig(config) {
     throw new Error(`Failed to create config directory ${configDir}: ${err2.message}`);
   }
   const content = JSON.stringify(config, null, 2);
+  const tmpPath = `${configPath}.tmp.${process.pid}`;
   try {
-    await fs.writeFile(configPath, content, { encoding: "utf-8", mode: 384 });
+    await fs.writeFile(tmpPath, content, { encoding: "utf-8", mode: 384 });
+    await fs.rename(tmpPath, configPath);
   } catch (err2) {
+    try {
+      await fs.unlink(tmpPath);
+    } catch {
+    }
     throw new Error(`Failed to write config to ${configPath}: ${err2.message}`);
   }
 }
@@ -52931,9 +52963,9 @@ async function getChainConfig(chain2) {
   const config = await loadConfig();
   return config.chains[chain2] ?? null;
 }
-async function setChainConfig(chain2, chainConfig) {
+async function setChainConfig(chain2, chainConfig2) {
   const config = await loadConfig();
-  config.chains[chain2] = chainConfig;
+  config.chains[chain2] = chainConfig2;
   await saveConfig(config);
 }
 
@@ -52971,6 +53003,18 @@ function fromHex(hexAmount, decimals) {
   if (!hexAmount || hexAmount === "0")
     return "0";
   return toHuman(BigInt(`0x${hexAmount}`), decimals);
+}
+function compareDecimalStrings(a, b) {
+  const [aInt, aFrac = ""] = a.split(".");
+  const [bInt, bFrac = ""] = b.split(".");
+  const maxFrac = Math.max(aFrac.length, bFrac.length);
+  const aRaw = BigInt(aInt + aFrac.padEnd(maxFrac, "0"));
+  const bRaw = BigInt(bInt + bFrac.padEnd(maxFrac, "0"));
+  if (aRaw < bRaw)
+    return -1;
+  if (aRaw > bRaw)
+    return 1;
+  return 0;
 }
 
 // dist/keys.js
@@ -53450,7 +53494,7 @@ function buildSec1Der(privKeyBuf) {
 function extractSpkiPublicKey(spkiDer) {
   return spkiDer.slice(SPKI_SECP256K1_POINT_OFFSET);
 }
-var HEX_KEY_RE = /\b[0-9a-fA-F]{64,}\b/g;
+var HEX_KEY_RE = /(?<!0x)\b[0-9a-fA-F]{64,}\b/g;
 var REDACTED = "[REDACTED]";
 async function generateEd25519Key() {
   const privKeyBuf = randomBytes3(32);
@@ -53542,18 +53586,17 @@ var PATTERNS = {
   // base58
 };
 var EVM_CHAINS = ["base", "ethereum", "arbitrum"];
-function detectChain(address, configuredChains) {
+function identifyChains(address) {
   if (PATTERNS.fast.test(address)) {
-    return "fast";
+    return ["fast"];
   }
   if (PATTERNS.evm.test(address)) {
-    const match = EVM_CHAINS.find((c) => configuredChains.includes(c));
-    return match ?? "base";
+    return [...EVM_CHAINS];
   }
   if (PATTERNS.solana.test(address)) {
-    return "solana";
+    return ["solana"];
   }
-  return null;
+  return [];
 }
 function isValidAddress(address, chain2) {
   const pattern = getAddressPattern(chain2);
@@ -53574,18 +53617,21 @@ var MoneyError = class extends Error {
   code;
   chain;
   details;
+  note;
   constructor(code, message, opts) {
     super(message);
     this.name = "MoneyError";
     this.code = code;
     this.chain = opts?.chain;
     this.details = opts?.details;
+    this.note = opts?.note ?? "";
   }
   toJSON() {
     return {
       error: true,
       code: this.code,
       message: this.message,
+      note: this.note,
       chain: this.chain,
       details: this.details
     };
@@ -53697,7 +53743,17 @@ async function loadAliases() {
 async function saveAliases(data) {
   const aliasesPath = getAliasesPath();
   await fs2.mkdir(path3.dirname(aliasesPath), { recursive: true, mode: 448 });
-  await fs2.writeFile(aliasesPath, JSON.stringify(data, null, 2), { encoding: "utf-8", mode: 384 });
+  const tmpPath = `${aliasesPath}.tmp.${process.pid}`;
+  try {
+    await fs2.writeFile(tmpPath, JSON.stringify(data, null, 2), { encoding: "utf-8", mode: 384 });
+    await fs2.rename(tmpPath, aliasesPath);
+  } catch (err2) {
+    try {
+      await fs2.unlink(tmpPath);
+    } catch {
+    }
+    throw err2;
+  }
 }
 async function getAlias(cacheKey2, name) {
   const all = await loadAliases();
@@ -54820,6 +54876,24 @@ var TransactionBcs = bcs.struct("Transaction", {
   claim: ClaimTypeBcs,
   archival: bcs.bool()
 });
+function tokenIdEquals(a, b) {
+  if (a.length !== b.length)
+    return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i])
+      return false;
+  }
+  return true;
+}
+function hexToTokenId(hex) {
+  const clean2 = hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex;
+  const padded = clean2.padEnd(64, "0").slice(0, 64);
+  const bytes = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) {
+    bytes[i] = parseInt(padded.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
 function pubkeyToAddress(publicKeyHex) {
   const pubBytes = Buffer.from(publicKeyHex, "hex");
   const words = import_bech32.bech32m.toWords(pubBytes);
@@ -54899,9 +54973,22 @@ function createFastAdapter(rpcUrl, network = "testnet") {
       });
       if (!result)
         return { amount: "0", token: tok };
-      const hexBalance = result.balance ?? "0";
-      const amount = fromHex(hexBalance, FAST_DECIMALS);
-      return { amount, token: tok };
+      if (tok === "SET") {
+        const hexBalance = result.balance ?? "0";
+        const amount = fromHex(hexBalance, FAST_DECIMALS);
+        return { amount, token: tok };
+      }
+      const isHex2 = /^(0x)?[0-9a-fA-F]+$/.test(tok);
+      if (isHex2) {
+        const tokenIdBytes = hexToTokenId(tok);
+        const entry = result.token_balance?.find((tb) => tokenIdEquals(tb.token_id, tokenIdBytes));
+        if (!entry)
+          return { amount: "0", token: tok };
+        const rawBalance = entry.balance.startsWith("0x") || entry.balance.startsWith("0X") ? entry.balance.slice(2) : entry.balance;
+        const amount = fromHex(rawBalance, FAST_DECIMALS);
+        return { amount, token: tok };
+      }
+      throw new MoneyError("TOKEN_NOT_FOUND", `Token '${tok}' not found on Fast chain`, { chain: "fast" });
     },
     // -----------------------------------------------------------------------
     // send: BCS-encode tx, sign with "Transaction::" prefix, submit
@@ -55440,8 +55527,12 @@ var BlockNotFoundError = class extends BaseError2 {
 // node_modules/viem/_esm/actions/public/getBlock.js
 init_toHex();
 
+// node_modules/viem/_esm/utils/formatters/block.js
+init_formatter();
+
 // node_modules/viem/_esm/utils/formatters/transaction.js
 init_fromHex();
+init_formatter();
 var transactionType = {
   "0x0": "legacy",
   "0x1": "eip2930",
@@ -55499,6 +55590,7 @@ function formatTransaction(transaction, _) {
     delete transaction_.maxFeePerBlobGas;
   return transaction_;
 }
+var defineTransaction = /* @__PURE__ */ defineFormatter("transaction", formatTransaction);
 function formatAuthorizationList2(authorizationList) {
   return authorizationList.map((authorization) => ({
     address: authorization.address,
@@ -55535,6 +55627,7 @@ function formatBlock(block, _) {
     totalDifficulty: block.totalDifficulty ? BigInt(block.totalDifficulty) : null
   };
 }
+var defineBlock = /* @__PURE__ */ defineFormatter("block", formatBlock);
 
 // node_modules/viem/_esm/actions/public/getBlock.js
 async function getBlock(client, { blockHash, blockNumber, blockTag = client.experimental_blockTag ?? "latest", includeTransactions: includeTransactions_ } = {}) {
@@ -55624,7 +55717,7 @@ async function internal_estimateFeesPerGas(client, args) {
     throw new BaseFeeScalarError();
   const decimals = baseFeeMultiplier.toString().split(".")[1]?.length ?? 0;
   const denominator = 10 ** decimals;
-  const multiply = (base) => base * BigInt(Math.ceil(baseFeeMultiplier * denominator)) / BigInt(denominator);
+  const multiply = (base2) => base2 * BigInt(Math.ceil(baseFeeMultiplier * denominator)) / BigInt(denominator);
   const block = block_ ? block_ : await getAction(client, getBlock, "getBlock")({});
   if (typeof chain2?.fees?.estimateFeesPerGas === "function") {
     const fees = await chain2.fees.estimateFeesPerGas({
@@ -55989,7 +56082,7 @@ async function fillTransaction(client, parameters) {
       throw new BaseFeeScalarError();
     const decimals = feeMultiplier.toString().split(".")[1]?.length ?? 0;
     const denominator = 10 ** decimals;
-    const multiplyFee = (base) => base * BigInt(Math.ceil(feeMultiplier * denominator)) / BigInt(denominator);
+    const multiplyFee = (base2) => base2 * BigInt(Math.ceil(feeMultiplier * denominator)) / BigInt(denominator);
     if (transaction.maxFeePerGas && !parameters.maxFeePerGas)
       transaction.maxFeePerGas = multiplyFee(transaction.maxFeePerGas);
     if (transaction.gasPrice && !parameters.gasPrice)
@@ -57307,6 +57400,7 @@ init_fromHex();
 
 // node_modules/viem/_esm/utils/formatters/transactionReceipt.js
 init_fromHex();
+init_formatter();
 var receiptStatuses = {
   "0x0": "reverted",
   "0x1": "success"
@@ -57331,6 +57425,7 @@ function formatTransactionReceipt(transactionReceipt, _) {
     receipt.blobGasUsed = BigInt(transactionReceipt.blobGasUsed);
   return receipt;
 }
+var defineTransactionReceipt = /* @__PURE__ */ defineFormatter("transactionReceipt", formatTransactionReceipt);
 
 // node_modules/viem/_esm/actions/wallet/sendCalls.js
 init_parseAccount();
@@ -57623,12 +57718,12 @@ function createClient(parameters) {
     uid: uid(),
     ...experimental_blockTag ? { experimental_blockTag } : {}
   };
-  function extend(base) {
+  function extend(base2) {
     return (extendFn) => {
-      const extended = extendFn(base);
+      const extended = extendFn(base2);
       for (const key2 in client)
         delete extended[key2];
-      const combined = { ...base, ...extended };
+      const combined = { ...base2, ...extended };
       return Object.assign(combined, { extend: extend(combined) });
     };
   }
@@ -59026,6 +59121,26 @@ function shouldRetry(error) {
   return true;
 }
 
+// node_modules/viem/_esm/utils/chain/defineChain.js
+function defineChain(chain2) {
+  const chainInstance = {
+    formatters: void 0,
+    fees: void 0,
+    serializers: void 0,
+    ...chain2
+  };
+  function extend(base2) {
+    return (fnOrExtended) => {
+      const properties = typeof fnOrExtended === "function" ? fnOrExtended(base2) : fnOrExtended;
+      const combined = { ...base2, ...properties };
+      return Object.assign(combined, { extend: extend(combined) });
+    };
+  }
+  return Object.assign(chainInstance, {
+    extend: extend(chainInstance)
+  });
+}
+
 // node_modules/viem/_esm/utils/index.js
 init_fromHex();
 init_toHex();
@@ -59283,9 +59398,9 @@ function validateTypedData(parameters) {
       const value = data[name];
       const integerMatch = type.match(integerRegex2);
       if (integerMatch && (typeof value === "number" || typeof value === "bigint")) {
-        const [_type, base, size_] = integerMatch;
+        const [_type, base2, size_] = integerMatch;
         numberToHex(value, {
-          signed: base === "int",
+          signed: base2 === "int",
           size: Number.parseInt(size_, 10) / 8
         });
       }
@@ -61247,7 +61362,7 @@ init_encodeFunctionData();
 init_getChainContractAddress();
 async function multicall(client, parameters) {
   const { account, authorizationList, allowFailure = true, blockNumber, blockOverrides, blockTag, stateOverride } = parameters;
-  const contracts = parameters.contracts;
+  const contracts2 = parameters.contracts;
   const { batchSize = parameters.batchSize ?? 1024, deployless = parameters.deployless ?? false } = typeof client.batch?.multicall === "object" ? client.batch.multicall : {};
   const multicallAddress = (() => {
     if (parameters.multicallAddress)
@@ -61266,8 +61381,8 @@ async function multicall(client, parameters) {
   const chunkedCalls = [[]];
   let currentChunk = 0;
   let currentChunkSize = 0;
-  for (let i = 0; i < contracts.length; i++) {
-    const { abi: abi2, address, args, functionName } = contracts[i];
+  for (let i = 0; i < contracts2.length; i++) {
+    const { abi: abi2, address, args, functionName } = contracts2[i];
     try {
       const callData = encodeFunctionData({ abi: abi2, args, functionName });
       currentChunkSize += (callData.length - 2) / 2;
@@ -61341,7 +61456,7 @@ async function multicall(client, parameters) {
     for (let j = 0; j < aggregate3Result.length; j++) {
       const { returnData, success } = aggregate3Result[j];
       const { callData } = chunkedCalls[i][j];
-      const { abi: abi2, address, functionName, args } = contracts[results.length];
+      const { abi: abi2, address, functionName, args } = contracts2[results.length];
       try {
         if (callData === "0x")
           throw new AbiDecodingZeroDataError();
@@ -61368,7 +61483,7 @@ async function multicall(client, parameters) {
       }
     }
   }
-  if (results.length !== contracts.length)
+  if (results.length !== contracts2.length)
     throw new BaseError2("multicall results mismatch");
   return results;
 }
@@ -63452,8 +63567,8 @@ async function signTransaction(client, parameters) {
       currentChainId: chainId,
       chain: chain2
     });
-  const formatters = chain2?.formatters || client.chain?.formatters;
-  const format = formatters?.transactionRequest?.format || formatTransactionRequest;
+  const formatters2 = chain2?.formatters || client.chain?.formatters;
+  const format = formatters2?.transactionRequest?.format || formatTransactionRequest;
   if (account.signTransaction)
     return account.signTransaction({
       ...transaction,
@@ -63845,8 +63960,9 @@ var FAUCET_URLS = {
 function publicKeyToEvmAddress(uncompressedPubKeyHex) {
   return publicKeyToAddress(`0x${uncompressedPubKeyHex}`);
 }
-function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases) {
+function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain) {
   const publicClient = createPublicClient({
+    chain: viemChain,
     transport: http(rpcUrl)
   });
   const decimalsCache = /* @__PURE__ */ new Map();
@@ -63909,6 +64025,7 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases) {
         const account = privateKeyToAccount(`0x${kp.privateKey}`);
         const walletClient = createWalletClient({
           account,
+          chain: viemChain,
           transport: http(rpcUrl)
         });
         if (resolved.type === "native") {
@@ -63916,7 +64033,7 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases) {
           return walletClient.sendTransaction({
             to: params.to,
             value,
-            chain: null
+            chain: viemChain
           });
         }
         const amount = parseUnits(params.amount, resolved.decimals);
@@ -63925,13 +64042,19 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases) {
           abi: ERC20_ABI,
           functionName: "transfer",
           args: [params.to, amount],
-          chain: null
+          chain: viemChain
         });
       });
+      let fee = "0";
+      try {
+        const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
+        fee = formatUnits(receipt.gasUsed * receipt.effectiveGasPrice, 18);
+      } catch {
+      }
       return {
         txHash,
         explorerUrl: `${explorerBaseUrl}/tx/${txHash}`,
-        fee: "0"
+        fee
       };
     } catch (err2) {
       if (err2 instanceof MoneyError)
@@ -64127,9 +64250,368 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
   };
 }
 
+// node_modules/viem/_esm/op-stack/contracts.js
+var contracts = {
+  gasPriceOracle: { address: "0x420000000000000000000000000000000000000F" },
+  l1Block: { address: "0x4200000000000000000000000000000000000015" },
+  l2CrossDomainMessenger: {
+    address: "0x4200000000000000000000000000000000000007"
+  },
+  l2Erc721Bridge: { address: "0x4200000000000000000000000000000000000014" },
+  l2StandardBridge: { address: "0x4200000000000000000000000000000000000010" },
+  l2ToL1MessagePasser: {
+    address: "0x4200000000000000000000000000000000000016"
+  }
+};
+
+// node_modules/viem/_esm/op-stack/formatters.js
+init_fromHex();
+var formatters = {
+  block: /* @__PURE__ */ defineBlock({
+    format(args) {
+      const transactions = args.transactions?.map((transaction) => {
+        if (typeof transaction === "string")
+          return transaction;
+        const formatted = formatTransaction(transaction);
+        if (formatted.typeHex === "0x7e") {
+          formatted.isSystemTx = transaction.isSystemTx;
+          formatted.mint = transaction.mint ? hexToBigInt(transaction.mint) : void 0;
+          formatted.sourceHash = transaction.sourceHash;
+          formatted.type = "deposit";
+        }
+        return formatted;
+      });
+      return {
+        transactions,
+        stateRoot: args.stateRoot
+      };
+    }
+  }),
+  transaction: /* @__PURE__ */ defineTransaction({
+    format(args) {
+      const transaction = {};
+      if (args.type === "0x7e") {
+        transaction.isSystemTx = args.isSystemTx;
+        transaction.mint = args.mint ? hexToBigInt(args.mint) : void 0;
+        transaction.sourceHash = args.sourceHash;
+        transaction.type = "deposit";
+      }
+      return transaction;
+    }
+  }),
+  transactionReceipt: /* @__PURE__ */ defineTransactionReceipt({
+    format(args) {
+      return {
+        l1GasPrice: args.l1GasPrice ? hexToBigInt(args.l1GasPrice) : null,
+        l1GasUsed: args.l1GasUsed ? hexToBigInt(args.l1GasUsed) : null,
+        l1Fee: args.l1Fee ? hexToBigInt(args.l1Fee) : null,
+        l1FeeScalar: args.l1FeeScalar ? Number(args.l1FeeScalar) : null
+      };
+    }
+  })
+};
+
+// node_modules/viem/_esm/op-stack/serializers.js
+init_address();
+init_isAddress();
+init_concat();
+init_toHex();
+function serializeTransaction2(transaction, signature) {
+  if (isDeposit(transaction))
+    return serializeTransactionDeposit(transaction);
+  return serializeTransaction(transaction, signature);
+}
+var serializers = {
+  transaction: serializeTransaction2
+};
+function serializeTransactionDeposit(transaction) {
+  assertTransactionDeposit(transaction);
+  const { sourceHash, data, from: from14, gas, isSystemTx, mint, to, value } = transaction;
+  const serializedTransaction = [
+    sourceHash,
+    from14,
+    to ?? "0x",
+    mint ? toHex3(mint) : "0x",
+    value ? toHex3(value) : "0x",
+    gas ? toHex3(gas) : "0x",
+    isSystemTx ? "0x1" : "0x",
+    data ?? "0x"
+  ];
+  return concatHex([
+    "0x7e",
+    toRlp(serializedTransaction)
+  ]);
+}
+function isDeposit(transaction) {
+  if (transaction.type === "deposit")
+    return true;
+  if (typeof transaction.sourceHash !== "undefined")
+    return true;
+  return false;
+}
+function assertTransactionDeposit(transaction) {
+  const { from: from14, to } = transaction;
+  if (from14 && !isAddress(from14))
+    throw new InvalidAddressError({ address: from14 });
+  if (to && !isAddress(to))
+    throw new InvalidAddressError({ address: to });
+}
+
+// node_modules/viem/_esm/op-stack/chainConfig.js
+var chainConfig = {
+  blockTime: 2e3,
+  contracts,
+  formatters,
+  serializers
+};
+
+// node_modules/viem/_esm/chains/definitions/arbitrum.js
+var arbitrum = /* @__PURE__ */ defineChain({
+  id: 42161,
+  name: "Arbitrum One",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  blockTime: 250,
+  rpcUrls: {
+    default: {
+      http: ["https://arb1.arbitrum.io/rpc"]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "Arbiscan",
+      url: "https://arbiscan.io",
+      apiUrl: "https://api.arbiscan.io/api"
+    }
+  },
+  contracts: {
+    multicall3: {
+      address: "0xca11bde05977b3631167028862be2a173976ca11",
+      blockCreated: 7654707
+    }
+  }
+});
+
+// node_modules/viem/_esm/chains/definitions/arbitrumSepolia.js
+var arbitrumSepolia = /* @__PURE__ */ defineChain({
+  id: 421614,
+  name: "Arbitrum Sepolia",
+  blockTime: 250,
+  nativeCurrency: {
+    name: "Arbitrum Sepolia Ether",
+    symbol: "ETH",
+    decimals: 18
+  },
+  rpcUrls: {
+    default: {
+      http: ["https://sepolia-rollup.arbitrum.io/rpc"]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "Arbiscan",
+      url: "https://sepolia.arbiscan.io",
+      apiUrl: "https://api-sepolia.arbiscan.io/api"
+    }
+  },
+  contracts: {
+    multicall3: {
+      address: "0xca11bde05977b3631167028862be2a173976ca11",
+      blockCreated: 81930
+    }
+  },
+  testnet: true
+});
+
+// node_modules/viem/_esm/chains/definitions/base.js
+var sourceId = 1;
+var base = /* @__PURE__ */ defineChain({
+  ...chainConfig,
+  id: 8453,
+  name: "Base",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: ["https://mainnet.base.org"]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "Basescan",
+      url: "https://basescan.org",
+      apiUrl: "https://api.basescan.org/api"
+    }
+  },
+  contracts: {
+    ...chainConfig.contracts,
+    disputeGameFactory: {
+      [sourceId]: {
+        address: "0x43edB88C4B80fDD2AdFF2412A7BebF9dF42cB40e"
+      }
+    },
+    l2OutputOracle: {
+      [sourceId]: {
+        address: "0x56315b90c40730925ec5485cf004d835058518A0"
+      }
+    },
+    multicall3: {
+      address: "0xca11bde05977b3631167028862be2a173976ca11",
+      blockCreated: 5022
+    },
+    portal: {
+      [sourceId]: {
+        address: "0x49048044D57e1C92A77f79988d21Fa8fAF74E97e",
+        blockCreated: 17482143
+      }
+    },
+    l1StandardBridge: {
+      [sourceId]: {
+        address: "0x3154Cf16ccdb4C6d922629664174b904d80F2C35",
+        blockCreated: 17482143
+      }
+    }
+  },
+  sourceId
+});
+var basePreconf = /* @__PURE__ */ defineChain({
+  ...base,
+  experimental_preconfirmationTime: 200,
+  rpcUrls: {
+    default: {
+      http: ["https://mainnet-preconf.base.org"]
+    }
+  }
+});
+
+// node_modules/viem/_esm/chains/definitions/baseSepolia.js
+var sourceId2 = 11155111;
+var baseSepolia = /* @__PURE__ */ defineChain({
+  ...chainConfig,
+  id: 84532,
+  network: "base-sepolia",
+  name: "Base Sepolia",
+  nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: ["https://sepolia.base.org"]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "Basescan",
+      url: "https://sepolia.basescan.org",
+      apiUrl: "https://api-sepolia.basescan.org/api"
+    }
+  },
+  contracts: {
+    ...chainConfig.contracts,
+    disputeGameFactory: {
+      [sourceId2]: {
+        address: "0xd6E6dBf4F7EA0ac412fD8b65ED297e64BB7a06E1"
+      }
+    },
+    l2OutputOracle: {
+      [sourceId2]: {
+        address: "0x84457ca9D0163FbC4bbfe4Dfbb20ba46e48DF254"
+      }
+    },
+    portal: {
+      [sourceId2]: {
+        address: "0x49f53e41452c74589e85ca1677426ba426459e85",
+        blockCreated: 4446677
+      }
+    },
+    l1StandardBridge: {
+      [sourceId2]: {
+        address: "0xfd0Bf71F60660E2f608ed56e1659C450eB113120",
+        blockCreated: 4446677
+      }
+    },
+    multicall3: {
+      address: "0xca11bde05977b3631167028862be2a173976ca11",
+      blockCreated: 1059647
+    }
+  },
+  testnet: true,
+  sourceId: sourceId2
+});
+var baseSepoliaPreconf = /* @__PURE__ */ defineChain({
+  ...baseSepolia,
+  experimental_preconfirmationTime: 200,
+  rpcUrls: {
+    default: {
+      http: ["https://sepolia-preconf.base.org"]
+    }
+  }
+});
+
+// node_modules/viem/_esm/chains/definitions/mainnet.js
+var mainnet = /* @__PURE__ */ defineChain({
+  id: 1,
+  name: "Ethereum",
+  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
+  blockTime: 12e3,
+  rpcUrls: {
+    default: {
+      http: ["https://eth.merkle.io"]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "Etherscan",
+      url: "https://etherscan.io",
+      apiUrl: "https://api.etherscan.io/api"
+    }
+  },
+  contracts: {
+    ensUniversalResolver: {
+      address: "0xeeeeeeee14d718c2b47d9923deab1335e144eeee",
+      blockCreated: 23085558
+    },
+    multicall3: {
+      address: "0xca11bde05977b3631167028862be2a173976ca11",
+      blockCreated: 14353601
+    }
+  }
+});
+
+// node_modules/viem/_esm/chains/definitions/sepolia.js
+var sepolia = /* @__PURE__ */ defineChain({
+  id: 11155111,
+  name: "Sepolia",
+  nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
+  rpcUrls: {
+    default: {
+      http: ["https://11155111.rpc.thirdweb.com"]
+    }
+  },
+  blockExplorers: {
+    default: {
+      name: "Etherscan",
+      url: "https://sepolia.etherscan.io",
+      apiUrl: "https://api-sepolia.etherscan.io/api"
+    }
+  },
+  contracts: {
+    multicall3: {
+      address: "0xca11bde05977b3631167028862be2a173976ca11",
+      blockCreated: 751532
+    },
+    ensUniversalResolver: {
+      address: "0xeeeeeeee14d718c2b47d9923deab1335e144eeee",
+      blockCreated: 8928790
+    }
+  },
+  testnet: true
+});
+
 // dist/registry.js
 var adapterCache = /* @__PURE__ */ new Map();
 var EVM_CHAINS2 = ["base", "ethereum", "arbitrum"];
+var VIEM_CHAINS = {
+  base: { sepolia: baseSepolia, mainnet: base },
+  ethereum: { sepolia, mainnet },
+  arbitrum: { sepolia: arbitrumSepolia, mainnet: arbitrum }
+};
 var EVM_EXPLORER_URLS = {
   base: {
     testnet: "https://sepolia.basescan.org",
@@ -64154,24 +64636,34 @@ async function getAdapter(cacheKey2) {
   if (adapterCache.has(cacheKey2)) {
     return adapterCache.get(cacheKey2);
   }
-  const chainConfig = await getChainConfig(cacheKey2);
-  if (!chainConfig) {
+  const chainConfig2 = await getChainConfig(cacheKey2);
+  if (!chainConfig2) {
     const { chain: chain3 } = parseConfigKey(cacheKey2);
-    throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain3}" is not configured. Run money.setup("${chain3}") first.`, { chain: chain3 });
+    throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain3}" is not configured.`, { chain: chain3, note: `Run setup first:
+  await money.setup({ chain: "${chain3}" })` });
   }
   const { chain: chain2, network } = parseConfigKey(cacheKey2);
   let adapter;
   if (chain2 === "fast") {
-    adapter = createFastAdapter(chainConfig.rpc, network);
+    adapter = createFastAdapter(chainConfig2.rpc, network);
   } else if (EVM_CHAINS2.includes(chain2)) {
-    const explorerUrl = EVM_EXPLORER_URLS[chain2]?.[chainConfig.network] ?? "";
+    const explorerUrl = EVM_EXPLORER_URLS[chain2]?.[chainConfig2.network] ?? "";
     const aliases = await getEvmAliases(cacheKey2);
-    adapter = createEvmAdapter(chain2, chainConfig.rpc, explorerUrl, aliases);
+    const viemChain = VIEM_CHAINS[chain2]?.[chainConfig2.network];
+    if (!viemChain) {
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Unsupported chain/network combination: "${chain2}" on "${chainConfig2.network}". No viem chain configuration found.`, { chain: chain2, note: `Run setup first:
+  await money.setup({ chain: "${chain2}" })` });
+    }
+    adapter = createEvmAdapter(chain2, chainConfig2.rpc, explorerUrl, aliases, viemChain);
   } else if (chain2 === "solana") {
     const aliases = await getSolanaAliases(cacheKey2);
-    adapter = createSolanaAdapter(chainConfig.rpc, aliases, network);
+    adapter = createSolanaAdapter(chainConfig2.rpc, aliases, network);
   } else {
-    throw new MoneyError("CHAIN_NOT_CONFIGURED", `Unknown chain "${chain2}".`, { chain: chain2 });
+    throw new MoneyError("CHAIN_NOT_CONFIGURED", `Unknown chain "${chain2}".`, {
+      chain: chain2,
+      note: `Run setup first:
+  await money.setup({ chain: "${chain2}" })`
+    });
   }
   adapterCache.set(cacheKey2, adapter);
   return adapter;
@@ -64250,10 +64742,9 @@ async function appendHistory(entry) {
     await fh.close();
   }
 }
-async function readHistory(chainOrLimit, limit) {
-  const chain2 = typeof chainOrLimit === "string" ? chainOrLimit : void 0;
-  if (typeof chainOrLimit === "number")
-    limit = chainOrLimit;
+async function readHistory(opts) {
+  const chain2 = opts?.chain;
+  const limit = opts?.limit;
   const histPath = getHistoryPath();
   let raw;
   try {
@@ -64299,8 +64790,14 @@ function resolveChainKey(chain2, chains) {
   return null;
 }
 var money = {
-  async setup(chain2, opts) {
-    const network = opts?.network ?? "testnet";
+  async setup(params) {
+    const { chain: chain2, network: networkOpt, rpc: rpcOpt } = params;
+    if (!chain2) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
+        note: 'Provide a chain name:\n  await money.setup({ chain: "fast" })'
+      });
+    }
+    const network = networkOpt ?? "testnet";
     const chainDefaults = DEFAULT_CHAIN_CONFIGS[chain2];
     if (!chainDefaults) {
       throw new MoneyError("CHAIN_NOT_CONFIGURED", `No default config for chain "${chain2}". Supported chains: ${supportedChains().join(", ")}.`, { chain: chain2 });
@@ -64311,12 +64808,12 @@ var money = {
     }
     const key = configKey(chain2, network);
     const existing = await getChainConfig(key);
-    const rpc = opts?.rpc ?? existing?.rpc ?? defaults.rpc;
-    const chainConfig = existing ? { ...existing, rpc, network: defaults.network } : { ...defaults, rpc };
-    await setChainConfig(key, chainConfig);
+    const rpc = rpcOpt ?? existing?.rpc ?? defaults.rpc;
+    const chainConfig2 = existing ? { ...existing, rpc, network: defaults.network } : { ...defaults, rpc };
+    await setChainConfig(key, chainConfig2);
     evictAdapter(key);
     const adapter = await getAdapter(key);
-    const keyfilePath = expandHome(chainConfig.keyfile);
+    const keyfilePath = expandHome(chainConfig2.keyfile);
     let address;
     try {
       const result = await adapter.setupWallet(keyfilePath);
@@ -64324,14 +64821,16 @@ var money = {
     } catch (err2) {
       throw scrubKeyFromError(err2);
     }
-    return { chain: chain2, address, network: chainConfig.network };
+    const note = network === "testnet" ? `Fund this wallet:
+  await money.faucet({ chain: "${chain2}" })` : "";
+    return { chain: chain2, address, network: chainConfig2.network, note };
   },
-  async chains() {
+  async status() {
     const config = await loadConfig();
     const results = [];
-    for (const [key, chainConfig] of Object.entries(config.chains)) {
+    for (const [key, chainConfig2] of Object.entries(config.chains)) {
       const { chain: chain2 } = parseConfigKey(key);
-      const keyfilePath = expandHome(chainConfig.keyfile);
+      const keyfilePath = expandHome(chainConfig2.keyfile);
       let keyfileExists = false;
       try {
         await loadKeyfile(keyfilePath);
@@ -64339,7 +64838,7 @@ var money = {
       } catch {
       }
       if (!keyfileExists) {
-        results.push({ chain: chain2, address: "", network: chainConfig.network, defaultToken: chainConfig.defaultToken, status: "no-key" });
+        results.push({ chain: chain2, address: "", network: chainConfig2.network, defaultToken: chainConfig2.defaultToken, status: "no-key" });
         continue;
       }
       let address = "";
@@ -64351,112 +64850,95 @@ var money = {
       } catch (err2) {
         status = err2 instanceof MoneyError && err2.code === "CHAIN_NOT_CONFIGURED" ? "no-rpc" : "error";
       }
-      results.push({ chain: chain2, address, network: chainConfig.network, defaultToken: chainConfig.defaultToken, status });
+      let balance;
+      if (status === "ready" && address) {
+        try {
+          const adapter = await getAdapter(key);
+          const bal = await adapter.getBalance(address, chainConfig2.defaultToken);
+          balance = bal.amount;
+        } catch {
+        }
+      }
+      results.push({ chain: chain2, address, network: chainConfig2.network, defaultToken: chainConfig2.defaultToken, status, balance });
     }
-    return results;
+    return { entries: results, note: "" };
   },
-  async wallets() {
-    const config = await loadConfig();
-    const results = [];
-    for (const [key, chainConfig] of Object.entries(config.chains)) {
-      const keyfilePath = expandHome(chainConfig.keyfile);
-      let adapter;
-      try {
-        adapter = await getAdapter(key);
-      } catch {
-        continue;
-      }
-      let address;
-      try {
-        const result = await adapter.setupWallet(keyfilePath);
-        address = result.address;
-      } catch {
-        continue;
-      }
-      const balances = {};
-      try {
-        const bal = await adapter.getBalance(address, chainConfig.defaultToken);
-        balances[bal.token] = bal.amount;
-      } catch {
-      }
-      const { chain: bareChain, network: walletNetwork } = parseConfigKey(key);
-      results.push({ chain: bareChain, network: walletNetwork, address, balances });
-    }
-    return results;
-  },
-  async balance(chain2, token) {
-    if (chain2) {
-      const config2 = await loadConfig();
-      const resolved = resolveChainKey(chain2, config2.chains);
-      if (!resolved) {
-        throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured. Run money.setup("${chain2}") first.`, { chain: chain2 });
-      }
-      const { key, chainConfig } = resolved;
-      const adapter = await getAdapter(key);
-      const keyfilePath = expandHome(chainConfig.keyfile);
-      const { address } = await adapter.setupWallet(keyfilePath);
-      const resolvedToken = token ?? chainConfig.defaultToken;
-      const bal = await adapter.getBalance(address, resolvedToken);
-      const { chain: balChain, network: balNetwork } = parseConfigKey(key);
-      return { chain: balChain, network: balNetwork, address, amount: bal.amount, token: bal.token };
+  async balance(params) {
+    const { chain: chain2, token: tokenOpt } = params;
+    if (!chain2) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
+        note: 'Provide a chain name:\n  await money.balance({ chain: "fast" })'
+      });
     }
     const config = await loadConfig();
-    const results = [];
-    for (const [key, chainConfig] of Object.entries(config.chains)) {
-      let adapter;
-      try {
-        adapter = await getAdapter(key);
-      } catch {
-        continue;
-      }
-      const keyfilePath = expandHome(chainConfig.keyfile);
-      let address;
-      try {
-        const result = await adapter.setupWallet(keyfilePath);
-        address = result.address;
-      } catch {
-        continue;
-      }
-      const resolvedToken = token ?? chainConfig.defaultToken;
-      try {
-        const bal = await adapter.getBalance(address, resolvedToken);
-        const { chain: bChain, network: bNetwork } = parseConfigKey(key);
-        results.push({ chain: bChain, network: bNetwork, address, amount: bal.amount, token: bal.token });
-      } catch {
-        continue;
-      }
+    const resolved = resolveChainKey(chain2, config.chains);
+    if (!resolved) {
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, { chain: chain2, note: `Run setup first:
+  await money.setup({ chain: "${chain2}" })` });
     }
-    return results;
+    const { key, chainConfig: chainConfig2 } = resolved;
+    const adapter = await getAdapter(key);
+    const keyfilePath = expandHome(chainConfig2.keyfile);
+    const { address } = await adapter.setupWallet(keyfilePath);
+    const token = !tokenOpt || tokenOpt === "native" ? chainConfig2.defaultToken : tokenOpt;
+    const bal = await adapter.getBalance(address, token);
+    const { chain: balChain, network: balNetwork } = parseConfigKey(key);
+    let note = "";
+    if (bal.amount === "0" && chainConfig2.network === "testnet") {
+      note = `Balance is 0. Get testnet tokens:
+  await money.faucet({ chain: "${chain2}" })`;
+    }
+    return { chain: balChain, network: balNetwork, address, amount: bal.amount, token: bal.token, note };
   },
-  async send(to, amount, opts) {
-    const amountStr = String(amount);
+  async send(params) {
+    const { to, amount: amountRaw, chain: chain2, token: tokenOpt } = params;
+    if (!to) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: to", {
+        note: 'Provide a recipient address:\n  await money.send({ to: "set1...", amount: "1", chain: "fast" })'
+      });
+    }
+    if (!chain2) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
+        note: 'Provide a chain name:\n  await money.send({ to, amount, chain: "fast" })'
+      });
+    }
+    if (!amountRaw) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: amount", {
+        note: 'Provide an amount:\n  await money.send({ to, amount: "1", chain: "fast" })'
+      });
+    }
+    const amountStr = String(amountRaw);
     const amountNum = parseFloat(amountStr);
     if (isNaN(amountNum) || amountNum <= 0) {
-      throw new MoneyError("TX_FAILED", `Invalid amount: "${amountStr}". Must be a positive number.`, { chain: opts?.chain ?? "unknown" });
-    }
-    const config = await loadConfig();
-    const configuredChains = Object.keys(config.chains);
-    const bareChains = [...new Set(configuredChains.map((k) => parseConfigKey(k).chain))];
-    const chain2 = opts?.chain ?? detectChain(to, bareChains);
-    if (!chain2) {
-      throw new MoneyError("INVALID_ADDRESS", `Could not detect chain from address "${to}". Specify opts.chain explicitly.`, { details: { address: to } });
+      throw new MoneyError("TX_FAILED", `Invalid amount: "${amountStr}". Must be a positive number.`, { chain: chain2 });
     }
     if (!isValidAddress(to, chain2)) {
       throw new MoneyError("INVALID_ADDRESS", `Address "${to}" is not valid for chain "${chain2}".`, { chain: chain2, details: { address: to } });
     }
+    const config = await loadConfig();
     const resolved = resolveChainKey(chain2, config.chains);
     if (!resolved) {
-      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured. Run money.setup("${chain2}") first.`, { chain: chain2 });
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
+        chain: chain2,
+        note: `Run setup first:
+  await money.setup({ chain: "${chain2}" })`
+      });
     }
-    const { key, chainConfig } = resolved;
+    const { key, chainConfig: chainConfig2 } = resolved;
     const adapter = await getAdapter(key);
-    const keyfilePath = expandHome(chainConfig.keyfile);
+    const keyfilePath = expandHome(chainConfig2.keyfile);
     const { address: from14 } = await adapter.setupWallet(keyfilePath);
-    const token = opts?.token ?? chainConfig.defaultToken;
+    const token = !tokenOpt || tokenOpt === "native" ? chainConfig2.defaultToken : tokenOpt;
     try {
       const bal = await adapter.getBalance(from14, token);
-      if (parseFloat(bal.amount) < parseFloat(amountStr)) {
-        throw new MoneyError("INSUFFICIENT_BALANCE", `Need ${amount} ${token}, have ${bal.amount}`, { chain: chain2, details: { have: bal.amount, need: amountStr, token } });
+      if (compareDecimalStrings(bal.amount, amountStr) < 0) {
+        const insufficientNote = chainConfig2.network === "testnet" ? `Testnet: await money.faucet({ chain: "${chain2}" })
+Or reduce the amount.` : "Fund the wallet or reduce the amount.";
+        throw new MoneyError("INSUFFICIENT_BALANCE", `Need ${amountRaw} ${token}, have ${bal.amount}`, {
+          chain: chain2,
+          details: { have: bal.amount, need: amountStr, token },
+          note: insufficientNote
+        });
       }
     } catch (err2) {
       if (err2 instanceof MoneyError)
@@ -64464,7 +64946,7 @@ var money = {
     }
     let result;
     try {
-      result = await adapter.send({ from: from14, to, amount: amountStr, token, memo: opts?.memo, keyfile: keyfilePath });
+      result = await adapter.send({ from: from14, to, amount: amountStr, token, keyfile: keyfilePath });
     } catch (err2) {
       if (err2 instanceof MoneyError)
         throw err2;
@@ -64482,44 +64964,101 @@ var money = {
       token,
       txHash: result.txHash
     });
-    return { txHash: result.txHash, explorerUrl: result.explorerUrl, fee: result.fee, chain: sentChain, network: sentNetwork };
+    return { ...result, chain: sentChain, network: sentNetwork, note: "" };
   },
-  async faucet(chain2) {
-    const chainConfig = await getChainConfig(chain2);
-    if (!chainConfig)
-      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured. Run money.setup("${chain2}") first.`, { chain: chain2 });
+  async faucet(params) {
+    const { chain: chain2 } = params;
+    if (!chain2) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
+        note: 'Provide a chain name:\n  await money.faucet({ chain: "fast" })'
+      });
+    }
+    const chainConfig2 = await getChainConfig(chain2);
+    if (!chainConfig2) {
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
+        chain: chain2,
+        note: `Run setup first:
+  await money.setup({ chain: "${chain2}" })`
+      });
+    }
     const adapter = await getAdapter(chain2);
-    const keyfilePath = expandHome(chainConfig.keyfile);
+    const keyfilePath = expandHome(chainConfig2.keyfile);
     const { address } = await adapter.setupWallet(keyfilePath);
     const result = await adapter.faucet(address);
     const { chain: faucetChain, network: faucetNetwork } = parseConfigKey(chain2);
-    return { chain: faucetChain, network: faucetNetwork, amount: result.amount, token: result.token, txHash: result.txHash };
+    return {
+      chain: faucetChain,
+      network: faucetNetwork,
+      amount: result.amount,
+      token: result.token,
+      txHash: result.txHash,
+      note: `Check balance:
+  await money.balance({ chain: "${chain2}" })`
+    };
   },
-  async alias(chain2, name, config) {
-    const config2 = await loadConfig();
-    const resolved = resolveChainKey(chain2, config2.chains);
+  async getToken(params) {
+    const { chain: chain2, name } = params;
+    if (!chain2 || !name) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required params: chain and name", {
+        note: 'Provide chain and name:\n  await money.getToken({ chain: "fast", name: "MYTOKEN" })'
+      });
+    }
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain2, config.chains);
     if (!resolved) {
-      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured. Run money.setup("${chain2}") first.`, { chain: chain2 });
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
+        chain: chain2,
+        note: `Run setup first:
+  await money.setup({ chain: "${chain2}" })`
+      });
     }
     const { key } = resolved;
-    if (config !== void 0) {
-      await setAlias(key, name, config);
-      return null;
-    }
     return getAlias(key, name);
   },
-  async aliases(chain2) {
+  async registerToken(params) {
+    const { chain: chain2, name, ...tokenConfig } = params;
+    if (!chain2 || !name) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required params: chain and name", {
+        note: 'Provide chain and name:\n  await money.registerToken({ chain: "fast", name: "MYTOKEN", address: "0x...", decimals: 18 })'
+      });
+    }
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain2, config.chains);
+    if (!resolved) {
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
+        chain: chain2,
+        note: `Run setup first:
+  await money.setup({ chain: "${chain2}" })`
+      });
+    }
+    const { key } = resolved;
+    await setAlias(key, name, tokenConfig);
+  },
+  async tokens(params) {
+    const { chain: chain2 } = params;
     const config = await loadConfig();
     const resolved = resolveChainKey(chain2, config.chains);
     if (!resolved)
-      return [];
-    return getAliases(resolved.key);
+      return { tokens: [], note: "" };
+    const aliasResults = await getAliases(resolved.key);
+    return { tokens: aliasResults, note: "" };
   },
-  async history(chainOrLimit, limit) {
-    return readHistory(chainOrLimit, limit);
+  async history(params) {
+    const results = await readHistory(params);
+    return { entries: results, note: "" };
   },
-  detect(address) {
-    return detectChain(address, supportedChains());
+  identifyChains(params) {
+    const { address } = params;
+    const chains = identifyChains(address);
+    let note;
+    if (chains.length > 1) {
+      note = "Multiple chains use this address format. Specify chain explicitly.";
+    } else if (chains.length === 0) {
+      note = "Address format not recognized. Supported formats:\n  Fast: set1... (bech32m)\n  EVM: 0x... (40 hex chars)\n  Solana: base58 (32-44 chars)";
+    } else {
+      note = "";
+    }
+    return { chains, note };
   }
 };
 export {

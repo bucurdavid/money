@@ -96,12 +96,12 @@ export async function appendHistory(entry: HistoryEntry): Promise<void> {
 
 /**
  * Read history from CSV, newest-first.
- * @param chain - optional config key filter (e.g. "fast", "base:mainnet")
- * @param limit - max entries to return
+ * @param opts.chain - optional config key filter (e.g. "fast", "base:mainnet")
+ * @param opts.limit - max entries to return
  */
-export async function readHistory(chainOrLimit?: string | number, limit?: number): Promise<HistoryEntry[]> {
-  const chain = typeof chainOrLimit === 'string' ? chainOrLimit : undefined;
-  if (typeof chainOrLimit === 'number') limit = chainOrLimit;
+export async function readHistory(opts?: { chain?: string; limit?: number }): Promise<HistoryEntry[]> {
+  const chain = opts?.chain;
+  const limit = opts?.limit;
   const histPath = getHistoryPath();
   let raw: string;
   try {

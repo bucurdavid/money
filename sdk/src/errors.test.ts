@@ -37,6 +37,7 @@ describe('MoneyError', () => {
       error: true,
       code: 'FAUCET_THROTTLED',
       message: 'Try again in ~60 seconds.',
+      note: '',
       chain: 'fast',
       details: { retryAfter: 60 },
     });
