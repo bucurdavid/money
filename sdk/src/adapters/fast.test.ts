@@ -143,6 +143,69 @@ describe('createFastAdapter', () => {
       );
       assert.equal(bal.amount, '5000');
     });
+
+    it('returns token balance for non-native tokens by hex token ID', async () => {
+      // token_id: [0x01, 0x02, 0x00 × 30] — 32 bytes
+      const tokenId = [0x01, 0x02, ...Array(30).fill(0)];
+      // balance '0xDE0B6B3A7640000' = 1e18 raw = 1.0 token
+      const { fetch } = capturingFetch({
+        balance: 'de0b6b3a7640000', // native SET (unused in this test)
+        token_balance: [
+          { token_id: tokenId, balance: '0xDE0B6B3A7640000' },
+        ],
+        next_nonce: 0,
+      });
+      globalThis.fetch = fetch;
+
+      const adapter = createFastAdapter(FAKE_RPC);
+      const keyfile = path.join(tmpDir, 'keys', 'fast.json');
+      const { address } = await adapter.setupWallet(keyfile);
+
+      // '0x' + '0102' + '00' × 30 = 64 hex chars = 32 bytes, left-aligned
+      const hexTokenId = '0x' + '0102' + '00'.repeat(30);
+      const bal = await adapter.getBalance(address, hexTokenId);
+      assert.equal(bal.amount, '1');
+      assert.equal(bal.token, hexTokenId);
+    });
+
+    it('returns "0" when hex token ID is not found in token_balance', async () => {
+      const { fetch } = capturingFetch({
+        balance: 'de0b6b3a7640000',
+        token_balance: [], // empty — no matching entry
+        next_nonce: 0,
+      });
+      globalThis.fetch = fetch;
+
+      const adapter = createFastAdapter(FAKE_RPC);
+      const keyfile = path.join(tmpDir, 'keys', 'fast.json');
+      const { address } = await adapter.setupWallet(keyfile);
+
+      const hexTokenId = '0x' + '0304' + '00'.repeat(30);
+      const bal = await adapter.getBalance(address, hexTokenId);
+      assert.equal(bal.amount, '0');
+      assert.equal(bal.token, hexTokenId);
+    });
+
+    it('throws TOKEN_NOT_FOUND for unknown non-hex token names', async () => {
+      const { fetch } = capturingFetch({
+        balance: 'de0b6b3a7640000',
+        token_balance: [],
+        next_nonce: 0,
+      });
+      globalThis.fetch = fetch;
+
+      const adapter = createFastAdapter(FAKE_RPC);
+      const keyfile = path.join(tmpDir, 'keys', 'fast.json');
+      const { address } = await adapter.setupWallet(keyfile);
+
+      await assert.rejects(
+        () => adapter.getBalance(address, 'UNKNOWNTOKEN'),
+        (err: Error) => {
+          assert.ok(err.message.includes('TOKEN_NOT_FOUND') || err.message.includes('not found'));
+          return true;
+        },
+      );
+    });
   });
 
   describe('send', () => {

@@ -118,6 +118,36 @@ const TransactionBcs = bcs.struct('Transaction', {
 // Hex ↔ human-readable conversion imported from ../utils.js (toHex, fromHex)
 
 // ---------------------------------------------------------------------------
+// Token ID helpers
+// ---------------------------------------------------------------------------
+
+/** Compare two token ID byte arrays for equality (length must match). */
+function tokenIdEquals(a: number[] | Uint8Array, b: Uint8Array): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
+/**
+ * Parse a hex string (with or without 0x prefix) into a 32-byte token ID.
+ * The hex is interpreted as a big-endian byte string, padded with leading
+ * zeros to fill 32 bytes.  e.g. "0x0102" → [0x00,…,0x01,0x02]
+ * but "0x0102" + "00".repeat(30) → [0x01,0x02,0x00,…,0x00] as expected.
+ */
+function hexToTokenId(hex: string): Uint8Array {
+  const clean = hex.startsWith('0x') || hex.startsWith('0X') ? hex.slice(2) : hex;
+  // Pad to exactly 64 hex chars (32 bytes), preserving left-side bytes
+  const padded = clean.padEnd(64, '0').slice(0, 64);
+  const bytes = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) {
+    bytes[i] = parseInt(padded.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+// ---------------------------------------------------------------------------
 // Address helpers: bech32m ↔ raw 32-byte pubkey
 // ---------------------------------------------------------------------------
 
@@ -235,9 +265,29 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
 
       if (!result) return { amount: '0', token: tok };
 
-      const hexBalance = result.balance ?? '0';
-      const amount = fromHex(hexBalance, FAST_DECIMALS);
-      return { amount, token: tok };
+      // Native SET balance
+      if (tok === 'SET') {
+        const hexBalance = result.balance ?? '0';
+        const amount = fromHex(hexBalance, FAST_DECIMALS);
+        return { amount, token: tok };
+      }
+
+      // Non-native token: search token_balance array by hex token ID
+      const isHex = /^(0x)?[0-9a-fA-F]+$/.test(tok);
+      if (isHex) {
+        const tokenIdBytes = hexToTokenId(tok);
+        const entry = result.token_balance?.find(tb => tokenIdEquals(tb.token_id, tokenIdBytes));
+        if (!entry) return { amount: '0', token: tok };
+        // entry.balance may include a '0x' prefix
+        const rawBalance = entry.balance.startsWith('0x') || entry.balance.startsWith('0X')
+          ? entry.balance.slice(2)
+          : entry.balance;
+        const amount = fromHex(rawBalance, FAST_DECIMALS);
+        return { amount, token: tok };
+      }
+
+      // Unknown token name (no alias system in Fast adapter yet)
+      throw new MoneyError('TOKEN_NOT_FOUND', `Token '${tok}' not found on Fast chain`, { chain: 'fast' });
     },
 
     // -----------------------------------------------------------------------
