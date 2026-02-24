@@ -569,14 +569,14 @@ code { font-family: var(--font-mono), 'SF Mono', 'Consolas', monospace; }
 /* ── Reveal Animation Trigger ──────────────────────────────────── */
 .reveal {
   opacity: 0;
-  transform: translateY(20px);
-  transition: opacity 0.6s ease, transform 0.6s ease;
+  animation: reveal 0.7s ease forwards;
 }
 
-.reveal.revealed {
-  opacity: 1;
-  transform: translateY(0);
-}
+.hero.reveal { animation-delay: 0s; }
+.section.reveal:nth-of-type(1) { animation-delay: 0.15s; }
+.section.reveal:nth-of-type(2) { animation-delay: 0.3s; }
+.section.reveal:nth-of-type(3) { animation-delay: 0.45s; }
+.chains-section.reveal { animation-delay: 0.6s; }
 
 /* ── Keyframes ─────────────────────────────────────────────────── */
 @keyframes reveal {
