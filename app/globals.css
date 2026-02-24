@@ -152,12 +152,13 @@ code { font-family: var(--font-mono), 'SF Mono', 'Consolas', monospace; }
 
 .hero-title {
   font-family: var(--font-display), monospace, sans-serif;
-  font-size: clamp(5rem, 16vw, 9.5rem);
+  font-size: clamp(3rem, 12vw, 9.5rem);
   font-weight: 800;
   font-style: normal;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.04em;
   text-transform: uppercase;
   line-height: 0.9;
+  word-break: break-word;
   color: var(--text);
   margin-bottom: 2.25rem;
   opacity: 0;
@@ -619,7 +620,7 @@ code { font-family: var(--font-mono), 'SF Mono', 'Consolas', monospace; }
   .container { max-width: 100%; }
   .hero { padding: 10rem 0 5.5rem; }
 
-  .hero-title { font-size: clamp(4rem, 14vw, 7rem); }
+  .hero-title { font-size: clamp(3rem, 11vw, 7rem); }
 
   .nav-inner { max-width: 100%; }
   .divider { max-width: 100%; }
@@ -632,7 +633,7 @@ code { font-family: var(--font-mono), 'SF Mono', 'Consolas', monospace; }
   .section { padding: 4rem 0; }
   .chains-section { padding: 4rem 0; }
 
-  .hero-title { font-size: clamp(3.5rem, 16vw, 6rem); }
+  .hero-title { font-size: clamp(2.5rem, 10vw, 5rem); }
   .hero-desc { font-size: 0.97rem; }
 
   .step-body {
@@ -658,7 +659,7 @@ code { font-family: var(--font-mono), 'SF Mono', 'Consolas', monospace; }
   .container { padding: 0 1.25rem; }
   .hero { padding: 7.5rem 0 3.5rem; }
 
-  .hero-title { font-size: clamp(3rem, 18vw, 5rem); }
+  .hero-title { font-size: clamp(2rem, 9vw, 4rem); }
   .hero-desc { font-size: 0.9rem; }
 
   .hero-actions {
