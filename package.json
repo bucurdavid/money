@@ -28,7 +28,7 @@
     "node": ">=18"
   },
   "author": "Fast Protocol",
-  "license": "MIT",
+  "license": "UNLICENSED",
   "keywords": [
     "ai",
     "agent",
