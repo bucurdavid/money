@@ -99,7 +99,9 @@ export async function appendHistory(entry: HistoryEntry): Promise<void> {
  * @param chain - optional config key filter (e.g. "fast", "base:mainnet")
  * @param limit - max entries to return
  */
-export async function readHistory(chain?: string, limit?: number): Promise<HistoryEntry[]> {
+export async function readHistory(chainOrLimit?: string | number, limit?: number): Promise<HistoryEntry[]> {
+  const chain = typeof chainOrLimit === 'string' ? chainOrLimit : undefined;
+  if (typeof chainOrLimit === 'number') limit = chainOrLimit;
   const histPath = getHistoryPath();
   let raw: string;
   try {

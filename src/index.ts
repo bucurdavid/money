@@ -327,8 +327,8 @@ export const money = {
     return getAliases(resolved.key);
   },
 
-  async history(chain?: string, limit?: number): Promise<HistoryEntry[]> {
-    return readHistory(chain, limit);
+  async history(chainOrLimit?: string | number, limit?: number): Promise<HistoryEntry[]> {
+    return readHistory(chainOrLimit, limit);
   },
 
   detect(address: string): string | null {

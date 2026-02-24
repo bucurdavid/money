@@ -548,6 +548,28 @@ describe('money.history with chain filter', () => {
     const baseEntries = await money.history('base');
     assert.equal(baseEntries.length, 0);
   });
+
+  it('accepts a number as first arg to limit results across all chains', async () => {
+    await seedConfig(tmpDir);
+    const setupResult = await money.setup('fast');
+    const from = setupResult.address;
+
+    globalThis.fetch = standardFastFetch({
+      proxy_getAccountInfo: { balance: '56bc75e2d630fffff', next_nonce: 1 },
+    });
+
+    // Send twice
+    await money.send(from, '0.001');
+    await money.send(from, '0.002');
+
+    // history(1) should return only 1 entry (the most recent)
+    const limited = await money.history(1);
+    assert.equal(limited.length, 1);
+
+    // history(10) should return both (limit > count)
+    const all = await money.history(10);
+    assert.equal(all.length, 2);
+  });
 });
 
 // ─── money.setup — seedAliases idempotency ────────────────────────────────────
