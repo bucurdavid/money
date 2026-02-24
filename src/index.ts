@@ -137,7 +137,7 @@ export const money = {
       } catch { /* Keyfile missing or unreadable */ }
 
       if (!keyfileExists) {
-        results.push({ chain: key, address: '', network: chainConfig.network, defaultToken: chainConfig.defaultToken, status: 'no-key' });
+        results.push({ chain, address: '', network: chainConfig.network, defaultToken: chainConfig.defaultToken, status: 'no-key' });
         continue;
       }
 
@@ -153,7 +153,7 @@ export const money = {
           : 'error';
       }
 
-      results.push({ chain: key, address, network: chainConfig.network, defaultToken: chainConfig.defaultToken, status });
+      results.push({ chain, address, network: chainConfig.network, defaultToken: chainConfig.defaultToken, status });
     }
 
     return results;
@@ -178,7 +178,8 @@ export const money = {
         balances[bal.token] = bal.amount;
       } catch { /* RPC unavailable */ }
 
-      results.push({ chain: key, address, balances });
+      const { chain: bareChain, network: walletNetwork } = parseConfigKey(key);
+      results.push({ chain: bareChain, network: walletNetwork, address, balances });
     }
 
     return results;
@@ -201,7 +202,8 @@ export const money = {
       const { address } = await adapter.setupWallet(keyfilePath);
       const resolvedToken = token ?? chainConfig.defaultToken;
       const bal = await adapter.getBalance(address, resolvedToken);
-      return { chain: key, address, amount: bal.amount, token: bal.token };
+      const { chain: balChain, network: balNetwork } = parseConfigKey(key);
+      return { chain: balChain, network: balNetwork, address, amount: bal.amount, token: bal.token };
     }
 
     const config = await loadConfig();
@@ -215,7 +217,8 @@ export const money = {
       const resolvedToken = token ?? chainConfig.defaultToken;
       try {
         const bal = await adapter.getBalance(address, resolvedToken);
-        results.push({ chain: key, address, amount: bal.amount, token: bal.token });
+        const { chain: bChain, network: bNetwork } = parseConfigKey(key);
+        results.push({ chain: bChain, network: bNetwork, address, amount: bal.amount, token: bal.token });
       } catch { continue; }
     }
     return results;
@@ -278,16 +281,18 @@ export const money = {
     }
 
     // Record successful send in history.csv
+    const { chain: sentChain, network: sentNetwork } = parseConfigKey(key);
     await appendHistory({
       ts: new Date().toISOString(),
-      chain: key,
+      chain: sentChain,
+      network: sentNetwork,
       to,
       amount: amountStr,
       token,
       txHash: result.txHash,
     });
 
-    return { txHash: result.txHash, explorerUrl: result.explorerUrl, fee: result.fee, chain: key };
+    return { txHash: result.txHash, explorerUrl: result.explorerUrl, fee: result.fee, chain: sentChain, network: sentNetwork };
   },
 
   async faucet(chain: string): Promise<FaucetResult> {
@@ -297,7 +302,8 @@ export const money = {
     const keyfilePath = expandHome(chainConfig.keyfile);
     const { address } = await adapter.setupWallet(keyfilePath);
     const result = await adapter.faucet(address);
-    return { chain, amount: result.amount, token: result.token, txHash: result.txHash };
+    const { chain: faucetChain, network: faucetNetwork } = parseConfigKey(chain);
+    return { chain: faucetChain, network: faucetNetwork, amount: result.amount, token: result.token, txHash: result.txHash };
   },
 
   async alias(chain: string, name: string, config?: TokenConfig): Promise<TokenInfo | null> {

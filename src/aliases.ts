@@ -10,6 +10,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getConfigDir } from './config.js';
+import { parseConfigKey } from './defaults.js';
 import type { TokenConfig, TokenInfo } from './types.js';
 
 function getAliasesPath(): string {
@@ -37,8 +38,10 @@ export async function getAlias(cacheKey: string, name: string): Promise<TokenInf
   const all = await loadAliases();
   const tc = all[cacheKey]?.[name];
   if (!tc) return null;
+  const { chain, network } = parseConfigKey(cacheKey);
   return {
-    chain: cacheKey,
+    chain,
+    network,
     name,
     ...(tc.address ? { address: tc.address } : {}),
     ...(tc.mint ? { mint: tc.mint } : {}),
@@ -57,8 +60,10 @@ export async function setAlias(cacheKey: string, name: string, config: TokenConf
 export async function getAliases(cacheKey: string): Promise<TokenInfo[]> {
   const all = await loadAliases();
   const entries = all[cacheKey] ?? {};
+  const { chain, network } = parseConfigKey(cacheKey);
   return Object.entries(entries).map(([name, tc]) => ({
-    chain: cacheKey,
+    chain,
+    network,
     name,
     ...(tc.address ? { address: tc.address } : {}),
     ...(tc.mint ? { mint: tc.mint } : {}),

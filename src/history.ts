@@ -9,16 +9,17 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getConfigDir } from './config.js';
+import { parseConfigKey } from './defaults.js';
 import type { HistoryEntry } from './types.js';
 
 function getHistoryPath(): string {
   return path.join(getConfigDir(), 'history.csv');
 }
 
-const CSV_HEADER = 'ts,chain,to,amount,token,txHash';
+const CSV_HEADER = 'ts,chain,network,to,amount,token,txHash';
 
 function entryToRow(e: HistoryEntry): string {
-  const fields = [e.ts, e.chain, e.to, e.amount, e.token, e.txHash];
+  const fields = [e.ts, e.chain, e.network, e.to, e.amount, e.token, e.txHash];
   const escape = (f: string): string => {
     if (f.includes('"') || f.includes(',') || f.includes('\n')) {
       return `"${f.replace(/"/g, '""')}"`;
@@ -38,7 +39,6 @@ function rowToEntry(row: string): HistoryEntry | null {
     const ch = row[i];
     if (ch === '"') {
       if (inQuotes && row[i + 1] === '"') {
-        // Escaped quote — unescape "" → "
         current += '"';
         i += 2;
         continue;
@@ -57,10 +57,23 @@ function rowToEntry(row: string): HistoryEntry | null {
     i++;
   }
   parts.push(current);
-  if (parts.length < 6) return null;
-  const [ts, chain, to, amount, token, txHash] = parts;
-  if (!ts || !chain || !to || !amount || !token || !txHash) return null;
-  return { ts, chain, to, amount, token, txHash };
+
+  if (parts.length === 7) {
+    // New format: ts,chain,network,to,amount,token,txHash
+    const [ts, chain, network, to, amount, token, txHash] = parts;
+    if (!ts || !chain || !network || !to || !amount || !token || !txHash) return null;
+    return { ts, chain, network: network as 'testnet' | 'mainnet', to, amount, token, txHash };
+  }
+
+  if (parts.length === 6) {
+    // Old format: ts,chainKey,to,amount,token,txHash — migrate on read
+    const [ts, chainKey, to, amount, token, txHash] = parts;
+    if (!ts || !chainKey || !to || !amount || !token || !txHash) return null;
+    const { chain, network } = parseConfigKey(chainKey);
+    return { ts, chain, network, to, amount, token, txHash };
+  }
+
+  return null;
 }
 
 /** Append a single send to history.csv. Creates file with header if missing. */

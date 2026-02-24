@@ -179,6 +179,7 @@ describe('faucet mainnet gating', () => {
 
     const result = await money.faucet('fast');
     assert.equal(result.chain, 'fast');
+    assert.equal(result.network, 'testnet');
     assert.ok(parseFloat(result.amount) > 0);
   });
 });

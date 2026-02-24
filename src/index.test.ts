@@ -173,8 +173,9 @@ describe('money.balance', () => {
     globalThis.fetch = standardFastFetch();
     const result = await money.balance('fast');
     assert.ok(!Array.isArray(result));
-    const bal = result as { chain: string; address: string; amount: string; token: string };
+    const bal = result as { chain: string; network: string; address: string; amount: string; token: string };
     assert.equal(bal.chain, 'fast');
+    assert.equal(bal.network, 'testnet');
     assert.ok(bal.address.startsWith('set1'));
     assert.equal(bal.amount, '1');
     assert.equal(bal.token, 'SET');
@@ -216,6 +217,7 @@ describe('money.send', () => {
     });
     const result = await money.send(from, '0.001');
     assert.equal(result.chain, 'fast');
+    assert.equal(result.network, 'testnet');
     assert.ok(typeof result.txHash === 'string' && result.txHash.length > 0);
     assert.equal(result.fee, '0.01');
   });
@@ -231,6 +233,7 @@ describe('money.send', () => {
     const csvPath = path.join(tmpDir, 'history.csv');
     const csv = await fs.readFile(csvPath, 'utf-8');
     assert.ok(csv.includes('fast'), 'history.csv should include chain "fast"');
+    assert.ok(csv.includes('testnet'), 'history.csv should include network');
     assert.ok(csv.includes('0.001'), 'history.csv should include amount');
   });
 
@@ -412,6 +415,7 @@ describe('money.history', () => {
     assert.ok(Array.isArray(entries));
     assert.equal(entries.length, 1);
     assert.equal(entries[0].chain, 'fast');
+    assert.equal(entries[0].network, 'testnet');
     assert.equal(entries[0].amount, '0.001');
     assert.equal(entries[0].token, 'SET');
     assert.ok(typeof entries[0].txHash === 'string');
@@ -487,6 +491,7 @@ describe('money.send with opts.chain', () => {
     const to = 'set1ld55rskkecy2wflhf0kmfr82ay937tpq7zwmx978udetmqqt2task3fcxc';
     const result = await money.send(to, 1, { chain: 'fast' });
     assert.equal(result.chain, 'fast');
+    assert.equal(result.network, 'testnet');
     assert.ok(typeof result.txHash === 'string');
   });
 
@@ -513,6 +518,7 @@ describe('money.send with opts.chain', () => {
     const to = 'set1ld55rskkecy2wflhf0kmfr82ay937tpq7zwmx978udetmqqt2task3fcxc';
     const result = await money.send(to, 1, { token: 'SET' });
     assert.equal(result.chain, 'fast');
+    assert.equal(result.network, 'testnet');
     assert.ok(typeof result.txHash === 'string');
   });
 });
@@ -536,6 +542,7 @@ describe('money.history with chain filter', () => {
     const fastEntries = await money.history('fast');
     assert.equal(fastEntries.length, 1);
     assert.equal(fastEntries[0].chain, 'fast');
+    assert.equal(fastEntries[0].network, 'testnet');
 
     // base entries should be empty (nothing sent on base)
     const baseEntries = await money.history('base');
@@ -573,9 +580,9 @@ describe('history CSV round-trip', () => {
     // so we test via the public history file path instead.
     // Write a history.csv manually with a quoted token name, then read it back.
     const csvPath = `${tmpDir}/history.csv`;
-    const header = 'ts,chain,to,amount,token,txHash';
+    const header = 'ts,chain,network,to,amount,token,txHash';
     const ts = '2024-01-01T00:00:00.000Z';
-    const row = `${ts},fast,set1abc,1.0,"TOKEN,A",0xdeadbeef`;
+    const row = `${ts},fast,testnet,set1abc,1.0,"TOKEN,A",0xdeadbeef`;
     await fs.mkdir(tmpDir, { recursive: true });
     await fs.writeFile(csvPath, `${header}\n${row}\n`, 'utf-8');
 
@@ -584,6 +591,7 @@ describe('history CSV round-trip', () => {
     assert.equal(entries.length, 1);
     assert.equal(entries[0].token, 'TOKEN,A');
     assert.equal(entries[0].chain, 'fast');
+    assert.equal(entries[0].network, 'testnet');
     assert.equal(entries[0].amount, '1.0');
   });
 });

@@ -49,7 +49,7 @@ await money.alias("solana", "USDT", { mint: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McC
 
 // GET an alias
 const info = await money.alias("base", "WETH");
-// → { chain: "base", name: "WETH", address: "0x42...", decimals: 18 }
+// → { chain: "base", network: "testnet", name: "WETH", address: "0x42...", decimals: 18 }
 
 // List all aliases for a chain
 const aliases = await money.aliases("base");
@@ -85,7 +85,7 @@ Sends are recorded locally in `~/.money/history.csv`.
 const all = await money.history();
 const fast = await money.history("fast");        // filter by chain
 const recent = await money.history(undefined, 10); // last 10 across all chains
-// → [{ ts, chain, to, amount, token, txHash }, ...]
+// → [{ ts, chain, network, to, amount, token, txHash }, ...]
 ```
 
 ## Which Chain?
@@ -120,14 +120,14 @@ try {
 | Method | Returns |
 |--------|---------|
 | `money.setup(chain, opts?)` | `{ chain, address, network }` |
-| `money.balance(chain?)` | `{ amount, token, chain, address }` or array |
-| `money.send(to, amount, opts?)` | `{ txHash, explorerUrl, fee, chain }` |
-| `money.faucet(chain)` | `{ amount, token, txHash, chain }` |
-| `money.wallets()` | `[{ chain, address, balances }]` |
+| `money.balance(chain?)` | `{ amount, token, chain, network, address }` or array |
+| `money.send(to, amount, opts?)` | `{ txHash, explorerUrl, fee, chain, network }` |
+| `money.faucet(chain)` | `{ amount, token, txHash, chain, network }` |
+| `money.wallets()` | `[{ chain, network, address, balances }]` |
 | `money.chains()` | `[{ chain, address, network, status }]` |
 | `money.detect(address)` | `string` or `null` |
-| `money.history(chain?, limit?)` | `[{ ts, chain, to, amount, token, txHash }]` |
-| `money.alias(chain, name)` | `TokenInfo \| null` |
+| `money.history(chain?, limit?)` | `[{ ts, chain, network, to, amount, token, txHash }]` |
+| `money.alias(chain, name)` | `TokenInfo \| null` — `{ chain, network, name, ... }` |
 | `money.alias(chain, name, config)` | `null` |
 | `money.aliases(chain)` | `TokenInfo[]` |
 
@@ -139,10 +139,11 @@ try {
 
 ```ts
 {
-  chain: string;     // config key, e.g. "base", "base:mainnet"
-  name: string;      // token symbol, e.g. "USDC"
-  address?: string;  // EVM contract address
-  mint?: string;     // Solana SPL mint address
+  chain: string;              // bare chain name, e.g. "base", "solana"
+  network: "testnet" | "mainnet";
+  name: string;               // token symbol, e.g. "USDC"
+  address?: string;           // EVM contract address
+  mint?: string;              // Solana SPL mint address
   decimals: number;
 }
 ```
