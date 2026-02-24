@@ -207,14 +207,14 @@ export const money = {
       let adapter;
       try { adapter = await getAdapter(key); } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[money] balance error for ${bChain}: ${msg}`);
+        if (process.env.MONEY_DEBUG) console.warn(`[money] balance error for ${bChain}: ${msg}`);
         continue;
       }
       const keyfilePath = expandHome(chainConfig.keyfile);
       let address: string;
       try { const result = await adapter.setupWallet(keyfilePath); address = result.address; } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[money] balance error for ${bChain}: ${msg}`);
+        if (process.env.MONEY_DEBUG) console.warn(`[money] balance error for ${bChain}: ${msg}`);
         continue;
       }
       const resolvedToken = token ?? chainConfig.defaultToken;
@@ -224,7 +224,7 @@ export const money = {
         results.push({ chain: bChain, network: bNetwork, address, amount: bal.amount, token: bal.token });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[money] balance error for ${bChain}: ${msg}`);
+        if (process.env.MONEY_DEBUG) console.warn(`[money] balance error for ${bChain}: ${msg}`);
         continue;
       }
     }

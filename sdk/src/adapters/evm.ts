@@ -82,7 +82,7 @@ export function createEvmAdapter(
   rpcUrl: string,
   explorerBaseUrl: string,
   aliases: Record<string, { address: string; decimals: number }>,
-  viemChain?: Chain,
+  viemChain: Chain,
 ): ChainAdapter {
   // Create the publicClient once per adapter instance
   const publicClient: PublicClient = createPublicClient({
@@ -197,7 +197,7 @@ export function createEvmAdapter(
           return walletClient.sendTransaction({
             to: params.to as `0x${string}`,
             value,
-            chain: viemChain ?? null as unknown as Chain,
+            chain: viemChain,
           });
         }
 
@@ -207,7 +207,7 @@ export function createEvmAdapter(
           abi: ERC20_ABI,
           functionName: 'transfer',
           args: [params.to as `0x${string}`, amount],
-          chain: viemChain ?? null as unknown as Chain,
+          chain: viemChain,
         });
       });
 

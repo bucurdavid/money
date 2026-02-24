@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createEvmAdapter } from './evm.js';
 import { MoneyError } from '../errors.js';
+import { base } from 'viem/chains';
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -13,6 +14,7 @@ import { MoneyError } from '../errors.js';
 const FAKE_RPC = 'https://evm-rpc.test.xyz';
 const FAKE_EXPLORER = 'https://explorer.test.xyz';
 const FAKE_CHAIN = 'base';
+const FAKE_VIEM_CHAIN = base;
 
 /** Minimal ERC-20 token config for tests */
 const TEST_TOKENS = {
@@ -153,12 +155,12 @@ afterEach(async () => {
 
 describe('createEvmAdapter', () => {
   it('returns adapter with correct chain name', () => {
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     assert.equal(adapter.chain, 'base');
   });
 
   it('addressPattern matches 0x + 40 hex chars', () => {
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     assert.ok(adapter.addressPattern.test('0x742d35Cc6634C0532925a3b8D4C9B1B9b9b9b9b9'));
     assert.ok(adapter.addressPattern.test('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'));
     assert.ok(adapter.addressPattern.test('0x' + 'a'.repeat(40)));
@@ -167,7 +169,7 @@ describe('createEvmAdapter', () => {
   });
 
   it('addressPattern rejects non-EVM addresses', () => {
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     assert.ok(!adapter.addressPattern.test('set1ld55rskkecy2wflhf0kmfr82ay937tpq7zwmx'));
     assert.ok(!adapter.addressPattern.test('0x' + 'a'.repeat(39)));  // too short
     assert.ok(!adapter.addressPattern.test('0x' + 'g'.repeat(40)));  // invalid hex char
@@ -178,7 +180,7 @@ describe('createEvmAdapter', () => {
 
 describe('setupWallet', () => {
   it('creates keyfile and returns 0x... address (42 chars)', async () => {
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     const keyfile = path.join(tmpDir, 'keys', 'evm.json');
     const result = await adapter.setupWallet(keyfile);
 
@@ -190,7 +192,7 @@ describe('setupWallet', () => {
   });
 
   it('is idempotent — returns same address on second call', async () => {
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     const keyfile = path.join(tmpDir, 'keys', 'evm.json');
 
     const r1 = await adapter.setupWallet(keyfile);
@@ -200,7 +202,7 @@ describe('setupWallet', () => {
   });
 
   it('address matches EVM addressPattern', async () => {
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     const keyfile = path.join(tmpDir, 'keys', 'evm2.json');
     const result = await adapter.setupWallet(keyfile);
 
@@ -216,7 +218,7 @@ describe('getBalance', () => {
     const { fetch, captured } = capturingFetch(oneEth);
     globalThis.fetch = fetch;
 
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     const balance = await adapter.getBalance('0x' + 'a'.repeat(40));
 
     assert.equal(balance.amount, '1', `Expected 1 ETH, got ${balance.amount}`);
@@ -235,7 +237,7 @@ describe('getBalance', () => {
       eth_chainId: '0x2105',  // base mainnet = 8453 = 0x2105
     });
 
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     const balance = await adapter.getBalance('0x' + 'a'.repeat(40), 'USDC');
 
     assert.equal(balance.token, 'USDC');
@@ -244,7 +246,7 @@ describe('getBalance', () => {
   });
 
   it('throws for unconfigured token', async () => {
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     await assert.rejects(
       () => adapter.getBalance('0x' + 'a'.repeat(40), 'UNKNOWN_TOKEN'),
       (err: Error) => {
@@ -284,7 +286,7 @@ describe('getBalance', () => {
     }) as FetchFn;
 
     // Empty aliases — raw address must work without registration
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, {});
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, {}, FAKE_VIEM_CHAIN);
     const balance = await adapter.getBalance('0x' + 'a'.repeat(40), rawAddress);
 
     assert.equal(balance.token, rawAddress);
@@ -353,7 +355,7 @@ describe('send', () => {
     const txHash = '0x' + 'c'.repeat(64);
     globalThis.fetch = multiMethodFetch(buildSendHandlers(txHash));
 
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     const keyfile = path.join(tmpDir, 'keys', 'evm.json');
     const { address: fromAddr } = await adapter.setupWallet(keyfile);
 
@@ -382,7 +384,7 @@ describe('send', () => {
       return rpcResponse(handlers[parsed.method as string] ?? null, parsed.id);
     }) as FetchFn;
 
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     const keyfile = path.join(tmpDir, 'keys', 'evm.json');
     await adapter.setupWallet(keyfile);
 
@@ -412,7 +414,7 @@ describe('send', () => {
       return rpcResponse(handlers[parsed.method as string] ?? null, parsed.id);
     }) as FetchFn;
 
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     const keyfile = path.join(tmpDir, 'keys', 'evm.json');
     await adapter.setupWallet(keyfile);
 
@@ -438,7 +440,7 @@ describe('send', () => {
       ...buildSendHandlers(txHash),
     });
 
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     const keyfile = path.join(tmpDir, 'keys', 'evm.json');
     const { address: fromAddr } = await adapter.setupWallet(keyfile);
 
@@ -456,7 +458,7 @@ describe('send', () => {
   });
 
   it('throws TOKEN_NOT_FOUND for unknown token', async () => {
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
     const keyfile = path.join(tmpDir, 'keys', 'evm.json');
     await adapter.setupWallet(keyfile);
 
@@ -482,7 +484,7 @@ describe('send', () => {
 
 describe('faucet', () => {
   it('throws MoneyError("TX_FAILED") with faucet URL in message', async () => {
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
 
     await assert.rejects(
       () => adapter.faucet('0x' + 'a'.repeat(40)),
@@ -502,7 +504,7 @@ describe('faucet', () => {
   });
 
   it('includes faucetUrl in error details', async () => {
-    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS, FAKE_VIEM_CHAIN);
 
     await assert.rejects(
       () => adapter.faucet('0x' + 'a'.repeat(40)),
@@ -521,7 +523,7 @@ describe('faucet', () => {
   });
 
   it('uses fallback faucet URL for unknown chain', async () => {
-    const adapter = createEvmAdapter('unknown-chain', FAKE_RPC, FAKE_EXPLORER, {});
+    const adapter = createEvmAdapter('unknown-chain', FAKE_RPC, FAKE_EXPLORER, {}, FAKE_VIEM_CHAIN);
 
     await assert.rejects(
       () => adapter.faucet('0x' + 'a'.repeat(40)),

@@ -74,6 +74,12 @@ export async function getAdapter(cacheKey: string): Promise<ChainAdapter> {
     const explorerUrl = EVM_EXPLORER_URLS[chain]?.[chainConfig.network] ?? '';
     const aliases = await getEvmAliases(cacheKey);
     const viemChain = VIEM_CHAINS[chain]?.[chainConfig.network];
+    if (!viemChain) {
+      throw new MoneyError('CHAIN_NOT_CONFIGURED',
+        `Unsupported chain/network combination: "${chain}" on "${chainConfig.network}". No viem chain configuration found.`,
+        { chain },
+      );
+    }
     adapter = createEvmAdapter(chain, chainConfig.rpc, explorerUrl, aliases, viemChain);
   } else if (chain === 'solana') {
     const aliases = await getSolanaAliases(cacheKey);
