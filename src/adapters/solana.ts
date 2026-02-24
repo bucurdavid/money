@@ -24,7 +24,6 @@ import {
 import { MoneyError } from '../errors.js';
 import { toRaw, toHuman } from '../utils.js';
 import type { ChainAdapter } from './adapter.js';
-import type { HistoryEntry } from '../types.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -54,7 +53,8 @@ async function getSpl(): Promise<typeof import('@solana/spl-token')> {
 
 export function createSolanaAdapter(
   rpcUrl: string,
-  tokens: Record<string, { mint: string; decimals: number }> = {},
+  aliases: Record<string, { mint: string; decimals: number }> = {},
+  network: string = 'testnet',
 ): ChainAdapter {
   // ─── Lazy connection ───────────────────────────────────────────────────────
 
@@ -67,6 +67,8 @@ export function createSolanaAdapter(
     }
     return _connection;
   }
+
+  const decimalsCache = new Map<string, number>();
 
   // ─── Keypair reconstruction ────────────────────────────────────────────────
   // Solana's secret key = 64 bytes: [32-byte private scalar || 32-byte public key]
@@ -87,8 +89,44 @@ export function createSolanaAdapter(
   // ─── Explorer URL builder ──────────────────────────────────────────────────
 
   function explorerUrl(txHash: string): string {
-    const suffix = rpcUrl.toLowerCase().includes('devnet') ? '?cluster=devnet' : '';
+    // SDK maps all non-mainnet Solana to devnet explorer cluster.
+    // parseConfigKey returns 'testnet' for bare keys, but the actual RPC
+    // is devnet — so any non-mainnet value correctly resolves to devnet.
+    const suffix = network === 'mainnet' ? '' : '?cluster=devnet';
     return `${EXPLORER_BASE}/${txHash}${suffix}`;
+  }
+
+  // ─── resolveSplToken ──────────────────────────────────────────────────────
+
+  type ResolvedSplToken =
+    | { type: 'native' }
+    | { type: 'spl'; mint: string; decimals: number };
+
+  async function resolveSplToken(token?: string): Promise<ResolvedSplToken> {
+    const t = token ?? DEFAULT_TOKEN;
+    if (t === DEFAULT_TOKEN) return { type: 'native' };
+
+    // Named alias — checked first (O(1), free, always wins over raw address)
+    const aliasConfig = aliases[t];
+    if (aliasConfig) {
+      return { type: 'spl', mint: aliasConfig.mint, decimals: aliasConfig.decimals };
+    }
+
+    // Raw SPL mint address (base58, 32-44 chars) — fetches decimals on-chain
+    if (ADDRESS_PATTERN.test(t)) {
+      let decimals = decimalsCache.get(t);
+      if (decimals === undefined) {
+        const { PublicKey } = await getWeb3();
+        const { getMint } = await getSpl();
+        const connection = await getConnection();
+        const mintInfo = await getMint(connection, new PublicKey(t));
+        decimals = mintInfo.decimals;
+        decimalsCache.set(t, decimals);
+      }
+      return { type: 'spl', mint: t, decimals };
+    }
+
+    throw new MoneyError('TX_FAILED', `Token "${t}" is not configured for chain "solana".`, { chain: 'solana' });
   }
 
   // ─── setupWallet ──────────────────────────────────────────────────────────
@@ -116,38 +154,26 @@ export function createSolanaAdapter(
     address: string,
     token?: string,
   ): Promise<{ amount: string; token: string }> {
-    const resolvedToken = token ?? DEFAULT_TOKEN;
-    const { PublicKey, LAMPORTS_PER_SOL } = await getWeb3();
+    const resolved = await resolveSplToken(token);
+    const { PublicKey } = await getWeb3();
     const connection = await getConnection();
     const pubkey = new PublicKey(address);
 
-    if (resolvedToken === DEFAULT_TOKEN) {
+    if (resolved.type === 'native') {
       const lamports = await connection.getBalance(pubkey);
-      return {
-        amount: toHuman(lamports, SOL_DECIMALS),
-        token: DEFAULT_TOKEN,
-      };
-    }
-
-    // SPL token
-    const tokenConfig = tokens[resolvedToken];
-    if (!tokenConfig) {
-      throw new Error(`Token "${resolvedToken}" is not configured for chain "solana".`);
+      return { amount: toHuman(lamports, SOL_DECIMALS), token: DEFAULT_TOKEN };
     }
 
     const { getAssociatedTokenAddress, getAccount } = await getSpl();
-    const mint = new PublicKey(tokenConfig.mint);
+    const mint = new PublicKey(resolved.mint);
 
     try {
       const ata = await getAssociatedTokenAddress(mint, pubkey);
       const accountInfo = await getAccount(connection, ata);
-      return {
-        amount: toHuman(accountInfo.amount, tokenConfig.decimals),
-        token: resolvedToken,
-      };
+      const label = token ?? resolved.mint;
+      return { amount: toHuman(accountInfo.amount, resolved.decimals), token: label };
     } catch {
-      // Account doesn't exist yet → zero balance
-      return { amount: '0', token: resolvedToken };
+      return { amount: '0', token: token ?? resolved.mint };
     }
   }
 
@@ -161,8 +187,8 @@ export function createSolanaAdapter(
     memo?: string;
     keyfile: string;
   }): Promise<{ txHash: string; explorerUrl: string; fee: string }> {
-    const resolvedToken = params.token ?? DEFAULT_TOKEN;
-    const isNative = resolvedToken === DEFAULT_TOKEN;
+    // Resolve token BEFORE entering withKey so errors propagate cleanly
+    const resolved = await resolveSplToken(params.token);
 
     try {
       return await withKey(params.keyfile, async (kp) => {
@@ -171,7 +197,6 @@ export function createSolanaAdapter(
           SystemProgram,
           Transaction,
           sendAndConfirmTransaction,
-          LAMPORTS_PER_SOL,
         } = await getWeb3();
         const connection = await getConnection();
         const signer = await keypairFromHex(kp.privateKey, kp.publicKey);
@@ -179,7 +204,7 @@ export function createSolanaAdapter(
 
         let txHash: string;
 
-        if (isNative) {
+        if (resolved.type === 'native') {
           const lamports = toRaw(params.amount, SOL_DECIMALS);
           const tx = new Transaction().add(
             SystemProgram.transfer({
@@ -190,14 +215,9 @@ export function createSolanaAdapter(
           );
           txHash = await sendAndConfirmTransaction(connection, tx, [signer]);
         } else {
-          // SPL token transfer
-          const tokenConfig = tokens[resolvedToken];
-          if (!tokenConfig) {
-            throw new Error(`Token "${resolvedToken}" is not configured for chain "solana".`);
-          }
           const { getOrCreateAssociatedTokenAccount, transfer: splTransfer } = await getSpl();
-          const mint = new PublicKey(tokenConfig.mint);
-          const rawAmount = toRaw(params.amount, tokenConfig.decimals);
+          const mint = new PublicKey(resolved.mint);
+          const rawAmount = toRaw(params.amount, resolved.decimals);
 
           const sourceAta = await getOrCreateAssociatedTokenAccount(
             connection,
@@ -236,11 +256,7 @@ export function createSolanaAdapter(
           // Non-critical — fee stays '0'
         }
 
-        return {
-          txHash,
-          explorerUrl: explorerUrl(txHash),
-          fee,
-        };
+        return { txHash, explorerUrl: explorerUrl(txHash), fee };
       });
     } catch (err) {
       if (err instanceof MoneyError) throw err;
@@ -256,6 +272,12 @@ export function createSolanaAdapter(
   // ─── faucet ───────────────────────────────────────────────────────────────
 
   async function faucet(address: string): Promise<{ amount: string; token: string; txHash: string }> {
+    if (network === 'mainnet') {
+      throw new MoneyError('TX_FAILED',
+        'Faucet is not available on mainnet.',
+        { chain: 'solana' },
+      );
+    }
     const { PublicKey, LAMPORTS_PER_SOL } = await getWeb3();
     const connection = await getConnection();
     const pubkey = new PublicKey(address);
@@ -273,60 +295,6 @@ export function createSolanaAdapter(
     return { amount: '1', token: DEFAULT_TOKEN, txHash: sig };
   }
 
-  // ─── getHistory ───────────────────────────────────────────────────────────
-
-  async function getHistory(address: string, limit = 20): Promise<HistoryEntry[]> {
-    const { PublicKey } = await getWeb3();
-    const connection = await getConnection();
-    const pubkey = new PublicKey(address);
-
-    const signatures = await connection.getSignaturesForAddress(pubkey, { limit });
-
-    const entries: HistoryEntry[] = [];
-
-    for (const sigInfo of signatures) {
-      try {
-        const tx = await connection.getTransaction(sigInfo.signature, {
-          commitment: 'confirmed',
-          maxSupportedTransactionVersion: 0,
-        });
-        if (!tx || !tx.meta) continue;
-
-        const accountKeys = tx.transaction.message.staticAccountKeys ?? [];
-        const addrIndex = accountKeys.findIndex((k) => k.toBase58() === address);
-        if (addrIndex < 0) continue;
-
-        const preBal = tx.meta.preBalances[addrIndex] ?? 0;
-        const postBal = tx.meta.postBalances[addrIndex] ?? 0;
-        const delta = postBal - preBal;
-
-        if (delta === 0) continue;
-
-        const direction: 'sent' | 'received' = delta < 0 ? 'sent' : 'received';
-        const absDelta = Math.abs(delta);
-
-        // Find counterparty: the other primary account in the transfer
-        const counterpartyIndex = delta < 0 ? 1 : 0;
-        const counterparty = accountKeys[counterpartyIndex]?.toBase58() ?? '';
-
-        entries.push({
-          txHash: sigInfo.signature,
-          direction,
-          amount: toHuman(absDelta, SOL_DECIMALS),
-          token: DEFAULT_TOKEN,
-          counterparty,
-          timestamp: sigInfo.blockTime
-            ? new Date(sigInfo.blockTime * 1000).toISOString()
-            : new Date(0).toISOString(),
-        });
-      } catch {
-        // Skip unparseable transactions
-      }
-    }
-
-    return entries;
-  }
-
   // ─── Assemble adapter ─────────────────────────────────────────────────────
 
   return {
@@ -336,6 +304,5 @@ export function createSolanaAdapter(
     getBalance,
     send,
     faucet,
-    getHistory,
   };
 }

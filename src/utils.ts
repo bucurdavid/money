@@ -20,7 +20,12 @@ export function expandHome(p: string): string {
 
 /** Convert human-readable decimal (e.g. "1.5") to raw bigint */
 export function toRaw(humanAmount: string, decimals: number): bigint {
-  const [intPart, fracPart = ''] = humanAmount.split('.');
+  // Normalise scientific notation (e.g. "1e18" → "1000000000000000000")
+  // parseFloat handles it; toFixed gives us a decimal string BigInt can parse.
+  const normalised = humanAmount.includes('e') || humanAmount.includes('E')
+    ? parseFloat(humanAmount).toFixed(decimals)
+    : humanAmount;
+  const [intPart, fracPart = ''] = normalised.split('.');
   const paddedFrac = fracPart.padEnd(decimals, '0').slice(0, decimals);
   return BigInt(intPart) * BigInt(10 ** decimals) + BigInt(paddedFrac);
 }

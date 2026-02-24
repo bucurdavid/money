@@ -303,24 +303,4 @@ describe('send', () => {
   });
 });
 
-describe('getHistory', () => {
-  // NOTE: "parses sent/received transactions" test skipped — web3.js getTransaction
-  // deserializes the RPC response into complex PublicKey objects. Mocking at the HTTP
-  // level requires reproducing the exact wire format (versioned transaction message
-  // with compiledInstructions, staticAccountKeys as base58, etc). This is better
-  // covered by integration tests against devnet.
 
-  it('handles empty history', async () => {
-    const { url, server } = await createRpcServer({
-      getSignaturesForAddress: [],
-    });
-    rpcServer = server;
-
-    const adapter = createSolanaAdapter(url, TEST_TOKENS);
-    const keyfile = path.join(tmpDir, 'keys', 'solana.json');
-    const { address } = await adapter.setupWallet(keyfile);
-
-    const history = await adapter.getHistory!(address, 10);
-    assert.deepEqual(history, []);
-  });
-});

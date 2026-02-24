@@ -1,6 +1,9 @@
 // Chain names
 export type ChainName = 'fast' | 'base' | 'ethereum' | 'arbitrum' | 'solana';
 
+// Network types
+export type NetworkType = 'testnet' | 'mainnet';
+
 // Config file structure (~/.money/config.json)
 export interface TokenConfig {
   address?: string;  // EVM contract address
@@ -13,7 +16,6 @@ export interface ChainConfig {
   keyfile: string;
   network: string;
   defaultToken: string;
-  tokens?: Record<string, TokenConfig>;
 }
 
 export interface MoneyConfig {
@@ -28,21 +30,23 @@ export interface SetupResult {
 }
 
 export interface ChainInfo {
-  chain: string;
+  chain: string;       // Bare chain name
   address: string;
-  network: string;
+  network: string;     // RPC-level network (e.g. "sepolia", "devnet", "mainnet")
   defaultToken: string;
   status: 'ready' | 'no-key' | 'no-rpc' | 'error';
 }
 
 export interface WalletInfo {
-  chain: string;
+  chain: string;       // Bare chain name
+  network: NetworkType; // "testnet" | "mainnet"
   address: string;
   balances: Record<string, string>;
 }
 
 export interface BalanceResult {
-  chain: string;
+  chain: string;       // Bare chain name
+  network: NetworkType; // "testnet" | "mainnet"
   address: string;
   amount: string;
   token: string;
@@ -58,21 +62,38 @@ export interface SendResult {
   txHash: string;
   explorerUrl: string;
   fee: string;
-  chain: string;
+  chain: string;       // Bare chain name
+  network: NetworkType; // "testnet" | "mainnet"
 }
 
 export interface FaucetResult {
-  chain: string;
+  chain: string;       // Bare chain name
+  network: NetworkType; // "testnet" | "mainnet"
   amount: string;
   token: string;
   txHash: string;
 }
 
 export interface HistoryEntry {
-  txHash: string;
-  direction: 'sent' | 'received';
+  ts: string;          // ISO timestamp
+  chain: string;       // Bare chain name (e.g. "fast", "base")
+  network: NetworkType; // "testnet" | "mainnet"
+  to: string;          // recipient address
   amount: string;
   token: string;
-  counterparty: string;
-  timestamp: string;
+  txHash: string;
+}
+
+export interface SetupOptions {
+  network?: NetworkType;
+  rpc?: string;  // Override default RPC endpoint. Stored in config and persists across sessions.
+}
+
+export interface TokenInfo {
+  chain: string;       // Bare chain name (e.g. "fast", "base", "solana")
+  network: NetworkType; // "testnet" | "mainnet"
+  name: string;        // Token symbol (e.g. "USDC", "WETH")
+  address?: string;    // EVM ERC-20 contract address
+  mint?: string;       // Solana SPL mint address
+  decimals: number;
 }

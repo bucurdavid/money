@@ -3,7 +3,9 @@
  */
 
 import { getChainConfig } from './config.js';
+import { parseConfigKey } from './defaults.js';
 import { MoneyError } from './errors.js';
+import { getEvmAliases, getSolanaAliases } from './aliases.js';
 import { createFastAdapter } from './adapters/fast.js';
 import { createEvmAdapter } from './adapters/evm.js';
 import { createSolanaAdapter } from './adapters/solana.js';
@@ -13,70 +15,64 @@ import type { ChainAdapter } from './adapters/adapter.js';
 
 const adapterCache = new Map<string, ChainAdapter>();
 
-/** EVM chain names — they share the same adapter type */
 const EVM_CHAINS = ['base', 'ethereum', 'arbitrum'];
 
-/**
- * Clear the adapter cache. Useful for testing to ensure fresh adapter instances.
- * In production, prefer money.setup() which evicts a single chain's cache entry.
- */
+const EVM_EXPLORER_URLS: Record<string, Record<string, string>> = {
+  base: {
+    testnet: 'https://sepolia.basescan.org',
+    sepolia: 'https://sepolia.basescan.org',
+    mainnet: 'https://basescan.org',
+  },
+  ethereum: {
+    testnet: 'https://sepolia.etherscan.io',
+    sepolia: 'https://sepolia.etherscan.io',
+    mainnet: 'https://etherscan.io',
+  },
+  arbitrum: {
+    testnet: 'https://sepolia.arbiscan.io',
+    sepolia: 'https://sepolia.arbiscan.io',
+    mainnet: 'https://arbiscan.io',
+  },
+};
+
 export function _resetAdapterCache(): void {
   adapterCache.clear();
 }
 
-/**
- * Evict a single chain from the adapter cache.
- */
-export function evictAdapter(chain: string): void {
-  adapterCache.delete(chain);
+export function evictAdapter(cacheKey: string): void {
+  adapterCache.delete(cacheKey);
 }
 
-/**
- * Lazily create and cache a ChainAdapter for the given chain.
- * Throws if the chain is not configured or not yet supported.
- */
-export async function getAdapter(chain: string): Promise<ChainAdapter> {
-  if (adapterCache.has(chain)) {
-    return adapterCache.get(chain)!;
+export async function getAdapter(cacheKey: string): Promise<ChainAdapter> {
+  if (adapterCache.has(cacheKey)) {
+    return adapterCache.get(cacheKey)!;
   }
 
-  const chainConfig = await getChainConfig(chain);
+  const chainConfig = await getChainConfig(cacheKey);
   if (!chainConfig) {
+    const { chain } = parseConfigKey(cacheKey);
     throw new MoneyError('CHAIN_NOT_CONFIGURED',
       `Chain "${chain}" is not configured. Run money.setup("${chain}") first.`,
       { chain },
     );
   }
 
+  const { chain, network } = parseConfigKey(cacheKey);
   let adapter: ChainAdapter;
 
   if (chain === 'fast') {
-    adapter = createFastAdapter(chainConfig.rpc);
+    adapter = createFastAdapter(chainConfig.rpc, network);
   } else if (EVM_CHAINS.includes(chain)) {
-    const explorerUrls: Record<string, string> = {
-      base: 'https://sepolia.basescan.org',
-      ethereum: 'https://sepolia.etherscan.io',
-      arbitrum: 'https://sepolia.arbiscan.io',
-    };
-    const tokens: Record<string, { address: string; decimals: number }> = {};
-    if (chainConfig.tokens) {
-      for (const [name, tc] of Object.entries(chainConfig.tokens)) {
-        if (tc.address) tokens[name] = { address: tc.address, decimals: tc.decimals ?? 6 };
-      }
-    }
-    adapter = createEvmAdapter(chain, chainConfig.rpc, explorerUrls[chain] ?? '', tokens);
+    const explorerUrl = EVM_EXPLORER_URLS[chain]?.[chainConfig.network] ?? '';
+    const aliases = await getEvmAliases(cacheKey);
+    adapter = createEvmAdapter(chain, chainConfig.rpc, explorerUrl, aliases);
   } else if (chain === 'solana') {
-    const tokens: Record<string, { mint: string; decimals: number }> = {};
-    if (chainConfig.tokens) {
-      for (const [name, tc] of Object.entries(chainConfig.tokens)) {
-        if (tc.mint) tokens[name] = { mint: tc.mint, decimals: tc.decimals ?? 6 };
-      }
-    }
-    adapter = createSolanaAdapter(chainConfig.rpc, tokens);
+    const aliases = await getSolanaAliases(cacheKey);
+    adapter = createSolanaAdapter(chainConfig.rpc, aliases, network);
   } else {
-    throw new Error(`Unknown chain "${chain}".`);
+    throw new MoneyError('CHAIN_NOT_CONFIGURED', `Unknown chain "${chain}".`, { chain });
   }
 
-  adapterCache.set(chain, adapter);
+  adapterCache.set(cacheKey, adapter);
   return adapter;
 }

@@ -86,6 +86,10 @@ describe('isValidAddress', () => {
   it('returns false for an unknown chain', () => {
     assert.equal(isValidAddress(EVM_ADDR, 'unknown'), false);
   });
+
+  it('returns true for EVM address with composite key "base:mainnet"', () => {
+    assert.equal(isValidAddress(EVM_ADDR, 'base:mainnet'), true);
+  });
 });
 
 // ─── getAddressPattern ─────────────────────────────────────────────────────
@@ -130,5 +134,17 @@ describe('getAddressPattern', () => {
 
   it('returns null for an unknown chain', () => {
     assert.equal(getAddressPattern('unknown'), null);
+  });
+
+  it('returns evm regex for composite key "base:mainnet"', () => {
+    const pattern = getAddressPattern('base:mainnet');
+    assert.ok(pattern instanceof RegExp);
+    assert.ok(pattern!.test(EVM_ADDR));
+  });
+
+  it('returns fast regex for composite key "fast:mainnet"', () => {
+    const pattern = getAddressPattern('fast:mainnet');
+    assert.ok(pattern instanceof RegExp);
+    assert.ok(pattern!.test(FAST_ADDR));
   });
 });

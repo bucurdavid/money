@@ -253,6 +253,43 @@ describe('getBalance', () => {
       },
     );
   });
+
+  it('fetches balance for raw ERC-20 contract address (calls decimals then balanceOf)', async () => {
+    const rawAddress = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48';
+    // ABI-encoded uint8 decimals = 6: 32-byte left-padded
+    const abiDecimals = '0x' + '0'.repeat(63) + '6';
+    // ABI-encoded uint256 balance = 1_000_000 (1 USDC at 6 decimals): 32-byte left-padded
+    const abiBalance = '0x' + '0'.repeat(59) + 'f4240';
+
+    let ethCallCount = 0;
+    globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+      const bodyText = typeof init?.body === 'string' ? init.body : '';
+      const parsed = JSON.parse(bodyText) as { method: string; id: number } | Array<{ method: string; id: number }>;
+      const reqs = Array.isArray(parsed) ? parsed : [parsed];
+      const results = reqs.map(req => {
+        if (req.method === 'eth_call') {
+          ethCallCount++;
+          // First eth_call = decimals(), second = balanceOf()
+          const result = ethCallCount === 1 ? abiDecimals : abiBalance;
+          return { jsonrpc: '2.0', id: req.id, result };
+        }
+        return { jsonrpc: '2.0', id: req.id, result: null };
+      });
+      const body = JSON.stringify(Array.isArray(parsed) ? results : results[0]);
+      return {
+        ok: true, status: 200, headers: STUB_HEADERS,
+        json: async () => (Array.isArray(parsed) ? results : results[0]),
+        text: async () => body, body: null, bodyUsed: false,
+      } as unknown as Response;
+    }) as FetchFn;
+
+    // Empty aliases — raw address must work without registration
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, {});
+    const balance = await adapter.getBalance('0x' + 'a'.repeat(40), rawAddress);
+
+    assert.equal(balance.token, rawAddress);
+    assert.equal(balance.amount, '1', `expected 1 USDC (1_000_000 / 10^6), got: ${balance.amount}`);
+  });
 });
 
 describe('send', () => {
@@ -374,6 +411,55 @@ describe('send', () => {
       (err: unknown) => {
         assert.ok(err instanceof MoneyError, `Expected MoneyError, got: ${err}`);
         assert.equal((err as MoneyError).code, 'INSUFFICIENT_BALANCE');
+        return true;
+      },
+    );
+  });
+
+  it('sends ERC-20 token (USDC) and returns txHash + explorerUrl', async () => {
+    const txHash = '0x' + 'd'.repeat(64);
+    // viem's writeContract calls similar eth_* methods as sendTransaction
+    globalThis.fetch = multiMethodFetch({
+      ...buildSendHandlers(txHash),
+    });
+
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const keyfile = path.join(tmpDir, 'keys', 'evm.json');
+    const { address: fromAddr } = await adapter.setupWallet(keyfile);
+
+    const result = await adapter.send({
+      from: fromAddr,
+      to: '0x' + 'b'.repeat(40),
+      amount: '10',
+      token: 'USDC',
+      keyfile,
+    });
+
+    assert.equal(result.txHash, txHash);
+    assert.ok(result.explorerUrl.includes(txHash), `explorerUrl should contain txHash`);
+    assert.ok(result.explorerUrl.startsWith(FAKE_EXPLORER), `explorerUrl should start with explorer base`);
+  });
+
+  it('throws TX_FAILED for unknown token', async () => {
+    const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
+    const keyfile = path.join(tmpDir, 'keys', 'evm.json');
+    await adapter.setupWallet(keyfile);
+
+    await assert.rejects(
+      () => adapter.send({
+        from: '0x' + 'a'.repeat(40),
+        to: '0x' + 'b'.repeat(40),
+        amount: '10',
+        token: 'NOTEXIST',
+        keyfile,
+      }),
+      (err: unknown) => {
+        assert.ok(err instanceof MoneyError, `expected MoneyError, got: ${String(err)}`);
+        // The token lookup fails inside withKey, which wraps as TX_FAILED
+        assert.ok(
+          (err as MoneyError).code === 'TX_FAILED',
+          `expected TX_FAILED, got: ${(err as MoneyError).code}`,
+        );
         return true;
       },
     );
