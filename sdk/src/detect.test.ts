@@ -22,22 +22,21 @@ describe('detectChain', () => {
     assert.equal(detectChain(EVM_ADDR, ['base']), 'base');
   });
 
-  it('returns the first EVM_CHAINS-ordered match when multiple EVM chains are configured', () => {
-    // EVM_CHAINS order is ['base', 'ethereum', 'arbitrum']
-    // So with ['ethereum', 'base'] configured, 'base' comes first in EVM_CHAINS
-    assert.equal(detectChain(EVM_ADDR, ['ethereum', 'base']), 'base');
+  it('returns null when multiple EVM chains are configured (ambiguous)', () => {
+    // Multiple EVM chains configured — cannot auto-detect, caller must specify explicitly
+    assert.equal(detectChain(EVM_ADDR, ['ethereum', 'base']), null);
   });
 
   it('returns "ethereum" when only ethereum is configured', () => {
     assert.equal(detectChain(EVM_ADDR, ['ethereum']), 'ethereum');
   });
 
-  it('falls back to "base" when no EVM chains are configured', () => {
-    assert.equal(detectChain(EVM_ADDR, []), 'base');
+  it('returns null when no EVM chains are configured', () => {
+    assert.equal(detectChain(EVM_ADDR, []), null);
   });
 
-  it('falls back to "base" when only non-EVM chains are configured', () => {
-    assert.equal(detectChain(EVM_ADDR, ['fast', 'solana']), 'base');
+  it('returns null when only non-EVM chains are configured', () => {
+    assert.equal(detectChain(EVM_ADDR, ['fast', 'solana']), null);
   });
 
   it('returns "solana" for a solana (base58) address', () => {

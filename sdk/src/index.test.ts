@@ -267,7 +267,7 @@ describe('money.send', () => {
     );
   });
 
-  it('throws CHAIN_NOT_CONFIGURED for EVM address when only fast is configured', async () => {
+  it('throws INVALID_ADDRESS for EVM address when only fast is configured (no EVM chains)', async () => {
     await seedConfig(tmpDir);
     await money.setup('fast');
     const evmAddress = '0x742d35Cc6634C0532925a3b8D4C9b34EcFedBCfB';
@@ -275,7 +275,7 @@ describe('money.send', () => {
       () => money.send(evmAddress, '1'),
       (err: unknown) => {
         assert.ok(err instanceof MoneyError);
-        assert.equal((err as MoneyError).code, 'CHAIN_NOT_CONFIGURED');
+        assert.equal((err as MoneyError).code, 'INVALID_ADDRESS');
         return true;
       },
     );
@@ -431,9 +431,10 @@ describe('money.detect', () => {
     assert.equal(result, 'fast');
   });
 
-  it('detects EVM chain from 0x... address', () => {
+  it('returns null for EVM address when no EVM chains are configured', () => {
+    // detectChain returns null when no EVM chains are configured (ambiguous/unknown)
     const result = money.detect('0x742d35Cc6634C0532925a3b8D4C9b34EcFedBCfB');
-    assert.ok(result === 'base' || result === 'ethereum' || result === 'arbitrum');
+    assert.equal(result, null);
   });
 
   it('detects "solana" from base58 address', () => {

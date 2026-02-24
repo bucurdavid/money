@@ -10,16 +10,19 @@ const EVM_CHAINS = ['base', 'ethereum', 'arbitrum'];
 
 /**
  * Detect chain from address format.
- * For EVM addresses, returns the first EVM chain found in configuredChains,
- * defaulting to 'base' if none are configured.
+ * For EVM addresses, returns the configured EVM chain only when exactly one
+ * EVM chain is configured. Returns null when multiple EVM chains are configured
+ * (ambiguous — caller must require explicit chain) or when none are configured.
  */
 export function detectChain(address: string, configuredChains: string[]): string | null {
   if (PATTERNS.fast.test(address)) {
     return 'fast';
   }
   if (PATTERNS.evm.test(address)) {
-    const match = EVM_CHAINS.find(c => configuredChains.includes(c));
-    return match ?? 'base';
+    const evmMatches = EVM_CHAINS.filter(c => configuredChains.includes(c));
+    if (evmMatches.length === 1) return evmMatches[0];
+    if (evmMatches.length > 1) return null; // ambiguous — caller should require explicit chain
+    return null; // no EVM chains configured
   }
   if (PATTERNS.solana.test(address)) {
     return 'solana';
