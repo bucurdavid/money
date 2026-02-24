@@ -30,7 +30,14 @@ async function loadAliases(): Promise<Record<string, Record<string, TokenConfig>
 async function saveAliases(data: Record<string, Record<string, TokenConfig>>): Promise<void> {
   const aliasesPath = getAliasesPath();
   await fs.mkdir(path.dirname(aliasesPath), { recursive: true, mode: 0o700 });
-  await fs.writeFile(aliasesPath, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
+  const tmpPath = `${aliasesPath}.tmp.${process.pid}`;
+  try {
+    await fs.writeFile(tmpPath, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
+    await fs.rename(tmpPath, aliasesPath);
+  } catch (err) {
+    try { await fs.unlink(tmpPath); } catch { /* ignore */ }
+    throw err;
+  }
 }
 
 /** GET a single alias. Returns null if not found. */
