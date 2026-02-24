@@ -440,7 +440,7 @@ describe('send', () => {
     assert.ok(result.explorerUrl.startsWith(FAKE_EXPLORER), `explorerUrl should start with explorer base`);
   });
 
-  it('throws TX_FAILED for unknown token', async () => {
+  it('throws TOKEN_NOT_FOUND for unknown token', async () => {
     const adapter = createEvmAdapter(FAKE_CHAIN, FAKE_RPC, FAKE_EXPLORER, TEST_TOKENS);
     const keyfile = path.join(tmpDir, 'keys', 'evm.json');
     await adapter.setupWallet(keyfile);
@@ -455,10 +455,9 @@ describe('send', () => {
       }),
       (err: unknown) => {
         assert.ok(err instanceof MoneyError, `expected MoneyError, got: ${String(err)}`);
-        // The token lookup fails inside withKey, which wraps as TX_FAILED
         assert.ok(
-          (err as MoneyError).code === 'TX_FAILED',
-          `expected TX_FAILED, got: ${(err as MoneyError).code}`,
+          (err as MoneyError).code === 'TOKEN_NOT_FOUND',
+          `expected TOKEN_NOT_FOUND, got: ${(err as MoneyError).code}`,
         );
         return true;
       },

@@ -2,7 +2,7 @@
 name: money
 version: {{VERSION}}
 description: >
-  Send tokens on Fast, Base, Ethereum, Arbitrum, or Solana using the money SDK.
+  Send tokens on Fast, Base, Ethereum, Arbitrum, or Solana using the money skill.
   Use when asked to pay, transfer tokens, fund a wallet, or check a balance.
   Do NOT use for trading, DeFi, yield farming, price advice, or detecting incoming payments.
 ---
@@ -21,7 +21,7 @@ v{{VERSION}}. Two files. Integrity verified via SHA-256. No dependencies.
 
 ---
 
-The entire SDK is 3 steps:
+The entire skill is 3 steps:
 
 ```js
 const { money } = await import(`${process.env.HOME}/.config/opencode/skills/money/money.bundle.js`);
@@ -83,7 +83,7 @@ Same call for every chain. Only the first argument changes. RPC is stored perman
 
 ## Send Tokens
 
-The SDK detects the chain from the address format:
+The skill detects the chain from the address format:
 
 | Address looks like | Chain | Default token |
 |---|---|---|
@@ -181,7 +181,7 @@ if (already) {
 
 ## Receiving
 
-This SDK does not detect incoming payments. Use balance delta as a proxy:
+This skill does not detect incoming payments. Use balance delta as a proxy:
 
 ```js
 const before = await money.balance("fast");
@@ -191,7 +191,7 @@ const delta = parseFloat(after.amount) - parseFloat(before.amount);
 if (delta > 0) console.log("Received:", delta, after.token);
 ```
 
-For confirmed incoming verification, use a block explorer — outside this SDK.
+For confirmed incoming verification, use a block explorer — outside this skill.
 
 ---
 
