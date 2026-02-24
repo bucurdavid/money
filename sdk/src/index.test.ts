@@ -642,3 +642,77 @@ describe('history CSV round-trip', () => {
     assert.equal(result.entries[0].amount, '1.0');
   });
 });
+
+// ─── contacts integration ─────────────────────────────────────────────────────
+
+describe('contacts integration', () => {
+  const VALID_FAST_ADDRESS = 'set1ld55rskkecy2wflhf0kmfr82ay937tpq7zwmx978udetmqqt2task3fcxc';
+
+  it('addContact — saves a contact and returns correct result shape', async () => {
+    const result = await money.addContact({ name: 'alice', chain: 'fast', address: VALID_FAST_ADDRESS });
+    assert.equal(result.name, 'alice');
+    assert.equal(result.chain, 'fast');
+    assert.equal(result.address, VALID_FAST_ADDRESS);
+    assert.ok(typeof result.note === 'string' && result.note.length > 0);
+  });
+
+  it('contacts — lists contacts after adding', async () => {
+    await money.addContact({ name: 'alice', chain: 'fast', address: VALID_FAST_ADDRESS });
+    const result = await money.contacts();
+    assert.ok(Array.isArray(result.contacts));
+    assert.ok(typeof result.note === 'string');
+    const alice = result.contacts.find(c => c.name === 'alice');
+    assert.ok(alice, 'alice contact should appear in the list');
+    assert.equal(alice!.addresses['fast'], VALID_FAST_ADDRESS);
+  });
+
+  it('removeContact — removes a contact and verifies it is gone', async () => {
+    await money.addContact({ name: 'bob', chain: 'fast', address: VALID_FAST_ADDRESS });
+    const removeResult = await money.removeContact({ name: 'bob' });
+    assert.equal(removeResult.name, 'bob');
+    assert.ok(typeof removeResult.note === 'string' && removeResult.note.length > 0);
+    const after = await money.contacts();
+    const found = after.contacts.find(c => c.name === 'bob');
+    assert.ok(!found, 'bob should be removed from contacts');
+  });
+
+  it('send() with contact name — resolves contact address and completes send', async () => {
+    await seedConfig(tmpDir);
+    await money.setup({ chain: 'fast' });
+    await money.addContact({ name: 'alice', chain: 'fast', address: VALID_FAST_ADDRESS });
+    globalThis.fetch = standardFastFetch({
+      proxy_getAccountInfo: { balance: 'de0b6b3a7640000000', next_nonce: 1 },
+    });
+    // Contact resolution works: if it throws, it must NOT be CONTACT_NOT_FOUND
+    const result = await money.send({ to: 'alice', amount: 1, chain: 'fast' });
+    assert.equal(result.chain, 'fast');
+    assert.equal(result.network, 'testnet');
+    assert.ok(typeof result.txHash === 'string' && result.txHash.length > 0);
+  });
+
+  it('send() with unknown contact — throws CONTACT_NOT_FOUND', async () => {
+    await seedConfig(tmpDir);
+    await money.setup({ chain: 'fast' });
+    await assert.rejects(
+      () => money.send({ to: 'unknowncontact', amount: 1, chain: 'fast' }),
+      (err: unknown) => {
+        assert.ok(err instanceof MoneyError, `expected MoneyError, got: ${String(err)}`);
+        assert.equal((err as MoneyError).code, 'CONTACT_NOT_FOUND');
+        return true;
+      },
+    );
+  });
+
+  it('send() with valid address — bypasses contact lookup (does not throw CONTACT_NOT_FOUND)', async () => {
+    await seedConfig(tmpDir);
+    await money.setup({ chain: 'fast' });
+    globalThis.fetch = standardFastFetch({
+      proxy_getAccountInfo: { balance: 'de0b6b3a7640000000', next_nonce: 1 },
+    });
+    // A valid set1... address should resolve directly without contact lookup
+    const result = await money.send({ to: VALID_FAST_ADDRESS, amount: 1, chain: 'fast' });
+    assert.equal(result.chain, 'fast');
+    assert.equal(result.network, 'testnet');
+    assert.ok(typeof result.txHash === 'string' && result.txHash.length > 0);
+  });
+});
