@@ -13,8 +13,8 @@ import {
   sign as cryptoSign,
 } from 'node:crypto';
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { dirname, resolve, join } from 'node:path';
-import { homedir } from 'node:os';
+import { dirname } from 'node:path';
+import { expandHome } from './utils.js';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
 
@@ -252,12 +252,4 @@ export function scrubKeyFromError(error: unknown): Error {
   return new Error(raw.replace(HEX_KEY_RE, REDACTED));
 }
 
-// ─── Internal helpers ─────────────────────────────────────────────────────────
-
-function expandHome(p: string): string {
-  if (p === '~') return homedir();
-  if (p.startsWith('~/') || p.startsWith('~\\')) {
-    return join(homedir(), p.slice(2));
-  }
-  return resolve(p);
-}
+// expandHome imported from ./utils.js

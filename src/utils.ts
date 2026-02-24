@@ -1,8 +1,22 @@
 /**
- * utils.ts — Shared decimal/amount conversion utilities
+ * utils.ts — Shared utilities for @fast/money SDK
  *
- * Used by Fast and Solana adapters to avoid duplicating conversion logic.
+ * Decimal/amount conversion and path helpers.
  */
+
+import os from 'os';
+import path from 'path';
+
+/**
+ * Expand `~` in a path string to the user's home directory.
+ */
+export function expandHome(p: string): string {
+  if (p === '~') return os.homedir();
+  if (p.startsWith('~/') || p.startsWith('~\\')) {
+    return path.join(os.homedir(), p.slice(2));
+  }
+  return path.resolve(p);
+}
 
 /** Convert human-readable decimal (e.g. "1.5") to raw bigint */
 export function toRaw(humanAmount: string, decimals: number): bigint {

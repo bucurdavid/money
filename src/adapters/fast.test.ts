@@ -105,14 +105,18 @@ describe('createFastAdapter', () => {
       assert.equal(captured().method, 'proxy_getAccountInfo');
     });
 
-    it('returns "0" on fetch failure', async () => {
+    it('throws on RPC/network failure (not silent "0")', async () => {
       globalThis.fetch = failingFetch();
       const adapter = createFastAdapter(FAKE_RPC);
-      // Use a known valid address
-      const bal = await adapter.getBalance(
-        'set1ld55rskkecy2wflhf0kmfr82ay937tpq7zwmx978udetmqqt2task3fcxc',
+      await assert.rejects(
+        () => adapter.getBalance(
+          'set1ld55rskkecy2wflhf0kmfr82ay937tpq7zwmx978udetmqqt2task3fcxc',
+        ),
+        (err: Error) => {
+          assert.ok(err.message.includes('network down'));
+          return true;
+        },
       );
-      assert.equal(bal.amount, '0');
     });
 
     it('returns "0" when account does not exist (null result)', async () => {

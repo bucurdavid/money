@@ -223,8 +223,14 @@ export function createFastAdapter(rpcUrl: string): ChainAdapter {
         const hexBalance = result.balance ?? '0';
         const amount = fromHex(hexBalance, FAST_DECIMALS);
         return { amount, token: tok };
-      } catch {
-        return { amount: '0', token: tok };
+      } catch (err) {
+        // Only return "0" for address-parsing errors (invalid address format).
+        // Propagate RPC/network errors so callers know something is wrong.
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes('Invalid') || msg.includes('bech32') || msg.includes('decode')) {
+          return { amount: '0', token: tok };
+        }
+        throw err;
       }
     },
 
