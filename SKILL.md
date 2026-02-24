@@ -53,6 +53,8 @@ Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"solana"`
 | Check if you received tokens | Receiving |
 | Use USDC or a custom token | Tokens |
 | View past sends | History |
+| Save a named recipient | Contacts |
+| Send by name | Contacts |
 | See all methods | Reference |
 
 ## NOT for this skill
@@ -161,6 +163,7 @@ All errors have `{ code, message, note }`. The `note` field contains a working c
 | `FAUCET_THROTTLED` | Faucet rate limited | Wait and retry later. |
 | `INVALID_ADDRESS` | Bad address | Do not retry. Confirm address with user. |
 | `TOKEN_NOT_FOUND` | Token not registered | `money.registerToken({ chain, name, address, decimals })`, retry. |
+| `CONTACT_NOT_FOUND` | `to` name not in contacts | `money.addContact({ name, chain, address })`, retry. |
 
 ```js
 try {
@@ -255,6 +258,72 @@ const { tokens } = await money.tokens({ chain: "base" });
 
 ---
 
+## Contacts
+
+An address book for named recipients. Save a contact once, then send by name instead of address. Names are case-insensitive; one contact can hold addresses for multiple chains.
+
+```js
+// Save a contact
+await money.addContact({ name: "alice", chain: "fast", address: "set1qxy..." });
+// { name: "alice", chain: "fast", address: "set1qxy...", note: "Contact "alice" saved with fast address set1qxy...." }
+
+// Add the same contact on another chain
+await money.addContact({ name: "alice", chain: "base", address: "0x1234...abcd" });
+
+// List all contacts
+const { contacts } = await money.contacts({});
+// contacts = [{ name: "alice", addresses: { fast: "set1qxy...", base: "0x1234...abcd" } }]
+
+// Look up a single contact
+const { contacts } = await money.contacts({ name: "alice" });
+
+// Remove one chain address
+await money.removeContact({ name: "alice", chain: "fast" });
+
+// Remove entire contact
+await money.removeContact({ name: "alice" });
+```
+
+### Contact resolution in send()
+
+Pass a contact name as `to` and `send()` resolves it automatically. If `to` is not a valid on-chain address, the contacts book is checked before failing.
+
+```js
+// send() resolves "alice" → her Fast address
+const tx = await money.send({ to: "alice", amount: 10, chain: "fast" });
+
+// If the contact exists, this is identical to:
+const tx = await money.send({ to: "set1qxy...", amount: 10, chain: "fast" });
+```
+
+If `to` is not a valid address **and** no contact with that name exists for the given chain, `send()` throws `CONTACT_NOT_FOUND`. The `e.note` field shows how to add the contact.
+
+### Contact name rules
+
+- Letters, digits, hyphens, and underscores only (`a-z A-Z 0-9 - _`)
+- Maximum 64 characters
+- Matching is case-insensitive (`"Alice"` and `"alice"` refer to the same contact)
+
+### Storage
+
+Contacts are stored in `~/.money/contacts.json`:
+
+```json
+{
+  "alice": {
+    "fast": "set1qxy...",
+    "base": "0x1234...abcd"
+  },
+  "treasury": {
+    "fast": "set1abc..."
+  }
+}
+```
+
+Keys are lowercased contact names. Each value is a map from chain name to address. The file is created automatically on first `addContact()` call.
+
+---
+
 ## History
 
 ```js
@@ -281,6 +350,9 @@ const { entries } = await money.history({ limit: 5 });              // last 5
 | `money.registerToken({ chain, name, address?, mint?, decimals? })` | `void` |
 | `money.tokens({ chain })` | `{ tokens: TokenInfo[], note }` |
 | `money.history({ chain?, limit? })` | `{ entries: [{ ts, chain, network, to, amount, token, txHash }], note }` |
+| `money.addContact({ name, chain, address })` | `{ name, chain, address, note }` |
+| `money.removeContact({ name, chain? })` | `{ name, chain?, note }` |
+| `money.contacts({ name? })` | `{ contacts: [{ name, addresses }], note }` |
 
 All errors: `{ code, message, note }`. The `note` field contains a code example showing how to fix the error.
 `token` is optional. When omitted, the chain's native token is used: SET (Fast), ETH (Base/Ethereum/Arbitrum), SOL (Solana).
