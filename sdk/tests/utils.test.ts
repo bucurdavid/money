@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { toRaw, toHuman, toHex, fromHex, compareDecimalStrings } from './utils.js';
+import { toRaw, toHuman, toHex, fromHex, compareDecimalStrings } from '../src/utils.js';
 
 describe('toRaw', () => {
   it('converts integer amount', () => {

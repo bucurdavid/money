@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { MoneyConfig, ChainConfig } from './types.js';
+import type { MoneyConfig, ChainConfig, CustomChainDef } from './types.js';
 
 /**
  * Returns the expanded path to the config directory (~/.money/ by default).
@@ -98,5 +98,18 @@ export async function getChainConfig(chain: string): Promise<ChainConfig | null>
 export async function setChainConfig(chain: string, chainConfig: ChainConfig): Promise<void> {
   const config = await loadConfig();
   config.chains[chain] = chainConfig;
+  await saveConfig(config);
+}
+
+/** Get a custom chain definition by name. Returns null if not found. */
+export async function getCustomChain(name: string): Promise<CustomChainDef | null> {
+  const config = await loadConfig();
+  return config.customChains?.[name] ?? null;
+}
+
+/** Persist a custom chain definition. */
+export async function setCustomChain(name: string, def: CustomChainDef): Promise<void> {
+  const config = await loadConfig();
+  config.customChains = { ...(config.customChains ?? {}), [name]: def };
   await saveConfig(config);
 }

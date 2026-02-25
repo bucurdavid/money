@@ -6,19 +6,30 @@ const PATTERNS: Record<string, RegExp> = {
 };
 
 // EVM chains that share the same address format
-const EVM_CHAINS = ['base', 'ethereum', 'arbitrum'];
+const evmChainNames = new Set(['base', 'ethereum', 'arbitrum']);
+
+/** Register a new chain name as EVM-compatible (for address detection). */
+export function addEvmChainName(name: string): void {
+  evmChainNames.add(name);
+}
+
+/** Check if a chain name is registered as EVM-compatible. */
+export function isEvmChain(chain: string): boolean {
+  const bare = chain.includes(':') ? chain.split(':')[0] : chain;
+  return evmChainNames.has(bare);
+}
 
 /**
  * Identify which chain(s) an address could belong to based on format.
  * Returns all possible chains — caller decides how to narrow.
- * EVM addresses return all 3 EVM chains since they share the same format.
+ * EVM addresses return all EVM chains since they share the same format.
  */
 export function identifyChains(address: string): string[] {
   if (PATTERNS.fast.test(address)) {
     return ['fast'];
   }
   if (PATTERNS.evm.test(address)) {
-    return [...EVM_CHAINS];
+    return [...evmChainNames];
   }
   if (PATTERNS.solana.test(address)) {
     return ['solana'];
@@ -42,7 +53,7 @@ export function isValidAddress(address: string, chain: string): boolean {
  */
 export function getAddressPattern(chain: string): RegExp | null {
   const bare = chain.includes(':') ? chain.split(':')[0] : chain;
-  if (EVM_CHAINS.includes(bare)) {
+  if (evmChainNames.has(bare)) {
     return PATTERNS.evm;
   }
   return PATTERNS[bare] ?? null;

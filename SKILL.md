@@ -281,6 +281,35 @@ const { tokens } = await money.tokens({ chain: "base" });
 
 ---
 
+## Custom Chains
+
+Register any EVM-compatible chain (Polygon, Optimism, Avalanche, BSC, zkSync, etc.) and use it like a built-in chain.
+
+```js
+// Register a custom EVM chain (persistent — call once)
+await money.registerEvmChain({
+  chain: "polygon",
+  chainId: 137,
+  rpc: "https://polygon-rpc.com",
+  explorer: "https://polygonscan.com/tx/",
+  defaultToken: "MATIC",
+  network: "mainnet",
+});
+
+// Then use it exactly like a built-in chain
+await money.setup({ chain: "polygon", network: "mainnet" });
+await money.balance({ chain: "polygon", network: "mainnet" });
+await money.send({ to: "0x1234...abcd", amount: 1, chain: "polygon", network: "mainnet" });
+```
+
+All custom EVM chains share the same wallet key (`~/.money/keys/evm.json`) — same address across all EVM chains and networks.
+
+Only `chainId` and `rpc` are required. `explorer`, `defaultToken` (defaults to `"ETH"`), and `network` (defaults to `"testnet"`) are optional.
+
+Built-in chains (`fast`, `base`, `ethereum`, `arbitrum`, `solana`) cannot be overridden — use `money.setup()` for those.
+
+---
+
 ## History
 
 ```js
@@ -299,6 +328,7 @@ const { entries } = await money.history({ chain: "base", network: "mainnet" }); 
 | Method | Returns |
 |--------|---------|
 | `money.setup({ chain, network?, rpc? })` | `{ chain, address, network, note }` |
+| `money.registerEvmChain({ chain, chainId, rpc, explorer?, defaultToken?, network? })` | `void` |
 | `money.status()` | `{ entries: [...], note }` |
 | `money.balance({ chain, network?, token? })` | `{ amount, token, chain, network, address, note }` |
 | `money.send({ to, amount, chain, network?, token? })` | `{ txHash, explorerUrl, fee, chain, network, note }` |

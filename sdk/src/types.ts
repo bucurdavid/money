@@ -18,8 +18,16 @@ export interface ChainConfig {
   defaultToken: string;
 }
 
+/** Persisted metadata for a custom EVM chain */
+export interface CustomChainDef {
+  type: 'evm';
+  chainId: number;
+  explorer?: string;
+}
+
 export interface MoneyConfig {
   chains: Record<string, ChainConfig>;
+  customChains?: Record<string, CustomChainDef>;
 }
 
 // ─── Param types (JSON-only method signatures) ───────────────────────────────
@@ -86,6 +94,16 @@ export interface HistoryParams {
   chain?: string;
   network?: NetworkType;
   limit?: number;
+}
+
+/** Params for money.registerEvmChain() */
+export interface RegisterEvmChainParams {
+  chain: string;
+  chainId: number;
+  rpc: string;
+  explorer?: string;   // e.g. "https://polygonscan.com/tx/"
+  defaultToken?: string; // defaults to "ETH"
+  network?: NetworkType; // defaults to "testnet"
 }
 
 // ─── Return types for SDK methods ────────────────────────────────────────────

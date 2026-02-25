@@ -12,7 +12,7 @@ import {
   signEd25519,
   signSecp256k1,
   withKey,
-} from './keys.js';
+} from '../src/keys.js';
 
 // ---------------------------------------------------------------------------
 // Helpers

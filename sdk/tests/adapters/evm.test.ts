@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { createEvmAdapter } from './evm.js';
-import { MoneyError } from '../errors.js';
+import { createEvmAdapter } from '../../src/adapters/evm.js';
+import { MoneyError } from '../../src/errors.js';
 import { base } from 'viem/chains';
 
 // ---------------------------------------------------------------------------

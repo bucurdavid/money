@@ -4,8 +4,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { createSolanaAdapter } from './solana.js';
-import { MoneyError } from '../errors.js';
+import { createSolanaAdapter } from '../../src/adapters/solana.js';
+import { MoneyError } from '../../src/errors.js';
 
 // ---------------------------------------------------------------------------
 // Local JSON-RPC server helper

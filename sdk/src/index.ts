@@ -2,10 +2,10 @@
  * index.ts — Main entry point for the money SDK
  */
 
-import { loadConfig, setChainConfig, getChainConfig } from './config.js';
+import { loadConfig, setChainConfig, getChainConfig, getCustomChain, setCustomChain } from './config.js';
 import { expandHome, compareDecimalStrings } from './utils.js';
 import { loadKeyfile } from './keys.js';
-import { identifyChains, isValidAddress } from './detect.js';
+import { identifyChains, isValidAddress, addEvmChainName } from './detect.js';
 import { MoneyError } from './errors.js';
 import { getAdapter, evictAdapter, _resetAdapterCache } from './registry.js';
 import { DEFAULT_CHAIN_CONFIGS, configKey, parseConfigKey, supportedChains } from './defaults.js';
@@ -35,6 +35,8 @@ import type {
   HistoryResult,
   HistoryEntry,
   ChainConfig,
+  RegisterEvmChainParams,
+  CustomChainDef,
 } from './types.js';
 
 // ─── Re-exports ───────────────────────────────────────────────────────────────
@@ -62,6 +64,7 @@ export type {
   HistoryResult,
   HistoryEntry,
   ChainConfig,
+  RegisterEvmChainParams,
 } from './types.js';
 
 export type {
@@ -103,20 +106,40 @@ export const money = {
 
     const network: NetworkType = networkOpt ?? 'testnet';
     const chainDefaults = DEFAULT_CHAIN_CONFIGS[chain];
-    if (!chainDefaults) {
-      throw new MoneyError(
-        'CHAIN_NOT_CONFIGURED',
-        `No default config for chain "${chain}". Supported chains: ${supportedChains().join(', ')}.`,
-        { chain, note: `Supported chains: ${supportedChains().join(', ')}.\n  await money.setup({ chain: "fast" })` },
-      );
-    }
-    const defaults = chainDefaults[network];
-    if (!defaults) {
-      throw new MoneyError(
-        'CHAIN_NOT_CONFIGURED',
-        `No config for chain "${chain}" on network "${network}".`,
-        { chain, note: `Use network "testnet" or "mainnet":\n  await money.setup({ chain: "${chain}", network: "testnet" })` },
-      );
+    let defaults: ChainConfig | undefined;
+
+    if (chainDefaults) {
+      defaults = chainDefaults[network];
+      if (!defaults) {
+        throw new MoneyError(
+          'CHAIN_NOT_CONFIGURED',
+          `No config for chain "${chain}" on network "${network}".`,
+          { chain, note: `Use network "testnet" or "mainnet":\n  await money.setup({ chain: "${chain}", network: "testnet" })` },
+        );
+      }
+    } else {
+      // Check if this is a registered custom chain
+      const customDef: CustomChainDef | null = await getCustomChain(chain);
+      if (!customDef) {
+        throw new MoneyError(
+          'CHAIN_NOT_CONFIGURED',
+          `No default config for chain "${chain}". Supported chains: ${supportedChains().join(', ')}. Or register a custom chain:\n  await money.registerEvmChain({ chain: "${chain}", chainId: ..., rpc: "..." })`,
+          { chain, note: `Supported chains: ${supportedChains().join(', ')}.\n  await money.registerEvmChain({ chain: "${chain}", chainId: ..., rpc: "..." })` },
+        );
+      }
+      // For custom chains, the config was already written by registerEvmChain — load it
+      const key = configKey(chain, network);
+      const existing = await getChainConfig(key);
+      if (!existing) {
+        throw new MoneyError(
+          'CHAIN_NOT_CONFIGURED',
+          `Custom chain "${chain}" is registered but not configured for network "${network}". Register it for this network first.`,
+          { chain, note: `Register for ${network}:\n  await money.registerEvmChain({ chain: "${chain}", chainId: ${customDef.chainId}, rpc: "...", network: "${network}" })` },
+        );
+      }
+      defaults = existing;
+      // Ensure this chain is registered for address detection
+      addEvmChainName(chain);
     }
 
     const key = configKey(chain, network);
@@ -409,5 +432,56 @@ export const money = {
     }
 
     return { chains, note };
+  },
+
+  async registerEvmChain(params: RegisterEvmChainParams): Promise<void> {
+    const { chain, chainId, rpc, explorer, defaultToken, network: networkOpt } = params;
+
+    if (!chain) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: chain', {
+        note: 'Provide a chain name:\n  await money.registerEvmChain({ chain: "polygon", chainId: 137, rpc: "https://polygon-rpc.com" })',
+      });
+    }
+    if (!chainId) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: chainId', {
+        note: 'Provide the EVM chain ID:\n  await money.registerEvmChain({ chain: "polygon", chainId: 137, rpc: "https://polygon-rpc.com" })',
+      });
+    }
+    if (!rpc) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: rpc', {
+        note: 'Provide an RPC URL:\n  await money.registerEvmChain({ chain: "polygon", chainId: 137, rpc: "https://polygon-rpc.com" })',
+      });
+    }
+
+    // Reject built-in chain names
+    if (supportedChains().includes(chain)) {
+      throw new MoneyError('INVALID_PARAMS', `"${chain}" is a built-in chain and cannot be overridden. Use money.setup({ chain: "${chain}" }) instead.`, {
+        chain,
+        note: `Built-in chains: ${supportedChains().join(', ')}. Use setup() for these.`,
+      });
+    }
+
+    const network: NetworkType = networkOpt ?? 'testnet';
+
+    // Persist custom chain definition
+    const def: CustomChainDef = {
+      type: 'evm',
+      chainId,
+      ...(explorer ? { explorer } : {}),
+    };
+    await setCustomChain(chain, def);
+
+    // Register for address detection
+    addEvmChainName(chain);
+
+    // Build and persist the chain config so setup() can find it
+    const key = configKey(chain, network);
+    const chainConfig: ChainConfig = {
+      rpc,
+      keyfile: '~/.money/keys/evm.json',
+      network: network === 'mainnet' ? 'mainnet' : 'testnet',
+      defaultToken: defaultToken ?? 'ETH',
+    };
+    await setChainConfig(key, chainConfig);
   },
 };

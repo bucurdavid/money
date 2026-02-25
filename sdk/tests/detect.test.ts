@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { identifyChains, isValidAddress, getAddressPattern } from './detect.js';
+import { identifyChains, isValidAddress, getAddressPattern } from '../src/detect.js';
 
 // ─── Realistic test addresses ──────────────────────────────────────────────
 // fast: 'set1' + 38+ lowercase alphanumeric chars (real wallet address)

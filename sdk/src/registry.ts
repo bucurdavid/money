@@ -2,7 +2,7 @@
  * registry.ts — Adapter creation, caching, and lifecycle management
  */
 
-import { getChainConfig } from './config.js';
+import { getChainConfig, getCustomChain } from './config.js';
 import { parseConfigKey } from './defaults.js';
 import { MoneyError } from './errors.js';
 import { getEvmAliases, getSolanaAliases } from './aliases.js';
@@ -11,7 +11,9 @@ import { createEvmAdapter } from './adapters/evm.js';
 import { createSolanaAdapter } from './adapters/solana.js';
 import type { ChainAdapter } from './adapters/adapter.js';
 import type { Chain } from 'viem';
+import { defineChain } from 'viem';
 import { baseSepolia, base, sepolia, mainnet, arbitrumSepolia, arbitrum } from 'viem/chains';
+import type { CustomChainDef } from './types.js';
 
 // ─── Adapter registry ─────────────────────────────────────────────────────────
 
@@ -85,10 +87,24 @@ export async function getAdapter(cacheKey: string): Promise<ChainAdapter> {
     const aliases = await getSolanaAliases(cacheKey);
     adapter = createSolanaAdapter(chainConfig.rpc, aliases, network);
   } else {
-    throw new MoneyError('CHAIN_NOT_CONFIGURED', `Unknown chain "${chain}".`, {
-      chain,
-      note: `Run setup first:\n  await money.setup({ chain: "${chain}" })`,
-    });
+    // Check if this is a registered custom EVM chain
+    const customDef: CustomChainDef | null = await getCustomChain(chain);
+    if (customDef) {
+      const viemChain = defineChain({
+        id: customDef.chainId,
+        name: chain,
+        nativeCurrency: { name: chainConfig.defaultToken, symbol: chainConfig.defaultToken, decimals: 18 },
+        rpcUrls: { default: { http: [chainConfig.rpc] } },
+      });
+      const explorerBase = customDef.explorer ?? '';
+      const aliases = await getEvmAliases(cacheKey);
+      adapter = createEvmAdapter(chain, chainConfig.rpc, explorerBase, aliases, viemChain);
+    } else {
+      throw new MoneyError('CHAIN_NOT_CONFIGURED', `Unknown chain "${chain}".`, {
+        chain,
+        note: `Run setup first:\n  await money.setup({ chain: "${chain}" })`,
+      });
+    }
   }
 
   adapterCache.set(cacheKey, adapter);

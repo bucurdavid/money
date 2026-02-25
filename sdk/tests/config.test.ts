@@ -11,8 +11,8 @@ import {
   saveConfig,
   getChainConfig,
   setChainConfig,
-} from './config.js';
-import type { ChainConfig, MoneyConfig } from './types.js';
+} from '../src/config.js';
+import type { ChainConfig, MoneyConfig } from '../src/types.js';
 
 // ---------------------------------------------------------------------------
 // Helpers

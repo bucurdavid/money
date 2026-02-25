@@ -52909,7 +52909,7 @@ var init_esm4 = __esm({
   }
 });
 
-// dist/config.js
+// dist/src/config.js
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -52969,8 +52969,17 @@ async function setChainConfig(chain2, chainConfig2) {
   config.chains[chain2] = chainConfig2;
   await saveConfig(config);
 }
+async function getCustomChain(name) {
+  const config = await loadConfig();
+  return config.customChains?.[name] ?? null;
+}
+async function setCustomChain(name, def) {
+  const config = await loadConfig();
+  config.customChains = { ...config.customChains ?? {}, [name]: def };
+  await saveConfig(config);
+}
 
-// dist/utils.js
+// dist/src/utils.js
 import os2 from "os";
 import path2 from "path";
 function expandHome(p) {
@@ -53018,7 +53027,7 @@ function compareDecimalStrings(a, b) {
   return 0;
 }
 
-// dist/keys.js
+// dist/src/keys.js
 import { randomBytes as randomBytes3, createPrivateKey, createPublicKey, sign as cryptoSign } from "node:crypto";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { dirname } from "node:path";
@@ -53455,7 +53464,7 @@ var wNAF = (n) => {
 init_sha2();
 var sha5122 = sha512;
 
-// dist/keys.js
+// dist/src/keys.js
 etc.sha512Sync = (...msgs) => sha5122(msgs.length === 1 ? msgs[0] : new Uint8Array(msgs.reduce((a, m) => {
   const r = new Uint8Array(a.length + m.length);
   r.set(a);
@@ -53562,7 +53571,7 @@ async function withKey(keyfilePath, fn) {
   }
 }
 
-// dist/detect.js
+// dist/src/detect.js
 var PATTERNS = {
   fast: /^set1[a-z0-9]{38,}$/,
   // bech32m
@@ -53571,13 +53580,16 @@ var PATTERNS = {
   solana: /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
   // base58
 };
-var EVM_CHAINS = ["base", "ethereum", "arbitrum"];
+var evmChainNames = /* @__PURE__ */ new Set(["base", "ethereum", "arbitrum"]);
+function addEvmChainName(name) {
+  evmChainNames.add(name);
+}
 function identifyChains(address) {
   if (PATTERNS.fast.test(address)) {
     return ["fast"];
   }
   if (PATTERNS.evm.test(address)) {
-    return [...EVM_CHAINS];
+    return [...evmChainNames];
   }
   if (PATTERNS.solana.test(address)) {
     return ["solana"];
@@ -53592,13 +53604,13 @@ function isValidAddress(address, chain2) {
 }
 function getAddressPattern(chain2) {
   const bare = chain2.includes(":") ? chain2.split(":")[0] : chain2;
-  if (EVM_CHAINS.includes(bare)) {
+  if (evmChainNames.has(bare)) {
     return PATTERNS.evm;
   }
   return PATTERNS[bare] ?? null;
 }
 
-// dist/errors.js
+// dist/src/errors.js
 var MoneyError = class extends Error {
   code;
   chain;
@@ -53624,7 +53636,7 @@ var MoneyError = class extends Error {
   }
 };
 
-// dist/defaults.js
+// dist/src/defaults.js
 var DEFAULT_CHAIN_CONFIGS = {
   fast: {
     testnet: {
@@ -53710,7 +53722,7 @@ function supportedChains() {
   return Object.keys(DEFAULT_CHAIN_CONFIGS);
 }
 
-// dist/aliases.js
+// dist/src/aliases.js
 import fs2 from "node:fs/promises";
 import path3 from "node:path";
 function getAliasesPath() {
@@ -54786,7 +54798,7 @@ var bcs = {
   }
 };
 
-// dist/adapters/fast.js
+// dist/src/adapters/fast.js
 var import_bech32 = __toESM(require_dist(), 1);
 init_sha3();
 var FAST_DECIMALS = 18;
@@ -63912,7 +63924,7 @@ function privateKeyToAccount(privateKey, options = {}) {
   };
 }
 
-// dist/adapters/evm.js
+// dist/src/adapters/evm.js
 var ADDRESS_PATTERN2 = /^0x[0-9a-fA-F]{40}$/;
 var NATIVE_DECIMALS = 18;
 var ERC20_ABI = [
@@ -64072,7 +64084,7 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain
   };
 }
 
-// dist/adapters/solana.js
+// dist/src/adapters/solana.js
 var SOL_DECIMALS = 9;
 var DEFAULT_TOKEN2 = "SOL";
 var ADDRESS_PATTERN3 = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
@@ -64596,9 +64608,9 @@ var sepolia = /* @__PURE__ */ defineChain({
   testnet: true
 });
 
-// dist/registry.js
+// dist/src/registry.js
 var adapterCache = /* @__PURE__ */ new Map();
-var EVM_CHAINS2 = ["base", "ethereum", "arbitrum"];
+var EVM_CHAINS = ["base", "ethereum", "arbitrum"];
 var VIEM_CHAINS = {
   base: { sepolia: baseSepolia, mainnet: base },
   ethereum: { sepolia, mainnet },
@@ -64638,7 +64650,7 @@ async function getAdapter(cacheKey2) {
   let adapter;
   if (chain2 === "fast") {
     adapter = createFastAdapter(chainConfig2.rpc, network);
-  } else if (EVM_CHAINS2.includes(chain2)) {
+  } else if (EVM_CHAINS.includes(chain2)) {
     const explorerUrl = EVM_EXPLORER_URLS[chain2]?.[chainConfig2.network] ?? "";
     const aliases = await getEvmAliases(cacheKey2);
     const viemChain = VIEM_CHAINS[chain2]?.[chainConfig2.network];
@@ -64651,17 +64663,30 @@ async function getAdapter(cacheKey2) {
     const aliases = await getSolanaAliases(cacheKey2);
     adapter = createSolanaAdapter(chainConfig2.rpc, aliases, network);
   } else {
-    throw new MoneyError("CHAIN_NOT_CONFIGURED", `Unknown chain "${chain2}".`, {
-      chain: chain2,
-      note: `Run setup first:
+    const customDef = await getCustomChain(chain2);
+    if (customDef) {
+      const viemChain = defineChain({
+        id: customDef.chainId,
+        name: chain2,
+        nativeCurrency: { name: chainConfig2.defaultToken, symbol: chainConfig2.defaultToken, decimals: 18 },
+        rpcUrls: { default: { http: [chainConfig2.rpc] } }
+      });
+      const explorerBase = customDef.explorer ?? "";
+      const aliases = await getEvmAliases(cacheKey2);
+      adapter = createEvmAdapter(chain2, chainConfig2.rpc, explorerBase, aliases, viemChain);
+    } else {
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Unknown chain "${chain2}".`, {
+        chain: chain2,
+        note: `Run setup first:
   await money.setup({ chain: "${chain2}" })`
-    });
+      });
+    }
   }
   adapterCache.set(cacheKey2, adapter);
   return adapter;
 }
 
-// dist/history.js
+// dist/src/history.js
 import fs3 from "node:fs/promises";
 import path4 from "node:path";
 function getHistoryPath() {
@@ -64775,7 +64800,7 @@ async function readHistory(opts) {
   return entries;
 }
 
-// dist/index.js
+// dist/src/index.js
 function resolveChainKey(chain2, chains, network) {
   const key = network ? configKey(chain2, network) : chain2;
   if (chains[key])
@@ -64792,14 +64817,28 @@ var money = {
     }
     const network = networkOpt ?? "testnet";
     const chainDefaults = DEFAULT_CHAIN_CONFIGS[chain2];
-    if (!chainDefaults) {
-      throw new MoneyError("CHAIN_NOT_CONFIGURED", `No default config for chain "${chain2}". Supported chains: ${supportedChains().join(", ")}.`, { chain: chain2, note: `Supported chains: ${supportedChains().join(", ")}.
-  await money.setup({ chain: "fast" })` });
-    }
-    const defaults = chainDefaults[network];
-    if (!defaults) {
-      throw new MoneyError("CHAIN_NOT_CONFIGURED", `No config for chain "${chain2}" on network "${network}".`, { chain: chain2, note: `Use network "testnet" or "mainnet":
+    let defaults;
+    if (chainDefaults) {
+      defaults = chainDefaults[network];
+      if (!defaults) {
+        throw new MoneyError("CHAIN_NOT_CONFIGURED", `No config for chain "${chain2}" on network "${network}".`, { chain: chain2, note: `Use network "testnet" or "mainnet":
   await money.setup({ chain: "${chain2}", network: "testnet" })` });
+      }
+    } else {
+      const customDef = await getCustomChain(chain2);
+      if (!customDef) {
+        throw new MoneyError("CHAIN_NOT_CONFIGURED", `No default config for chain "${chain2}". Supported chains: ${supportedChains().join(", ")}. Or register a custom chain:
+  await money.registerEvmChain({ chain: "${chain2}", chainId: ..., rpc: "..." })`, { chain: chain2, note: `Supported chains: ${supportedChains().join(", ")}.
+  await money.registerEvmChain({ chain: "${chain2}", chainId: ..., rpc: "..." })` });
+      }
+      const key2 = configKey(chain2, network);
+      const existing2 = await getChainConfig(key2);
+      if (!existing2) {
+        throw new MoneyError("CHAIN_NOT_CONFIGURED", `Custom chain "${chain2}" is registered but not configured for network "${network}". Register it for this network first.`, { chain: chain2, note: `Register for ${network}:
+  await money.registerEvmChain({ chain: "${chain2}", chainId: ${customDef.chainId}, rpc: "...", network: "${network}" })` });
+      }
+      defaults = existing2;
+      addEvmChainName(chain2);
     }
     const key = configKey(chain2, network);
     const existing = await getChainConfig(key);
@@ -65058,6 +65097,46 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       note = "";
     }
     return { chains, note };
+  },
+  async registerEvmChain(params) {
+    const { chain: chain2, chainId, rpc, explorer, defaultToken, network: networkOpt } = params;
+    if (!chain2) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
+        note: 'Provide a chain name:\n  await money.registerEvmChain({ chain: "polygon", chainId: 137, rpc: "https://polygon-rpc.com" })'
+      });
+    }
+    if (!chainId) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chainId", {
+        note: 'Provide the EVM chain ID:\n  await money.registerEvmChain({ chain: "polygon", chainId: 137, rpc: "https://polygon-rpc.com" })'
+      });
+    }
+    if (!rpc) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: rpc", {
+        note: 'Provide an RPC URL:\n  await money.registerEvmChain({ chain: "polygon", chainId: 137, rpc: "https://polygon-rpc.com" })'
+      });
+    }
+    if (supportedChains().includes(chain2)) {
+      throw new MoneyError("INVALID_PARAMS", `"${chain2}" is a built-in chain and cannot be overridden. Use money.setup({ chain: "${chain2}" }) instead.`, {
+        chain: chain2,
+        note: `Built-in chains: ${supportedChains().join(", ")}. Use setup() for these.`
+      });
+    }
+    const network = networkOpt ?? "testnet";
+    const def = {
+      type: "evm",
+      chainId,
+      ...explorer ? { explorer } : {}
+    };
+    await setCustomChain(chain2, def);
+    addEvmChainName(chain2);
+    const key = configKey(chain2, network);
+    const chainConfig2 = {
+      rpc,
+      keyfile: "~/.money/keys/evm.json",
+      network: network === "mainnet" ? "mainnet" : "testnet",
+      defaultToken: defaultToken ?? "ETH"
+    };
+    await setChainConfig(key, chainConfig2);
   }
 };
 export {

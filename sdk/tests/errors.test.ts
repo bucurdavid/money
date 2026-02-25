@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { MoneyError } from './errors.js';
+import { MoneyError } from '../src/errors.js';
 
 describe('MoneyError', () => {
   it('has correct name, code, and message', () => {

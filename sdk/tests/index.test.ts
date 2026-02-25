@@ -8,9 +8,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { money, MoneyError } from './index.js';
-import { _resetAdapterCache } from './registry.js';
-import type { NetworkType } from './types.js';
+import { money, MoneyError } from '../src/index.js';
+import { _resetAdapterCache } from '../src/registry.js';
+import type { NetworkType } from '../src/types.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
