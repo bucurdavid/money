@@ -15,4 +15,9 @@ export interface ChainAdapter {
   faucet(address: string): Promise<{ amount: string; token: string; txHash: string }>;
 
   setupWallet(keyfilePath: string): Promise<{ address: string }>;
+
+  sign(params: {
+    message: string | Uint8Array;
+    keyfile: string;
+  }): Promise<{ signature: string; address: string }>;
 }

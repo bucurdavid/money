@@ -243,6 +243,23 @@ export function createEvmAdapter(
     );
   }
 
+  // ─── sign ─────────────────────────────────────────────────────────────────
+
+  async function sign(params: {
+    message: string | Uint8Array;
+    keyfile: string;
+  }): Promise<{ signature: string; address: string }> {
+    return await withKey(params.keyfile, async (kp) => {
+      const account = privateKeyToAccount(`0x${kp.privateKey}` as `0x${string}`);
+      const signature = await account.signMessage({
+        message: typeof params.message === 'string'
+          ? params.message
+          : { raw: params.message },
+      });
+      return { signature, address: account.address };
+    });
+  }
+
   // ─── Assemble adapter ────────────────────────────────────────────────────────
 
   return {
@@ -252,5 +269,6 @@ export function createEvmAdapter(
     getBalance,
     send,
     faucet,
+    sign,
   };
 }

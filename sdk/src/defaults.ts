@@ -64,6 +64,118 @@ export const DEFAULT_CHAIN_CONFIGS: Record<string, Record<NetworkType, ChainConf
       defaultToken: 'ETH',
     },
   },
+  polygon: {
+    testnet: {
+      rpc: 'https://rpc-amoy.polygon.technology',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'amoy',
+      defaultToken: 'POL',
+    },
+    mainnet: {
+      rpc: 'https://polygon-rpc.com',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'mainnet',
+      defaultToken: 'POL',
+    },
+  },
+  optimism: {
+    testnet: {
+      rpc: 'https://sepolia.optimism.io',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'sepolia',
+      defaultToken: 'ETH',
+    },
+    mainnet: {
+      rpc: 'https://mainnet.optimism.io',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'mainnet',
+      defaultToken: 'ETH',
+    },
+  },
+  bsc: {
+    testnet: {
+      rpc: 'https://data-seed-prebsc-1-s1.binance.org:8545',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'testnet',
+      defaultToken: 'BNB',
+    },
+    mainnet: {
+      rpc: 'https://bsc-dataseed.binance.org',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'mainnet',
+      defaultToken: 'BNB',
+    },
+  },
+  avalanche: {
+    testnet: {
+      rpc: 'https://api.avax-test.network/ext/bc/C/rpc',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'fuji',
+      defaultToken: 'AVAX',
+    },
+    mainnet: {
+      rpc: 'https://api.avax.network/ext/bc/C/rpc',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'mainnet',
+      defaultToken: 'AVAX',
+    },
+  },
+  fantom: {
+    testnet: {
+      rpc: 'https://rpc.testnet.fantom.network',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'testnet',
+      defaultToken: 'FTM',
+    },
+    mainnet: {
+      rpc: 'https://rpc.ftm.tools',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'mainnet',
+      defaultToken: 'FTM',
+    },
+  },
+  zksync: {
+    testnet: {
+      rpc: 'https://sepolia.era.zksync.dev',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'sepolia',
+      defaultToken: 'ETH',
+    },
+    mainnet: {
+      rpc: 'https://mainnet.era.zksync.io',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'mainnet',
+      defaultToken: 'ETH',
+    },
+  },
+  linea: {
+    testnet: {
+      rpc: 'https://rpc.sepolia.linea.build',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'sepolia',
+      defaultToken: 'ETH',
+    },
+    mainnet: {
+      rpc: 'https://rpc.linea.build',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'mainnet',
+      defaultToken: 'ETH',
+    },
+  },
+  scroll: {
+    testnet: {
+      rpc: 'https://sepolia-rpc.scroll.io',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'sepolia',
+      defaultToken: 'ETH',
+    },
+    mainnet: {
+      rpc: 'https://rpc.scroll.io',
+      keyfile: '~/.money/keys/evm.json',
+      network: 'mainnet',
+      defaultToken: 'ETH',
+    },
+  },
   solana: {
     testnet: {
       rpc: 'https://api.devnet.solana.com',

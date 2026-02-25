@@ -374,6 +374,34 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
     },
 
     // -----------------------------------------------------------------------
+    // sign: Ed25519 sign a message, return hex-encoded signature
+    // -----------------------------------------------------------------------
+    async sign(params: {
+      message: string | Uint8Array;
+      keyfile: string;
+    }): Promise<{ signature: string; address: string }> {
+      return await withKey(params.keyfile, async (kp) => {
+        // Derive bech32m address from public key
+        const pubkeyBytes = Buffer.from(kp.publicKey, 'hex');
+        const words = bech32m.toWords(pubkeyBytes);
+        const address = bech32m.encode('set', words);
+
+        // Convert message to bytes
+        const msgBytes = typeof params.message === 'string'
+          ? new TextEncoder().encode(params.message)
+          : params.message;
+
+        // Sign with Ed25519
+        const sigBytes = await signEd25519(msgBytes, kp.privateKey);
+
+        // Return hex-encoded signature (Fast chain convention)
+        const signature = Buffer.from(sigBytes).toString('hex');
+
+        return { signature, address };
+      });
+    },
+
+    // -----------------------------------------------------------------------
     // faucet: proxy_faucetDrip (returns null on success)
     // -----------------------------------------------------------------------
     async faucet(

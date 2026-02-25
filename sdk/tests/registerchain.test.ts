@@ -93,26 +93,26 @@ afterEach(async () => {
 describe('money.registerEvmChain', () => {
   it('registers a custom EVM chain and persists to config', async () => {
     await money.registerEvmChain({
-      chain: 'polygon',
-      chainId: 137,
-      rpc: 'https://polygon-rpc.com',
-      explorer: 'https://polygonscan.com/tx/',
-      defaultToken: 'MATIC',
+      chain: 'mychain',
+      chainId: 99999,
+      rpc: 'https://mychain-rpc.com',
+      explorer: 'https://mychainscan.com/tx/',
+      defaultToken: 'MYC',
       network: 'mainnet',
     });
 
     // Verify customChains was written to config.json
     const raw = await fs.readFile(path.join(tmpDir, 'config.json'), 'utf-8');
     const config = JSON.parse(raw);
-    assert.ok(config.customChains?.polygon, 'customChains should contain polygon');
-    assert.equal(config.customChains.polygon.chainId, 137);
-    assert.equal(config.customChains.polygon.type, 'evm');
+    assert.ok(config.customChains?.mychain, 'customChains should contain mychain');
+    assert.equal(config.customChains.mychain.chainId, 99999);
+    assert.equal(config.customChains.mychain.type, 'evm');
 
     // Verify chain config was written
-    assert.ok(config.chains['polygon:mainnet'], 'chains should contain polygon:mainnet');
-    assert.equal(config.chains['polygon:mainnet'].rpc, 'https://polygon-rpc.com');
-    assert.equal(config.chains['polygon:mainnet'].defaultToken, 'MATIC');
-    assert.equal(config.chains['polygon:mainnet'].keyfile, '~/.money/keys/evm.json');
+    assert.ok(config.chains['mychain:mainnet'], 'chains should contain mychain:mainnet');
+    assert.equal(config.chains['mychain:mainnet'].rpc, 'https://mychain-rpc.com');
+    assert.equal(config.chains['mychain:mainnet'].defaultToken, 'MYC');
+    assert.equal(config.chains['mychain:mainnet'].keyfile, '~/.money/keys/evm.json');
   });
 
   it('rejects built-in chain names', async () => {
@@ -129,7 +129,7 @@ describe('money.registerEvmChain', () => {
 
   it('throws INVALID_PARAMS when chainId is missing', async () => {
     await assert.rejects(
-      () => money.registerEvmChain({ chain: 'polygon', rpc: 'https://polygon-rpc.com' } as any),
+      () => money.registerEvmChain({ chain: 'mychain', rpc: 'https://mychain-rpc.com' } as any),
       (err: unknown) => {
         assert.ok(err instanceof MoneyError);
         assert.equal((err as MoneyError).code, 'INVALID_PARAMS');
@@ -140,7 +140,7 @@ describe('money.registerEvmChain', () => {
 
   it('throws INVALID_PARAMS when rpc is missing', async () => {
     await assert.rejects(
-      () => money.registerEvmChain({ chain: 'polygon', chainId: 137 } as any),
+      () => money.registerEvmChain({ chain: 'mychain', chainId: 99999 } as any),
       (err: unknown) => {
         assert.ok(err instanceof MoneyError);
         assert.equal((err as MoneyError).code, 'INVALID_PARAMS');
@@ -151,41 +151,41 @@ describe('money.registerEvmChain', () => {
 
   it('defaults to ETH when defaultToken is not provided', async () => {
     await money.registerEvmChain({
-      chain: 'optimism',
-      chainId: 10,
-      rpc: 'https://optimism-rpc.com',
+      chain: 'testchain',
+      chainId: 88888,
+      rpc: 'https://testchain-rpc.com',
     });
 
     const raw = await fs.readFile(path.join(tmpDir, 'config.json'), 'utf-8');
     const config = JSON.parse(raw);
-    assert.equal(config.chains['optimism'].defaultToken, 'ETH');
+    assert.equal(config.chains['testchain'].defaultToken, 'ETH');
   });
 
   it('defaults to testnet when network is not provided', async () => {
     await money.registerEvmChain({
-      chain: 'optimism',
-      chainId: 10,
-      rpc: 'https://optimism-rpc.com',
+      chain: 'testchain',
+      chainId: 88888,
+      rpc: 'https://testchain-rpc.com',
     });
 
     const raw = await fs.readFile(path.join(tmpDir, 'config.json'), 'utf-8');
     const config = JSON.parse(raw);
-    assert.ok(config.chains['optimism'], 'should use bare chain name for testnet');
-    assert.equal(config.chains['optimism'].network, 'testnet');
+    assert.ok(config.chains['testchain'], 'should use bare chain name for testnet');
+    assert.equal(config.chains['testchain'].network, 'testnet');
   });
 
   it('setup works after registerEvmChain', async () => {
     globalThis.fetch = makeEvmFetchMock();
 
     await money.registerEvmChain({
-      chain: 'polygon',
-      chainId: 137,
-      rpc: 'https://polygon-rpc.com',
+      chain: 'mychain',
+      chainId: 99999,
+      rpc: 'https://mychain-rpc.com',
       network: 'mainnet',
     });
 
-    const result = await money.setup({ chain: 'polygon', network: 'mainnet' });
-    assert.equal(result.chain, 'polygon');
+    const result = await money.setup({ chain: 'mychain', network: 'mainnet' });
+    assert.equal(result.chain, 'mychain');
     assert.equal(result.network, 'mainnet');
     assert.ok(result.address.startsWith('0x'), 'should return EVM address');
   });
@@ -194,17 +194,17 @@ describe('money.registerEvmChain', () => {
     globalThis.fetch = makeEvmFetchMock();
 
     await money.registerEvmChain({
-      chain: 'polygon',
-      chainId: 137,
-      rpc: 'https://polygon-rpc.com',
-      defaultToken: 'MATIC',
+      chain: 'mychain',
+      chainId: 99999,
+      rpc: 'https://mychain-rpc.com',
+      defaultToken: 'MYC',
       network: 'mainnet',
     });
 
-    const setupResult = await money.setup({ chain: 'polygon', network: 'mainnet' });
-    const balResult = await money.balance({ chain: 'polygon', network: 'mainnet' });
+    const setupResult = await money.setup({ chain: 'mychain', network: 'mainnet' });
+    const balResult = await money.balance({ chain: 'mychain', network: 'mainnet' });
 
-    assert.equal(balResult.token, 'MATIC', 'token label should be MATIC, not ETH');
+    assert.equal(balResult.token, 'MYC', 'token label should be MYC, not ETH');
     assert.equal(balResult.amount, '0', 'mock returns zero balance');
     assert.equal(balResult.address, setupResult.address);
   });

@@ -19,6 +19,7 @@ import {
   saveKeyfile,
   loadKeyfile,
   withKey,
+  signEd25519,
 } from '../keys.js';
 import { MoneyError } from '../errors.js';
 import { toRaw, toHuman } from '../utils.js';
@@ -266,6 +267,38 @@ export function createSolanaAdapter(
     }
   }
 
+  // ─── sign ─────────────────────────────────────────────────────────────────
+
+  async function sign(params: {
+    message: string | Uint8Array;
+    keyfile: string;
+  }): Promise<{ signature: string; address: string }> {
+    return await withKey(params.keyfile, async (kp) => {
+      const { PublicKey } = await getWeb3();
+      const pubkey = new PublicKey(Buffer.from(kp.publicKey, 'hex'));
+      const address = pubkey.toBase58();
+
+      // Convert message to bytes
+      const msgBytes = typeof params.message === 'string'
+        ? new TextEncoder().encode(params.message)
+        : params.message;
+
+      // Sign with Ed25519
+      const sigBytes = await signEd25519(msgBytes, kp.privateKey);
+
+      // Encode signature as base58 (Solana convention).
+      // bs58 ships without type declarations; use @ts-ignore to suppress the error.
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-ignore
+      const bs58Module = await import('bs58');
+      // bs58 v5 exports encode directly; v6+ may use .default
+      const bs58Encode = (bs58Module.default?.encode ?? bs58Module.encode) as (bytes: Uint8Array) => string;
+      const signature = bs58Encode(sigBytes);
+
+      return { signature, address };
+    });
+  }
+
   // ─── faucet ───────────────────────────────────────────────────────────────
 
   async function faucet(address: string): Promise<{ amount: string; token: string; txHash: string }> {
@@ -301,5 +334,6 @@ export function createSolanaAdapter(
     getBalance,
     send,
     faucet,
+    sign,
   };
 }

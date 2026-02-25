@@ -1,5 +1,5 @@
 // Chain names
-export type ChainName = 'fast' | 'base' | 'ethereum' | 'arbitrum' | 'solana';
+export type ChainName = 'fast' | 'base' | 'ethereum' | 'arbitrum' | 'polygon' | 'optimism' | 'bsc' | 'avalanche' | 'fantom' | 'zksync' | 'linea' | 'scroll' | 'solana';
 
 // Network types
 export type NetworkType = 'testnet' | 'mainnet';
@@ -189,6 +189,132 @@ export interface TokenInfo {
   address?: string;    // EVM ERC-20 contract address
   mint?: string;       // Solana SPL mint address
   decimals: number;
+}
+
+// ─── Sign types ─────────────────────────────────────────────────────────────
+
+/** Params for money.sign() */
+export interface SignParams {
+  chain: string;
+  message: string | Uint8Array;
+  network?: NetworkType;
+}
+
+/** Result of money.sign() */
+export interface SignResult {
+  signature: string;     // EVM: 0x hex, Solana: base58, Fast: hex
+  address: string;
+  chain: string;
+  network: NetworkType;
+  note: string;
+}
+
+// ─── Swap / Quote types ─────────────────────────────────────────────────────
+
+/** Params for money.quote() and money.swap() */
+export interface SwapParams {
+  chain: string;
+  from: string;              // token symbol ("SOL") or contract address
+  to: string;                // token symbol ("USDC") or contract address
+  amount: number | string;   // human units
+  network?: NetworkType;
+  slippageBps?: number;      // default 50 (0.5%)
+  provider?: string;         // optional: force a specific provider
+}
+
+/** Result of money.quote() */
+export interface QuoteResult {
+  fromToken: string;
+  toToken: string;
+  fromAmount: string;        // human units
+  toAmount: string;          // human units
+  rate: string;              // e.g. "1 SOL = 145.23 USDC"
+  priceImpact: string;       // percentage
+  provider: string;
+  chain: string;
+  network: NetworkType;
+  note: string;
+}
+
+/** Result of money.swap() */
+export interface SwapResult {
+  txHash: string;
+  explorerUrl: string;
+  fromToken: string;
+  toToken: string;
+  fromAmount: string;
+  toAmount: string;
+  provider: string;
+  chain: string;
+  network: NetworkType;
+  note: string;
+}
+
+// ─── Price / Token info types ───────────────────────────────────────────────
+
+/** Params for money.price() */
+export interface PriceParams {
+  token: string;             // symbol or address
+  chain?: string;            // optional, narrows search
+}
+
+/** Result of money.price() */
+export interface PriceResult {
+  price: string;             // USD price
+  symbol: string;
+  name: string;
+  priceChange24h?: string;
+  volume24h?: string;
+  liquidity?: string;
+  marketCap?: string;
+  chain?: string;
+  note: string;
+}
+
+/** Params for money.tokenInfo() */
+export interface TokenInfoParams {
+  token: string;
+  chain?: string;
+}
+
+/** Result of money.tokenInfo() */
+export interface TokenInfoResult {
+  name: string;
+  symbol: string;
+  address: string;
+  price: string;
+  priceChange24h?: string;
+  volume24h?: string;
+  liquidity?: string;
+  marketCap?: string;
+  pairs: Array<{ dex: string; pairAddress: string; quoteToken: string; price: string }>;
+  chain?: string;
+  note: string;
+}
+
+// ─── Bridge types ───────────────────────────────────────────────────────────
+
+/** Params for money.bridge() */
+export interface BridgeParams {
+  from: { chain: string; token: string };
+  to: { chain: string; token?: string };
+  amount: number | string;   // human units
+  network?: NetworkType;
+  receiver?: string;         // defaults to own address on dest chain
+  provider?: string;
+}
+
+/** Result of money.bridge() */
+export interface BridgeResult {
+  txHash: string;
+  explorerUrl: string;
+  fromChain: string;
+  toChain: string;
+  fromAmount: string;
+  toAmount: string;
+  orderId?: string;
+  estimatedTime?: string;
+  note: string;
 }
 
 // ─── Unit conversion types ──────────────────────────────────────────────────

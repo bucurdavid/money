@@ -4,13 +4,26 @@
 
 import { loadConfig, setChainConfig, getChainConfig, getCustomChain, setCustomChain } from './config.js';
 import { expandHome, compareDecimalStrings } from './utils.js';
-import { loadKeyfile } from './keys.js';
+import { loadKeyfile, withKey } from './keys.js';
 import { identifyChains, isValidAddress } from './detect.js';
 import { MoneyError } from './errors.js';
 import { getAdapter, evictAdapter, _resetAdapterCache } from './registry.js';
 import { DEFAULT_CHAIN_CONFIGS, configKey, parseConfigKey, supportedChains } from './defaults.js';
 import { getAlias, setAlias, getAliases } from './aliases.js';
 import { appendHistory, readHistory } from './history.js';
+import {
+  registerSwapProvider,
+  registerBridgeProvider,
+  registerPriceProvider,
+  getSwapProvider,
+  getBridgeProvider,
+  getPriceProvider,
+} from './providers/registry.js';
+import { resolveTokenAddress, NATIVE_TOKEN_ADDRESS, NATIVE_TOKEN_DECIMALS, NATIVE_TOKEN_SYMBOL } from './providers/tokens.js';
+import { jupiterProvider } from './providers/jupiter.js';
+import { paraswapProvider } from './providers/paraswap.js';
+import { dexscreenerProvider } from './providers/dexscreener.js';
+import { debridgeProvider } from './providers/debridge.js';
 import type {
   NetworkType,
   SetupParams,
@@ -39,9 +52,29 @@ import type {
   ParseUnitsParams,
   FormatUnitsParams,
   CustomChainDef,
+  SignParams,
+  SignResult,
+  SwapParams,
+  QuoteResult,
+  SwapResult,
+  PriceParams,
+  PriceResult,
+  TokenInfoParams,
+  TokenInfoResult,
+  BridgeParams,
+  BridgeResult,
 } from './types.js';
 
 import { parseUnits, formatUnits } from 'viem';
+import { createWalletClient, http } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+
+// ─── Register built-in providers ──────────────────────────────────────────────
+
+registerSwapProvider(jupiterProvider);
+registerSwapProvider(paraswapProvider);
+registerBridgeProvider(debridgeProvider);
+registerPriceProvider(dexscreenerProvider);
 
 // ─── Re-exports ───────────────────────────────────────────────────────────────
 
@@ -71,6 +104,17 @@ export type {
   ParseUnitsParams,
   FormatUnitsParams,
   RegisterEvmChainParams,
+  SignParams,
+  SignResult,
+  SwapParams,
+  QuoteResult,
+  SwapResult,
+  PriceParams,
+  PriceResult,
+  TokenInfoParams,
+  TokenInfoResult,
+  BridgeParams,
+  BridgeResult,
 } from './types.js';
 
 export type {
@@ -78,6 +122,12 @@ export type {
   ChainName,
   TokenConfig,
 } from './types.js';
+
+export type {
+  SwapProvider,
+  BridgeProvider,
+  PriceProvider,
+} from './providers/types.js';
 
 export { MoneyError } from './errors.js';
 export type { MoneyErrorCode } from './errors.js';
@@ -96,6 +146,121 @@ function resolveChainKey(
   const key = network ? configKey(chain, network) : chain;
   if (chains[key]) return { key, chainConfig: chains[key]! };
   return null;
+}
+
+/** Built-in EVM chain IDs */
+const BUILT_IN_CHAIN_IDS: Record<string, number> = {
+  ethereum: 1,
+  base: 8453,
+  arbitrum: 42161,
+  polygon: 137,
+  optimism: 10,
+  bsc: 56,
+  avalanche: 43114,
+  fantom: 250,
+  zksync: 324,
+  linea: 59144,
+  scroll: 534352,
+};
+
+/** Built-in explorer base URLs (tx hash is appended) */
+const BUILT_IN_EXPLORERS: Record<string, string> = {
+  ethereum: 'https://etherscan.io/tx/',
+  base: 'https://basescan.org/tx/',
+  arbitrum: 'https://arbiscan.io/tx/',
+  polygon: 'https://polygonscan.com/tx/',
+  optimism: 'https://optimistic.etherscan.io/tx/',
+  bsc: 'https://bscscan.com/tx/',
+  avalanche: 'https://snowtrace.io/tx/',
+  fantom: 'https://ftmscan.com/tx/',
+  zksync: 'https://explorer.zksync.io/tx/',
+  linea: 'https://lineascan.build/tx/',
+  scroll: 'https://scrollscan.com/tx/',
+  solana: 'https://solscan.io/tx/',
+};
+
+/**
+ * Get the wallet address for a given chain config without exposing keys.
+ * Loads the keyfile, derives the address via the adapter's setupWallet, and returns it.
+ */
+async function getAddressForChain(chainConfig: ChainConfig): Promise<string> {
+  const keyfilePath = expandHome(chainConfig.keyfile);
+  // Determine which adapter type to use based on the keyfile path
+  // We need the adapter, but we don't have a key — use withKey to just read the public key
+  const kp = await loadKeyfile(keyfilePath);
+
+  if (chainConfig.keyfile.includes('evm')) {
+    // EVM: derive address from private key via viem
+    const account = privateKeyToAccount(`0x${kp.privateKey}` as `0x${string}`);
+    return account.address;
+  } else if (chainConfig.keyfile.includes('solana')) {
+    // Solana: derive address from public key (base58)
+    const { PublicKey } = await import('@solana/web3.js');
+    const pubKeyBytes = Buffer.from(kp.publicKey, 'hex');
+    const pubKey = new PublicKey(pubKeyBytes);
+    return pubKey.toBase58();
+  } else {
+    // Fast / other ed25519: derive bech32m address from public key
+    // Use the adapter's setupWallet which handles this
+    // Fall back to loading via adapter
+    const { bech32m } = await import('bech32');
+    const pubKeyBytes = Buffer.from(kp.publicKey, 'hex');
+    const words = bech32m.toWords(pubKeyBytes);
+    return bech32m.encode('set', words);
+  }
+}
+
+/**
+ * Resolve a token symbol or raw address for use in swap/bridge.
+ * Returns { address, decimals }.
+ */
+function resolveSwapToken(token: string, chain: string): { address: string; decimals: number } {
+  // Try well-known resolution first
+  const resolved = resolveTokenAddress(token, chain);
+  if (resolved) return resolved;
+
+  // If it looks like an address, pass through with default decimals
+  if (token.startsWith('0x')) {
+    return { address: token, decimals: 18 };
+  }
+  if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(token)) {
+    return { address: token, decimals: chain === 'solana' ? 9 : 18 };
+  }
+
+  // Unknown symbol — throw helpful error
+  throw new MoneyError('TOKEN_NOT_FOUND', `Cannot resolve token "${token}" on chain "${chain}".`, {
+    chain,
+    note: `Use a known symbol (USDC, USDT, WETH, WBTC, DAI) or pass a contract address directly.`,
+  });
+}
+
+/**
+ * Convert a human-readable amount to raw units string.
+ * e.g. toRawAmount("1.5", 18) → "1500000000000000000"
+ */
+function toRawAmount(amount: string, decimals: number): string {
+  const [intPart, fracPart = ''] = amount.split('.');
+  const paddedFrac = fracPart.padEnd(decimals, '0').slice(0, decimals);
+  const raw = BigInt(intPart + paddedFrac);
+  return raw.toString();
+}
+
+/**
+ * Get the EVM chain ID for a built-in chain.
+ * Falls back to 1 (ethereum) if chain is unknown.
+ */
+function getBuiltInChainId(chain: string): number {
+  return BUILT_IN_CHAIN_IDS[chain] ?? 1;
+}
+
+/**
+ * Build an explorer URL for a transaction.
+ * Checks custom chains first, then built-in explorer map.
+ */
+function getExplorerUrl(chain: string, txHash: string, _chainConfig: ChainConfig): string {
+  const baseUrl = BUILT_IN_EXPLORERS[chain];
+  if (baseUrl) return `${baseUrl}${txHash}`;
+  return '';
 }
 
 // ─── SDK Object ───────────────────────────────────────────────────────────────
@@ -486,6 +651,464 @@ export const money = {
     await setChainConfig(key, chainConfig);
   },
 
+  // ─── sign ──────────────────────────────────────────────────────────────────
+
+  async sign(params: SignParams): Promise<SignResult> {
+    const { chain, message, network } = params;
+
+    if (!chain) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: chain', {
+        note: 'Provide a chain name:\n  await money.sign({ chain: "base", message: "Hello" })',
+      });
+    }
+    if (message === undefined || message === null) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: message', {
+        note: 'Provide a message to sign:\n  await money.sign({ chain: "base", message: "Sign in to MyApp" })',
+      });
+    }
+
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain, config.chains, network);
+    if (!resolved) {
+      throw new MoneyError('CHAIN_NOT_CONFIGURED', `Chain "${chain}" is not configured.`, {
+        chain,
+        note: `Run setup first:\n  await money.setup({ chain: "${chain}" })`,
+      });
+    }
+    const { key, chainConfig } = resolved;
+    const adapter = await getAdapter(key);
+    const keyfilePath = expandHome(chainConfig.keyfile);
+
+    const result = await adapter.sign({ message, keyfile: keyfilePath });
+    const { chain: resolvedChain, network: resolvedNetwork } = parseConfigKey(key);
+
+    return {
+      ...result,
+      chain: resolvedChain,
+      network: resolvedNetwork as NetworkType,
+      note: '',
+    };
+  },
+
+  // ─── quote ────────────────────────────────────────────────────────────────
+
+  async quote(params: SwapParams): Promise<QuoteResult> {
+    const { chain, from, to, amount, network, slippageBps = 50, provider: providerName } = params;
+
+    if (!chain) throw new MoneyError('INVALID_PARAMS', 'Missing required param: chain', { note: 'await money.quote({ chain: "solana", from: "SOL", to: "USDC", amount: 1 })' });
+    if (!from) throw new MoneyError('INVALID_PARAMS', 'Missing required param: from', { note: 'await money.quote({ chain: "solana", from: "SOL", to: "USDC", amount: 1 })' });
+    if (!to) throw new MoneyError('INVALID_PARAMS', 'Missing required param: to', { note: 'await money.quote({ chain: "solana", from: "SOL", to: "USDC", amount: 1 })' });
+    if (amount === undefined || amount === null) throw new MoneyError('INVALID_PARAMS', 'Missing required param: amount', { note: 'await money.quote({ chain: "solana", from: "SOL", to: "USDC", amount: 1 })' });
+
+    const resolvedNetwork = network ?? 'testnet';
+    if (resolvedNetwork !== 'mainnet') {
+      throw new MoneyError('UNSUPPORTED_OPERATION', 'Swap/quote requires mainnet. Testnet DEXes have no liquidity.', {
+        chain,
+        note: `Pass network: "mainnet" explicitly:\n  await money.quote({ chain: "${chain}", from: "${from}", to: "${to}", amount: ${String(amount)}, network: "mainnet" })`,
+      });
+    }
+
+    const provider = getSwapProvider(chain, providerName);
+    if (!provider) {
+      throw new MoneyError('UNSUPPORTED_OPERATION', `No swap provider available for chain "${chain}".`, {
+        chain,
+        note: `Supported chains for swap: solana (Jupiter), EVM chains (Paraswap).`,
+      });
+    }
+
+    // Resolve token addresses
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain, config.chains, network);
+    const userAddress = resolved ? await getAddressForChain(resolved.chainConfig) : '';
+
+    const fromResolved = resolveSwapToken(from, chain);
+    const toResolved = resolveSwapToken(to, chain);
+
+    const fromRaw = toRawAmount(String(amount), fromResolved.decimals);
+
+    const quote = await provider.quote({
+      chain,
+      fromToken: fromResolved.address,
+      toToken: toResolved.address,
+      fromDecimals: fromResolved.decimals,
+      toDecimals: toResolved.decimals,
+      amount: fromRaw,
+      slippageBps,
+      userAddress,
+    });
+
+    const rate = Number(quote.toAmountHuman) / Number(quote.fromAmountHuman);
+    const rateStr = `1 ${from.toUpperCase()} = ${rate.toFixed(6)} ${to.toUpperCase()}`;
+
+    return {
+      fromToken: from,
+      toToken: to,
+      fromAmount: quote.fromAmountHuman,
+      toAmount: quote.toAmountHuman,
+      rate: rateStr,
+      priceImpact: quote.priceImpact,
+      provider: quote.provider,
+      chain,
+      network: resolvedNetwork,
+      note: '',
+    };
+  },
+
+  // ─── swap ─────────────────────────────────────────────────────────────────
+
+  async swap(params: SwapParams): Promise<SwapResult> {
+    const { chain, from, to, amount, network, slippageBps = 50, provider: providerName } = params;
+
+    if (!chain) throw new MoneyError('INVALID_PARAMS', 'Missing required param: chain', { note: 'await money.swap({ chain: "solana", from: "SOL", to: "USDC", amount: 1, network: "mainnet" })' });
+    if (!from) throw new MoneyError('INVALID_PARAMS', 'Missing required param: from', { note: 'await money.swap({ chain: "solana", from: "SOL", to: "USDC", amount: 1, network: "mainnet" })' });
+    if (!to) throw new MoneyError('INVALID_PARAMS', 'Missing required param: to', { note: 'await money.swap({ chain: "solana", from: "SOL", to: "USDC", amount: 1, network: "mainnet" })' });
+    if (amount === undefined || amount === null) throw new MoneyError('INVALID_PARAMS', 'Missing required param: amount', { note: 'await money.swap({ chain: "solana", from: "SOL", to: "USDC", amount: 1, network: "mainnet" })' });
+
+    const resolvedNetwork = network ?? 'testnet';
+    if (resolvedNetwork !== 'mainnet') {
+      throw new MoneyError('UNSUPPORTED_OPERATION', 'Swap requires mainnet. Testnet DEXes have no liquidity.', {
+        chain,
+        note: `Pass network: "mainnet" explicitly:\n  await money.swap({ chain: "${chain}", from: "${from}", to: "${to}", amount: ${String(amount)}, network: "mainnet" })`,
+      });
+    }
+
+    const provider = getSwapProvider(chain, providerName);
+    if (!provider) {
+      throw new MoneyError('UNSUPPORTED_OPERATION', `No swap provider available for chain "${chain}".`, {
+        chain,
+        note: `Supported chains for swap: solana (Jupiter), EVM chains (Paraswap).`,
+      });
+    }
+
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain, config.chains, network);
+    if (!resolved) {
+      throw new MoneyError('CHAIN_NOT_CONFIGURED', `Chain "${chain}" is not configured for mainnet.`, {
+        chain,
+        note: `Run setup first:\n  await money.setup({ chain: "${chain}", network: "mainnet" })`,
+      });
+    }
+    const { key, chainConfig } = resolved;
+    const keyfilePath = expandHome(chainConfig.keyfile);
+    const userAddress = await getAddressForChain(chainConfig);
+
+    const fromResolved = resolveSwapToken(from, chain);
+    const toResolved = resolveSwapToken(to, chain);
+    const fromRaw = toRawAmount(String(amount), fromResolved.decimals);
+
+    // Get quote first
+    const quote = await provider.quote({
+      chain,
+      fromToken: fromResolved.address,
+      toToken: toResolved.address,
+      fromDecimals: fromResolved.decimals,
+      toDecimals: toResolved.decimals,
+      amount: fromRaw,
+      slippageBps,
+      userAddress,
+    });
+
+    // Execute swap
+    const adapter = await getAdapter(key);
+    const result = await provider.swap({
+      chain,
+      fromToken: fromResolved.address,
+      toToken: toResolved.address,
+      fromDecimals: fromResolved.decimals,
+      toDecimals: toResolved.decimals,
+      amount: fromRaw,
+      slippageBps,
+      userAddress,
+      route: quote.route,
+      signTransaction: async (tx: Uint8Array) => {
+        return await withKey(keyfilePath, async (kp) => {
+          // For Solana: sign the versioned transaction
+          const { VersionedTransaction } = await import('@solana/web3.js');
+          const vtx = VersionedTransaction.deserialize(tx);
+          const { Keypair } = await import('@solana/web3.js');
+          const secretKey = Buffer.concat([
+            Buffer.from(kp.privateKey, 'hex'),
+            Buffer.from(kp.publicKey, 'hex'),
+          ]);
+          const keypair = Keypair.fromSecretKey(secretKey);
+          vtx.sign([keypair]);
+          return vtx.serialize();
+        });
+      },
+      sendRawTransaction: async (signedTx: Uint8Array) => {
+        const { Connection } = await import('@solana/web3.js');
+        const connection = new Connection(chainConfig.rpc, 'confirmed');
+        const sig = await connection.sendRawTransaction(signedTx, { skipPreflight: false });
+        const latestBlockhash = await connection.getLatestBlockhash();
+        await connection.confirmTransaction({
+          signature: sig,
+          blockhash: latestBlockhash.blockhash,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+        });
+        return sig;
+      },
+      signAndSendEvmTransaction: async (tx) => {
+        return await withKey(keyfilePath, async (kp) => {
+          const account = privateKeyToAccount(`0x${kp.privateKey}` as `0x${string}`);
+          const customChain = await getCustomChain(chain);
+          const chainId = customChain?.chainId ?? getBuiltInChainId(chain);
+          const { defineChain } = await import('viem');
+          const viemChain = defineChain({
+            id: chainId,
+            name: chain,
+            nativeCurrency: { name: chainConfig.defaultToken, symbol: chainConfig.defaultToken, decimals: 18 },
+            rpcUrls: { default: { http: [chainConfig.rpc] } },
+          });
+          const walletClient = createWalletClient({
+            account,
+            chain: viemChain,
+            transport: http(chainConfig.rpc),
+          });
+          const txHash = await walletClient.sendTransaction({
+            to: tx.to as `0x${string}`,
+            data: tx.data as `0x${string}`,
+            value: BigInt(tx.value || '0'),
+            ...(tx.gas ? { gas: BigInt(tx.gas) } : {}),
+            chain: viemChain,
+          });
+          return txHash;
+        });
+      },
+    });
+
+    // Get explorer URL from adapter
+    const explorerUrl = getExplorerUrl(chain, result.txHash, chainConfig);
+
+    // Record in history
+    const { chain: sentChain, network: sentNetwork } = parseConfigKey(key);
+    await appendHistory({
+      ts: new Date().toISOString(),
+      chain: sentChain,
+      network: sentNetwork,
+      to: `swap:${from}->${to}`,
+      amount: String(amount),
+      token: from,
+      txHash: result.txHash,
+    });
+
+    return {
+      txHash: result.txHash,
+      explorerUrl,
+      fromToken: from,
+      toToken: to,
+      fromAmount: quote.fromAmountHuman,
+      toAmount: quote.toAmountHuman,
+      provider: quote.provider,
+      chain,
+      network: resolvedNetwork,
+      note: '',
+    };
+  },
+
+  // ─── price ────────────────────────────────────────────────────────────────
+
+  async price(params: PriceParams): Promise<PriceResult> {
+    const { token, chain } = params;
+
+    if (!token) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: token', {
+        note: 'Provide a token symbol or address:\n  await money.price({ token: "ETH" })',
+      });
+    }
+
+    const provider = getPriceProvider();
+    if (!provider) {
+      throw new MoneyError('UNSUPPORTED_OPERATION', 'No price provider available.', {
+        note: 'A price provider should be registered automatically.',
+      });
+    }
+
+    try {
+      const result = await provider.getPrice({ token, chain });
+      return {
+        ...result,
+        chain,
+        note: '',
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new MoneyError('TX_FAILED', `Price lookup failed: ${msg}`, {
+        note: `Check the token symbol or try with a contract address:\n  await money.price({ token: "0x...", chain: "${chain ?? 'ethereum'}" })`,
+      });
+    }
+  },
+
+  // ─── tokenInfo ────────────────────────────────────────────────────────────
+
+  async tokenInfo(params: TokenInfoParams): Promise<TokenInfoResult> {
+    const { token, chain } = params;
+
+    if (!token) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: token', {
+        note: 'Provide a token symbol or address:\n  await money.tokenInfo({ token: "USDC", chain: "ethereum" })',
+      });
+    }
+
+    const provider = getPriceProvider();
+    if (!provider || !provider.getTokenInfo) {
+      throw new MoneyError('UNSUPPORTED_OPERATION', 'No token info provider available.', {
+        note: 'A price provider with getTokenInfo should be registered automatically.',
+      });
+    }
+
+    try {
+      const result = await provider.getTokenInfo({ token, chain });
+      return {
+        ...result,
+        chain,
+        note: '',
+      };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new MoneyError('TX_FAILED', `Token info lookup failed: ${msg}`, {
+        note: `Check the token symbol or try with a contract address:\n  await money.tokenInfo({ token: "0x...", chain: "${chain ?? 'ethereum'}" })`,
+      });
+    }
+  },
+
+  // ─── bridge ───────────────────────────────────────────────────────────────
+
+  async bridge(params: BridgeParams): Promise<BridgeResult> {
+    const { from, to, amount, network, receiver, provider: providerName } = params;
+
+    if (!from?.chain || !from?.token) throw new MoneyError('INVALID_PARAMS', 'Missing from.chain and from.token', { note: 'await money.bridge({ from: { chain: "ethereum", token: "USDC" }, to: { chain: "base" }, amount: 100, network: "mainnet" })' });
+    if (!to?.chain) throw new MoneyError('INVALID_PARAMS', 'Missing to.chain', { note: 'await money.bridge({ from: { chain: "ethereum", token: "USDC" }, to: { chain: "base" }, amount: 100, network: "mainnet" })' });
+    if (amount === undefined || amount === null) throw new MoneyError('INVALID_PARAMS', 'Missing required param: amount', { note: 'await money.bridge({ from: { chain: "ethereum", token: "USDC" }, to: { chain: "base" }, amount: 100, network: "mainnet" })' });
+
+    const resolvedNetwork = network ?? 'testnet';
+    if (resolvedNetwork !== 'mainnet') {
+      throw new MoneyError('UNSUPPORTED_OPERATION', 'Bridge requires mainnet.', {
+        note: `Pass network: "mainnet" explicitly:\n  await money.bridge({ from: { chain: "${from.chain}", token: "${from.token}" }, to: { chain: "${to.chain}" }, amount: ${String(amount)}, network: "mainnet" })`,
+      });
+    }
+
+    const provider = getBridgeProvider(providerName);
+    if (!provider) {
+      throw new MoneyError('UNSUPPORTED_OPERATION', 'No bridge provider available.', {
+        note: 'A bridge provider should be registered automatically.',
+      });
+    }
+
+    // Resolve source chain config
+    const config = await loadConfig();
+    const srcResolved = resolveChainKey(from.chain, config.chains, network);
+    if (!srcResolved) {
+      throw new MoneyError('CHAIN_NOT_CONFIGURED', `Source chain "${from.chain}" is not configured for mainnet.`, {
+        chain: from.chain,
+        note: `Run setup first:\n  await money.setup({ chain: "${from.chain}", network: "mainnet" })`,
+      });
+    }
+
+    const senderAddress = await getAddressForChain(srcResolved.chainConfig);
+    const keyfilePath = expandHome(srcResolved.chainConfig.keyfile);
+
+    // Resolve receiver address on destination chain
+    let receiverAddress = receiver;
+    if (!receiverAddress) {
+      const dstResolved = resolveChainKey(to.chain, config.chains, network);
+      if (!dstResolved) {
+        throw new MoneyError('CHAIN_NOT_CONFIGURED', `Destination chain "${to.chain}" is not configured. Provide a receiver address or setup the destination chain.`, {
+          chain: to.chain,
+          note: `Either:\n  await money.setup({ chain: "${to.chain}", network: "mainnet" })\nOr pass receiver address:\n  await money.bridge({ ..., receiver: "0x..." })`,
+        });
+      }
+      receiverAddress = await getAddressForChain(dstResolved.chainConfig);
+    }
+
+    const fromTokenResolved = resolveSwapToken(from.token, from.chain);
+    const toToken = to.token ?? from.token;
+    const toTokenResolved = resolveSwapToken(toToken, to.chain);
+    const fromRaw = toRawAmount(String(amount), fromTokenResolved.decimals);
+
+    const result = await provider.bridge({
+      fromChain: from.chain,
+      toChain: to.chain,
+      fromToken: fromTokenResolved.address,
+      toToken: toTokenResolved.address,
+      fromDecimals: fromTokenResolved.decimals,
+      amount: fromRaw,
+      senderAddress,
+      receiverAddress,
+      signTransaction: async (tx: Uint8Array) => {
+        return await withKey(keyfilePath, async (kp) => {
+          const { VersionedTransaction, Keypair } = await import('@solana/web3.js');
+          const vtx = VersionedTransaction.deserialize(tx);
+          const secretKey = Buffer.concat([
+            Buffer.from(kp.privateKey, 'hex'),
+            Buffer.from(kp.publicKey, 'hex'),
+          ]);
+          vtx.sign([Keypair.fromSecretKey(secretKey)]);
+          return vtx.serialize();
+        });
+      },
+      signAndSendEvmTransaction: async (tx) => {
+        return await withKey(keyfilePath, async (kp) => {
+          const account = privateKeyToAccount(`0x${kp.privateKey}` as `0x${string}`);
+          const customChain = await getCustomChain(from.chain);
+          const chainId = customChain?.chainId ?? getBuiltInChainId(from.chain);
+          const { defineChain } = await import('viem');
+          const viemChain = defineChain({
+            id: chainId,
+            name: from.chain,
+            nativeCurrency: { name: srcResolved.chainConfig.defaultToken, symbol: srcResolved.chainConfig.defaultToken, decimals: 18 },
+            rpcUrls: { default: { http: [srcResolved.chainConfig.rpc] } },
+          });
+          const walletClient = createWalletClient({
+            account,
+            chain: viemChain,
+            transport: http(srcResolved.chainConfig.rpc),
+          });
+          return await walletClient.sendTransaction({
+            to: tx.to as `0x${string}`,
+            data: tx.data as `0x${string}`,
+            value: BigInt(tx.value || '0'),
+            ...(tx.gas ? { gas: BigInt(tx.gas) } : {}),
+            chain: viemChain,
+          });
+        });
+      },
+    });
+
+    const explorerUrl = getExplorerUrl(from.chain, result.txHash, srcResolved.chainConfig);
+
+    // Record in history
+    const { chain: sentChain, network: sentNetwork } = parseConfigKey(srcResolved.key);
+    await appendHistory({
+      ts: new Date().toISOString(),
+      chain: sentChain,
+      network: sentNetwork,
+      to: `bridge:${from.chain}->${to.chain}`,
+      amount: String(amount),
+      token: from.token,
+      txHash: result.txHash,
+    });
+
+    return {
+      txHash: result.txHash,
+      explorerUrl,
+      fromChain: from.chain,
+      toChain: to.chain,
+      fromAmount: String(amount),
+      toAmount: '',
+      orderId: result.orderId,
+      estimatedTime: result.estimatedTime,
+      note: '',
+    };
+  },
+
+  // ─── provider registration ────────────────────────────────────────────────
+
+  registerSwapProvider,
+  registerBridgeProvider,
+  registerPriceProvider,
+
+  // ─── unit conversion ──────────────────────────────────────────────────────
+
   async toRawUnits(params: ParseUnitsParams): Promise<bigint> {
     const { amount, chain, network, token, decimals: explicitDecimals } = params;
 
@@ -520,6 +1143,10 @@ const NATIVE_DECIMALS: Record<string, number> = {
   SET: 18,
   ETH: 18,
   SOL: 9,
+  POL: 18,
+  BNB: 18,
+  AVAX: 18,
+  FTM: 18,
 };
 
 /**

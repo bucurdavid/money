@@ -2,22 +2,24 @@
 name: money
 version: {{VERSION}}
 description: >
-  Universal payment SDK for AI agents. Send tokens, check balances, call smart contracts,
-  and register custom EVM chains on Fast, Base, Ethereum, Arbitrum, Solana, or any EVM chain.
-  Use when asked to pay, transfer tokens, fund a wallet, check a balance, or interact with a contract.
-  Do NOT use for trading, DeFi, yield farming, price advice, or detecting incoming payments.
+  Universal payment SDK for AI agents. Send tokens, check balances, swap tokens, bridge cross-chain,
+  look up prices, sign messages, and register custom EVM chains across 13 chains (Fast, Base, Ethereum,
+  Arbitrum, Polygon, Optimism, BSC, Avalanche, Fantom, zkSync, Linea, Scroll, Solana) or any EVM chain.
+  Use when asked to pay, transfer, swap, bridge, check price, sign a message, fund a wallet, or check a balance.
+  Do NOT use for yield farming, lending, staking, or detecting incoming payments.
 tags:
   - payments
   - blockchain
   - evm
   - solana
-  - smart-contracts
+  - swap
+  - bridge
   - wallet
 ---
 
 # MONEY SKILL
 
-Everything works out of the box. RPCs, token addresses, explorer URLs — all built in for 5 chains, testnet and mainnet. Register any EVM chain at runtime. Call any smart contract. You do not need API keys or config files.
+Everything works out of the box. RPCs, token addresses, explorer URLs — all built in for 13 chains, testnet and mainnet. Swap tokens via Jupiter (Solana) and Paraswap (EVM). Bridge cross-chain via DeBridge. Look up prices via DexScreener. Sign messages on any chain. Register any EVM chain at runtime. You do not need API keys or config files.
 
 ## Install
 
@@ -60,7 +62,7 @@ const tx = await money.send({ to: "set1qxy...", amount: 10, chain: "fast" }); //
 
 That pattern is identical on every chain. Only the chain name and address format change.
 
-Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"solana"`
+Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"polygon"` `"optimism"` `"bsc"` `"avalanche"` `"fantom"` `"zksync"` `"linea"` `"scroll"` `"solana"`
 
 ## What do you want to do?
 
@@ -69,6 +71,10 @@ Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"solana"`
 | Set up a wallet | Setup |
 | Send tokens | Send Tokens |
 | Check balance | Check Balance |
+| Swap tokens (e.g. SOL to USDC) | Swap |
+| Bridge tokens cross-chain | Bridge |
+| Look up token price | Price |
+| Sign a message | Sign |
 | Get free testnet tokens | Faucet |
 | Handle an error | Error Recovery |
 | Avoid sending twice | Idempotency |
@@ -76,11 +82,12 @@ Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"solana"`
 | Use USDC or a custom token | Tokens |
 | Convert between human and raw units | Unit Conversion |
 | View past sends | History |
+| Register a custom provider | Custom Providers |
 | See all methods | Reference |
 
 ## NOT for this skill
 
-Stop. Tell the user this skill cannot help with: trading, swapping, DeFi, yield, lending, staking, price advice, or detecting incoming payments from external senders.
+Stop. Tell the user this skill cannot help with: yield farming, lending, staking, or detecting incoming payments from external senders.
 
 ## Rules
 
@@ -119,7 +126,7 @@ Chain is always required. Use `identifyChains()` if you don't know which chain a
 | Address looks like | Chain | Default token |
 |---|---|---|
 | `set` prefix (bech32m, e.g. `set1abc...`) | Fast | SET |
-| `0x` + 40 hex chars | Base, Ethereum, or Arbitrum | ETH |
+| `0x` + 40 hex chars | Any EVM chain (Base, Ethereum, Arbitrum, Polygon, Optimism, BSC, Avalanche, Fantom, zkSync, Linea, Scroll) | ETH (or POL, BNB, AVAX, FTM depending on chain) |
 | Base58, 32-44 chars | Solana | SOL |
 
 ```js
@@ -250,6 +257,106 @@ For confirmed incoming verification, use a block explorer — outside this skill
 
 ---
 
+## Swap
+
+Swap tokens on-chain. Uses Jupiter (Solana) and Paraswap (11 EVM chains) automatically. **Requires `network: "mainnet"` explicitly** — testnet DEXes have no liquidity.
+
+```js
+// Get a quote first (read-only, no transaction)
+const q = await money.quote({ chain: "solana", from: "SOL", to: "USDC", amount: 1, network: "mainnet" });
+// q = { fromToken: "SOL", toToken: "USDC", fromAmount: "1", toAmount: "145.23", rate: "1 SOL = 145.23 USDC", priceImpact: "0.05", provider: "jupiter", chain, network, note }
+
+// Execute the swap (sends a transaction)
+const tx = await money.swap({ chain: "solana", from: "SOL", to: "USDC", amount: 1, network: "mainnet" });
+// tx = { txHash, explorerUrl, fromToken, toToken, fromAmount, toAmount, provider, chain, network, note }
+
+// EVM swap (e.g. ETH to USDC on Base)
+const tx = await money.swap({ chain: "base", from: "ETH", to: "USDC", amount: 0.5, network: "mainnet" });
+
+// Custom slippage (default is 50 bps = 0.5%)
+const tx = await money.swap({ chain: "base", from: "USDC", to: "WETH", amount: 100, network: "mainnet", slippageBps: 100 });
+```
+
+Known token symbols resolve automatically: USDC, USDT, WETH, WBTC, DAI, and native tokens (ETH, SOL, POL, BNB, AVAX, FTM). For other tokens, pass a contract address.
+
+Supported swap chains: Solana (Jupiter), Ethereum, Base, Arbitrum, Polygon, Optimism, BSC, Avalanche, Fantom, zkSync, Linea, Scroll (Paraswap).
+
+---
+
+## Bridge
+
+Bridge tokens between chains. Uses DeBridge DLN. **Requires `network: "mainnet"` explicitly.**
+
+```js
+// Bridge USDC from Ethereum to Base
+const tx = await money.bridge({
+  from: { chain: "ethereum", token: "USDC" },
+  to: { chain: "base" },
+  amount: 100,
+  network: "mainnet",
+});
+// tx = { txHash, explorerUrl, fromChain, toChain, fromAmount, toAmount, orderId, estimatedTime, note }
+
+// Bridge to a different address (default: your own address on the destination chain)
+const tx = await money.bridge({
+  from: { chain: "ethereum", token: "USDC" },
+  to: { chain: "base", token: "USDC" },
+  amount: 100,
+  network: "mainnet",
+  receiver: "0x1234...abcd",
+});
+```
+
+Both source and destination chains must be set up first (`money.setup()`). If you don't provide `receiver`, the SDK uses your address on the destination chain.
+
+Supported bridge chains: Ethereum, Optimism, BSC, Polygon, Base, Arbitrum, Avalanche, Linea, Fantom, Solana.
+
+Note: Solana as bridge source is not yet supported (coming soon).
+
+---
+
+## Price
+
+Look up token prices via DexScreener. No setup required. Works on testnet or mainnet — read-only.
+
+```js
+// Get price by symbol
+const p = await money.price({ token: "ETH" });
+// p = { price: "2500.00", symbol: "ETH", name: "Ethereum", priceChange24h: "2.5", volume24h: "50000000", liquidity: "10000000", marketCap: "300000000000", note }
+
+// Get price by contract address on a specific chain
+const p = await money.price({ token: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", chain: "ethereum" });
+
+// Get detailed token info (includes DEX pairs)
+const info = await money.tokenInfo({ token: "USDC", chain: "ethereum" });
+// info = { name, symbol, address, price, priceChange24h, volume24h, liquidity, marketCap, pairs: [{ dex, pairAddress, quoteToken, price }], note }
+```
+
+---
+
+## Sign
+
+Sign a message with your wallet's private key. Useful for authentication (Sign-In with Ethereum), proving ownership, or off-chain attestations.
+
+```js
+// Sign on EVM (returns 0x-prefixed hex)
+const sig = await money.sign({ chain: "base", message: "Sign in to MyApp" });
+// sig = { signature: "0x...", address: "0x...", chain: "base", network: "testnet", note }
+
+// Sign on Fast (returns hex)
+const sig = await money.sign({ chain: "fast", message: "Hello world" });
+// sig = { signature: "a1b2c3...", address: "set1...", chain: "fast", network: "testnet", note }
+
+// Sign on Solana (returns base58)
+const sig = await money.sign({ chain: "solana", message: "Verify me" });
+// sig = { signature: "3xYz...", address: "7abc...", chain: "solana", network: "testnet", note }
+
+// Sign raw bytes
+const sig = await money.sign({ chain: "base", message: new Uint8Array([1, 2, 3]) });
+```
+
+---
+
 ## Tokens
 
 Native token works immediately after `setup()` — no configuration needed.
@@ -257,7 +364,11 @@ Native token works immediately after `setup()` — no configuration needed.
 | Chain | Native token |
 |---|---|
 | Fast | SET |
-| Base, Ethereum, Arbitrum | ETH |
+| Base, Ethereum, Arbitrum, Optimism, zkSync, Linea, Scroll | ETH |
+| Polygon | POL |
+| BSC | BNB |
+| Avalanche | AVAX |
+| Fantom | FTM |
 | Solana | SOL |
 
 For other tokens, register a named token once and use it by name forever:
@@ -293,30 +404,30 @@ const { tokens } = await money.tokens({ chain: "base" });
 
 ## Custom Chains
 
-Register any EVM-compatible chain (Polygon, Optimism, Avalanche, BSC, zkSync, etc.) and use it like a built-in chain.
+Register any EVM-compatible chain not already built in, and use it like a built-in chain.
 
 ```js
 // Register a custom EVM chain (persistent — call once)
 await money.registerEvmChain({
-  chain: "polygon",
-  chainId: 137,
-  rpc: "https://polygon-rpc.com",
-  explorer: "https://polygonscan.com/tx/",
-  defaultToken: "MATIC",
+  chain: "celo",
+  chainId: 42220,
+  rpc: "https://forno.celo.org",
+  explorer: "https://explorer.celo.org/mainnet/tx/",
+  defaultToken: "CELO",
   network: "mainnet",
 });
 
 // Then use it exactly like a built-in chain
-await money.setup({ chain: "polygon", network: "mainnet" });
-await money.balance({ chain: "polygon", network: "mainnet" });
-await money.send({ to: "0x1234...abcd", amount: 1, chain: "polygon", network: "mainnet" });
+await money.setup({ chain: "celo", network: "mainnet" });
+await money.balance({ chain: "celo", network: "mainnet" });
+await money.send({ to: "0x1234...abcd", amount: 1, chain: "celo", network: "mainnet" });
 ```
 
 All custom EVM chains share the same wallet key (`~/.money/keys/evm.json`) — same address across all EVM chains and networks.
 
 Only `chainId` and `rpc` are required. `explorer`, `defaultToken` (defaults to `"ETH"`), and `network` (defaults to `"testnet"`) are optional.
 
-Built-in chains (`fast`, `base`, `ethereum`, `arbitrum`, `solana`) cannot be overridden — use `money.setup()` for those.
+Built-in chains (`fast`, `base`, `ethereum`, `arbitrum`, `polygon`, `optimism`, `bsc`, `avalanche`, `fantom`, `zksync`, `linea`, `scroll`, `solana`) cannot be overridden — use `money.setup()` for those.
 
 ---
 
@@ -363,6 +474,38 @@ const { entries } = await money.history({ chain: "base", network: "mainnet" }); 
 
 ---
 
+## Custom Providers
+
+Register custom swap, bridge, or price providers at runtime. Built-in providers (Jupiter, Paraswap, DeBridge, DexScreener) are registered automatically.
+
+```js
+// Register a custom swap provider
+money.registerSwapProvider({
+  name: "my-dex",
+  chains: ["ethereum", "base"],
+  async quote(params) { /* return SwapQuote */ },
+  async swap(params) { /* return { txHash } */ },
+});
+
+// Register a custom bridge provider
+money.registerBridgeProvider({
+  name: "my-bridge",
+  chains: ["ethereum", "base"],
+  async bridge(params) { /* return { txHash, orderId?, estimatedTime? } */ },
+});
+
+// Register a custom price provider
+money.registerPriceProvider({
+  name: "my-oracle",
+  async getPrice(params) { /* return { price, symbol, name, ... } */ },
+  async getTokenInfo(params) { /* return { name, symbol, address, price, pairs, ... } */ },
+});
+```
+
+Custom providers are used alongside built-ins. The SDK selects the first provider that supports the requested chain.
+
+---
+
 ## Reference
 
 | Method | Returns |
@@ -374,12 +517,24 @@ const { entries } = await money.history({ chain: "base", network: "mainnet" }); 
 | `money.send({ to, amount, chain, network?, token? })` | `{ txHash, explorerUrl, fee, chain, network, note }` |
 | `money.faucet({ chain, network? })` | `{ amount, token, txHash, chain, network, note }` |
 | `money.identifyChains({ address })` | `{ chains: string[], note }` |
+| `money.sign({ chain, message, network? })` | `{ signature, address, chain, network, note }` |
+| `money.quote({ chain, from, to, amount, network, slippageBps?, provider? })` | `{ fromToken, toToken, fromAmount, toAmount, rate, priceImpact, provider, chain, network, note }` |
+| `money.swap({ chain, from, to, amount, network, slippageBps?, provider? })` | `{ txHash, explorerUrl, fromToken, toToken, fromAmount, toAmount, provider, chain, network, note }` |
+| `money.price({ token, chain? })` | `{ price, symbol, name, priceChange24h?, volume24h?, liquidity?, marketCap?, chain?, note }` |
+| `money.tokenInfo({ token, chain? })` | `{ name, symbol, address, price, pairs: [...], note }` |
+| `money.bridge({ from: { chain, token }, to: { chain, token? }, amount, network, receiver?, provider? })` | `{ txHash, explorerUrl, fromChain, toChain, fromAmount, toAmount, orderId?, estimatedTime?, note }` |
 | `money.getToken({ chain, network?, name })` | `TokenInfo` or `null` |
 | `money.registerToken({ chain, network?, name, address?, mint?, decimals? })` | `void` |
 | `money.tokens({ chain, network? })` | `{ tokens: TokenInfo[], note }` |
 | `money.toRawUnits({ amount, chain?, network?, token?, decimals? })` | `bigint` |
 | `money.toHumanUnits({ amount, chain?, network?, token?, decimals? })` | `string` |
 | `money.history({ chain?, network?, limit? })` | `{ entries: [...], note }` |
+| `money.registerSwapProvider(provider)` | `void` |
+| `money.registerBridgeProvider(provider)` | `void` |
+| `money.registerPriceProvider(provider)` | `void` |
 
 All errors: `{ code, message, note }`. The `note` field contains a code example showing how to fix the error.
-`token` is optional. When omitted, the chain's native token is used: SET (Fast), ETH (Base/Ethereum/Arbitrum), SOL (Solana).
+
+`token` is optional on send/balance. When omitted, the chain's native token is used: SET (Fast), ETH (Base/Ethereum/Arbitrum/Optimism/zkSync/Linea/Scroll), POL (Polygon), BNB (BSC), AVAX (Avalanche), FTM (Fantom), SOL (Solana).
+
+Swap, quote, and bridge **require `network: "mainnet"` explicitly**. Price and tokenInfo are read-only and work regardless of network.
