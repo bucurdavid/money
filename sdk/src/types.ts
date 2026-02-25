@@ -198,6 +198,24 @@ export interface TokenInfo {
   decimals: number;
 }
 
+// ─── Export keys types ──────────────────────────────────────────────────────
+
+/** Params for money.exportKeys() */
+export interface ExportKeysParams {
+  chain: string;
+  network?: NetworkType;
+}
+
+/** Result of money.exportKeys() */
+export interface ExportKeysResult {
+  address: string;
+  privateKey: string;
+  keyfile: string;       // absolute path to the keyfile on disk
+  chain: string;
+  chainType: 'evm' | 'solana' | 'fast';
+  note: string;
+}
+
 // ─── Sign types ─────────────────────────────────────────────────────────────
 
 /** Params for money.sign() */

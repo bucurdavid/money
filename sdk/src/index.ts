@@ -52,6 +52,8 @@ import type {
   ParseUnitsParams,
   FormatUnitsParams,
   CustomChainDef,
+  ExportKeysParams,
+  ExportKeysResult,
   SignParams,
   SignResult,
   SwapParams,
@@ -106,17 +108,11 @@ export type {
   ParseUnitsParams,
   FormatUnitsParams,
   RegisterEvmChainParams,
+  ExportKeysParams,
+  ExportKeysResult,
   SignParams,
   SignResult,
   SwapParams,
-  QuoteResult,
-  SwapResult,
-  PriceParams,
-  PriceResult,
-  TokenInfoParams,
-  TokenInfoResult,
-  BridgeParams,
-  BridgeResult,
 } from './types.js';
 
 export type {
@@ -782,6 +778,58 @@ export const money = {
     config.apiKeys = config.apiKeys ?? {};
     config.apiKeys[params.provider] = params.apiKey;
     await saveConfig(config);
+  },
+
+  // ─── exportKeys ────────────────────────────────────────────────────────────
+
+  async exportKeys(params: ExportKeysParams): Promise<ExportKeysResult> {
+    const { chain, network } = params;
+
+    if (!chain) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: chain', {
+        note: 'Provide a chain name:\n  await money.exportKeys({ chain: "base" })',
+      });
+    }
+
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain, config.chains, network);
+    if (!resolved) {
+      throw new MoneyError('CHAIN_NOT_CONFIGURED', `Chain "${chain}" is not configured.`, {
+        chain,
+        note: `Run setup first:\n  await money.setup({ chain: "${chain}" })`,
+      });
+    }
+    const { chainConfig } = resolved;
+    const keyfilePath = expandHome(chainConfig.keyfile);
+
+    // Determine chain type from keyfile path
+    let chainType: 'evm' | 'solana' | 'fast';
+    if (chainConfig.keyfile.includes('solana')) {
+      chainType = 'solana';
+    } else if (chainConfig.keyfile.includes('fast') || chainConfig.keyfile.includes('ed25519')) {
+      chainType = 'fast';
+    } else {
+      chainType = 'evm';
+    }
+
+    const kp = await loadKeyfile(keyfilePath);
+    const address = await getAddressForChain(chainConfig);
+
+    let privateKey: string;
+    if (chainType === 'evm') {
+      privateKey = `0x${kp.privateKey}`;
+    } else {
+      privateKey = kp.privateKey;
+    }
+
+    return {
+      address,
+      privateKey,
+      keyfile: keyfilePath,
+      chain,
+      chainType,
+      note: 'WARNING: This private key controls all funds on this wallet. Never share it. Store securely.',
+    };
   },
 
   // ─── sign ──────────────────────────────────────────────────────────────────

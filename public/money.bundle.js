@@ -72177,6 +72177,50 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     config.apiKeys[params.provider] = params.apiKey;
     await saveConfig(config);
   },
+  // ─── exportKeys ────────────────────────────────────────────────────────────
+  async exportKeys(params) {
+    const { chain: chain2, network } = params;
+    if (!chain2) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
+        note: 'Provide a chain name:\n  await money.exportKeys({ chain: "base" })'
+      });
+    }
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain2, config.chains, network);
+    if (!resolved) {
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
+        chain: chain2,
+        note: `Run setup first:
+  await money.setup({ chain: "${chain2}" })`
+      });
+    }
+    const { chainConfig: chainConfig2 } = resolved;
+    const keyfilePath = expandHome(chainConfig2.keyfile);
+    let chainType;
+    if (chainConfig2.keyfile.includes("solana")) {
+      chainType = "solana";
+    } else if (chainConfig2.keyfile.includes("fast") || chainConfig2.keyfile.includes("ed25519")) {
+      chainType = "fast";
+    } else {
+      chainType = "evm";
+    }
+    const kp = await loadKeyfile(keyfilePath);
+    const address = await getAddressForChain(chainConfig2);
+    let privateKey;
+    if (chainType === "evm") {
+      privateKey = `0x${kp.privateKey}`;
+    } else {
+      privateKey = kp.privateKey;
+    }
+    return {
+      address,
+      privateKey,
+      keyfile: keyfilePath,
+      chain: chain2,
+      chainType,
+      note: "WARNING: This private key controls all funds on this wallet. Never share it. Store securely."
+    };
+  },
   // ─── sign ──────────────────────────────────────────────────────────────────
   async sign(params) {
     const { chain: chain2, message, network } = params;

@@ -83,6 +83,7 @@ Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"polygon"` `"opti
 | Convert between human and raw units | Unit Conversion |
 | View past sends | History |
 | Register a custom provider | Custom Providers |
+| Export wallet private key | Export Keys |
 | Configure API keys (e.g. Jupiter) | Swap |
 | See all methods | Reference |
 
@@ -371,6 +372,30 @@ const sig = await money.sign({ chain: "base", message: new Uint8Array([1, 2, 3])
 
 ---
 
+## Export Keys
+
+Export the wallet's private key and address. **Only use when the user explicitly asks to export or back up their keys.** The private key controls all funds on that wallet.
+
+```js
+// Export EVM key (same key for all EVM chains)
+const k = await money.exportKeys({ chain: "base" });
+// k = { address: "0x...", privateKey: "0x...", keyfile: "/home/user/.money/keys/evm.json", chain: "base", chainType: "evm", note: "WARNING: ..." }
+
+// Export Solana key
+const k = await money.exportKeys({ chain: "solana" });
+// k = { address: "7abc...", privateKey: "a1b2c3...", keyfile: "/home/user/.money/keys/solana.json", chain: "solana", chainType: "solana", note: "WARNING: ..." }
+
+// Export Fast key
+const k = await money.exportKeys({ chain: "fast" });
+// k = { address: "set1...", privateKey: "d4e5f6...", keyfile: "/home/user/.money/keys/fast.json", chain: "fast", chainType: "fast", note: "WARNING: ..." }
+```
+
+EVM private keys are returned with `0x` prefix (ready for import into MetaMask, etc.). Solana and Fast keys are hex-encoded.
+
+All EVM chains share the same key — exporting from any EVM chain returns the same private key.
+
+---
+
 ## Tokens
 
 Native token works immediately after `setup()` — no configuration needed.
@@ -385,7 +410,7 @@ Native token works immediately after `setup()` — no configuration needed.
 | Fantom | FTM |
 | Solana | SOL |
 
-For other tokens, register a named token once and use it by name forever:
+Built-in tokens (USDC, USDT, WETH, WBTC, DAI) are hardcoded — no registration needed. For other tokens, register a named token once and use it by name forever (persists to `~/.money/aliases.json` across sessions):
 
 ```js
 // Register a named token — separate registration per network (different contract addresses)
@@ -532,6 +557,7 @@ Custom providers are used alongside built-ins. The SDK selects the first provide
 | `money.send({ to, amount, chain, network?, token? })` | `{ txHash, explorerUrl, fee, chain, network, note }` |
 | `money.faucet({ chain, network? })` | `{ amount, token, txHash, chain, network, note }` |
 | `money.identifyChains({ address })` | `{ chains: string[], note }` |
+| `money.exportKeys({ chain, network? })` | `{ address, privateKey, keyfile, chain, chainType, note }` |
 | `money.sign({ chain, message, network? })` | `{ signature, address, chain, network, note }` |
 | `money.quote({ chain, from, to, amount, network, slippageBps?, provider? })` | `{ fromToken, toToken, fromAmount, toAmount, rate, priceImpact, provider, chain, network, note }` |
 | `money.swap({ chain, from, to, amount, network, slippageBps?, provider? })` | `{ txHash, explorerUrl, fromToken, toToken, fromAmount, toAmount, provider, chain, network, note }` |
