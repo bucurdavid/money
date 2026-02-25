@@ -72233,16 +72233,16 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
   },
   // ─── price ────────────────────────────────────────────────────────────────
   async price(params) {
-    const { token, chain: chain2 } = params;
+    const { token, chain: chain2, provider: providerName } = params;
     if (!token) {
       throw new MoneyError("INVALID_PARAMS", "Missing required param: token", {
         note: 'Provide a token symbol or address:\n  await money.price({ token: "ETH" })'
       });
     }
-    const provider = getPriceProvider();
+    const provider = getPriceProvider(providerName);
     if (!provider) {
-      throw new MoneyError("UNSUPPORTED_OPERATION", "No price provider available.", {
-        note: "A price provider should be registered automatically."
+      throw new MoneyError("UNSUPPORTED_OPERATION", `No price provider available${providerName ? ` with name "${providerName}"` : ""}.`, {
+        note: providerName ? `Provider "${providerName}" is not registered. Check the name or omit provider to use the default.` : "A price provider should be registered automatically."
       });
     }
     try {
@@ -72262,16 +72262,16 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
   },
   // ─── tokenInfo ────────────────────────────────────────────────────────────
   async tokenInfo(params) {
-    const { token, chain: chain2 } = params;
+    const { token, chain: chain2, provider: providerName } = params;
     if (!token) {
       throw new MoneyError("INVALID_PARAMS", "Missing required param: token", {
         note: 'Provide a token symbol or address:\n  await money.tokenInfo({ token: "USDC", chain: "ethereum" })'
       });
     }
-    const provider = getPriceProvider();
+    const provider = getPriceProvider(providerName);
     if (!provider || !provider.getTokenInfo) {
-      throw new MoneyError("UNSUPPORTED_OPERATION", "No token info provider available.", {
-        note: "A price provider with getTokenInfo should be registered automatically."
+      throw new MoneyError("UNSUPPORTED_OPERATION", `No token info provider available${providerName ? ` with name "${providerName}"` : ""}.`, {
+        note: providerName ? `Provider "${providerName}" is not registered or does not support getTokenInfo.` : "A price provider with getTokenInfo should be registered automatically."
       });
     }
     try {

@@ -256,6 +256,7 @@ export interface SwapResult {
 export interface PriceParams {
   token: string;             // symbol or address
   chain?: string;            // optional, narrows search
+  provider?: string;         // provider name (e.g. "dexscreener"); default: first registered
 }
 
 /** Result of money.price() */
@@ -275,6 +276,7 @@ export interface PriceResult {
 export interface TokenInfoParams {
   token: string;
   chain?: string;
+  provider?: string;         // provider name; default: first registered
 }
 
 /** Result of money.tokenInfo() */

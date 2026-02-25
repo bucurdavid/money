@@ -908,7 +908,7 @@ export const money = {
   // ─── price ────────────────────────────────────────────────────────────────
 
   async price(params: PriceParams): Promise<PriceResult> {
-    const { token, chain } = params;
+    const { token, chain, provider: providerName } = params;
 
     if (!token) {
       throw new MoneyError('INVALID_PARAMS', 'Missing required param: token', {
@@ -916,10 +916,12 @@ export const money = {
       });
     }
 
-    const provider = getPriceProvider();
+    const provider = getPriceProvider(providerName);
     if (!provider) {
-      throw new MoneyError('UNSUPPORTED_OPERATION', 'No price provider available.', {
-        note: 'A price provider should be registered automatically.',
+      throw new MoneyError('UNSUPPORTED_OPERATION', `No price provider available${providerName ? ` with name "${providerName}"` : ''}.`, {
+        note: providerName
+          ? `Provider "${providerName}" is not registered. Check the name or omit provider to use the default.`
+          : 'A price provider should be registered automatically.',
       });
     }
 
@@ -941,7 +943,7 @@ export const money = {
   // ─── tokenInfo ────────────────────────────────────────────────────────────
 
   async tokenInfo(params: TokenInfoParams): Promise<TokenInfoResult> {
-    const { token, chain } = params;
+    const { token, chain, provider: providerName } = params;
 
     if (!token) {
       throw new MoneyError('INVALID_PARAMS', 'Missing required param: token', {
@@ -949,10 +951,12 @@ export const money = {
       });
     }
 
-    const provider = getPriceProvider();
+    const provider = getPriceProvider(providerName);
     if (!provider || !provider.getTokenInfo) {
-      throw new MoneyError('UNSUPPORTED_OPERATION', 'No token info provider available.', {
-        note: 'A price provider with getTokenInfo should be registered automatically.',
+      throw new MoneyError('UNSUPPORTED_OPERATION', `No token info provider available${providerName ? ` with name "${providerName}"` : ''}.`, {
+        note: providerName
+          ? `Provider "${providerName}" is not registered or does not support getTokenInfo.`
+          : 'A price provider with getTokenInfo should be registered automatically.',
       });
     }
 

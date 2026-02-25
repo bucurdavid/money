@@ -198,3 +198,91 @@ describe('money.tokenInfo', () => {
     );
   });
 });
+
+// ─── Provider routing ────────────────────────────────────────────────────────
+
+describe('money.price provider routing', () => {
+  it('uses custom provider when provider name is specified', async () => {
+    // Register a custom provider that returns a known sentinel value
+    money.registerPriceProvider({
+      name: 'custom-oracle',
+      async getPrice() {
+        return {
+          price: '99999.99',
+          symbol: 'TEST_BTC',
+          name: 'Test Bitcoin',
+        };
+      },
+    });
+
+    // Without provider param — should use built-in DexScreener (mocked)
+    globalThis.fetch = makeDexScreenerMock();
+    const defaultResult = await money.price({ token: 'ETH' });
+    assert.equal(defaultResult.price, '2500.00', 'default should use DexScreener');
+    assert.equal(defaultResult.symbol, 'ETH');
+
+    // With provider param — should use custom provider
+    const customResult = await money.price({ token: 'BTC', provider: 'custom-oracle' });
+    assert.equal(customResult.price, '99999.99', 'should use custom provider');
+    assert.equal(customResult.symbol, 'TEST_BTC');
+    assert.equal(customResult.name, 'Test Bitcoin');
+  });
+
+  it('throws UNSUPPORTED_OPERATION for unknown provider name', async () => {
+    await assert.rejects(
+      () => money.price({ token: 'ETH', provider: 'nonexistent-provider' }),
+      (err: unknown) => {
+        assert.ok(err instanceof MoneyError);
+        assert.equal((err as MoneyError).code, 'UNSUPPORTED_OPERATION');
+        assert.ok((err as MoneyError).message.includes('nonexistent-provider'));
+        return true;
+      },
+    );
+  });
+});
+
+describe('money.tokenInfo provider routing', () => {
+  it('uses custom provider when provider name is specified', async () => {
+    money.registerPriceProvider({
+      name: 'custom-info',
+      async getPrice() {
+        return { price: '1.00', symbol: 'X', name: 'X Token' };
+      },
+      async getTokenInfo() {
+        return {
+          name: 'Custom Token',
+          symbol: 'CUST',
+          address: '0xcustom',
+          price: '42.00',
+          pairs: [{ dex: 'custom-dex', pairAddress: '0xpair', quoteToken: 'USDC', price: '42.00' }],
+        };
+      },
+    });
+
+    globalThis.fetch = makeDexScreenerMock();
+
+    // Default — DexScreener
+    const defaultResult = await money.tokenInfo({ token: 'ETH', chain: 'ethereum' });
+    assert.equal(defaultResult.symbol, 'ETH');
+    assert.equal(defaultResult.pairs[0]!.dex, 'uniswap');
+
+    // Custom provider
+    const customResult = await money.tokenInfo({ token: 'CUST', provider: 'custom-info' });
+    assert.equal(customResult.symbol, 'CUST');
+    assert.equal(customResult.name, 'Custom Token');
+    assert.equal(customResult.address, '0xcustom');
+    assert.equal(customResult.pairs[0]!.dex, 'custom-dex');
+  });
+
+  it('throws UNSUPPORTED_OPERATION for unknown provider name', async () => {
+    await assert.rejects(
+      () => money.tokenInfo({ token: 'ETH', provider: 'nonexistent' }),
+      (err: unknown) => {
+        assert.ok(err instanceof MoneyError);
+        assert.equal((err as MoneyError).code, 'UNSUPPORTED_OPERATION');
+        assert.ok((err as MoneyError).message.includes('nonexistent'));
+        return true;
+      },
+    );
+  });
+});

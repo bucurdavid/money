@@ -330,6 +330,9 @@ const p = await money.price({ token: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48
 // Get detailed token info (includes DEX pairs)
 const info = await money.tokenInfo({ token: "USDC", chain: "ethereum" });
 // info = { name, symbol, address, price, priceChange24h, volume24h, liquidity, marketCap, pairs: [{ dex, pairAddress, quoteToken, price }], note }
+
+// Use a custom price provider (must be registered first via registerPriceProvider)
+const p = await money.price({ token: "BTC", provider: "my-oracle" });
 ```
 
 ---
@@ -520,8 +523,8 @@ Custom providers are used alongside built-ins. The SDK selects the first provide
 | `money.sign({ chain, message, network? })` | `{ signature, address, chain, network, note }` |
 | `money.quote({ chain, from, to, amount, network, slippageBps?, provider? })` | `{ fromToken, toToken, fromAmount, toAmount, rate, priceImpact, provider, chain, network, note }` |
 | `money.swap({ chain, from, to, amount, network, slippageBps?, provider? })` | `{ txHash, explorerUrl, fromToken, toToken, fromAmount, toAmount, provider, chain, network, note }` |
-| `money.price({ token, chain? })` | `{ price, symbol, name, priceChange24h?, volume24h?, liquidity?, marketCap?, chain?, note }` |
-| `money.tokenInfo({ token, chain? })` | `{ name, symbol, address, price, pairs: [...], note }` |
+| `money.price({ token, chain?, provider? })` | `{ price, symbol, name, priceChange24h?, volume24h?, liquidity?, marketCap?, chain?, note }` |
+| `money.tokenInfo({ token, chain?, provider? })` | `{ name, symbol, address, price, pairs: [...], note }` |
 | `money.bridge({ from: { chain, token }, to: { chain, token? }, amount, network, receiver?, provider? })` | `{ txHash, explorerUrl, fromChain, toChain, fromAmount, toAmount, orderId?, estimatedTime?, note }` |
 | `money.getToken({ chain, network?, name })` | `TokenInfo` or `null` |
 | `money.registerToken({ chain, network?, name, address?, mint?, decimals? })` | `void` |
