@@ -21,6 +21,7 @@ import {
   withKey,
 } from '../keys.js';
 import { MoneyError } from '../errors.js';
+import { fetchBlockscoutTokens } from '../providers/blockscout.js';
 import type { ChainAdapter } from './adapter.js';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -260,6 +261,45 @@ export function createEvmAdapter(
     });
   }
 
+  // ─── ownedTokens ─────────────────────────────────────────────────────────────
+
+  async function ownedTokens(address: string): Promise<Array<{
+    symbol: string;
+    address: string;
+    balance: string;
+    decimals: number;
+  }>> {
+    const tokens: Array<{ symbol: string; address: string; balance: string; decimals: number }> = [];
+
+    // Native balance
+    try {
+      const raw = await publicClient.getBalance({ address: address as `0x${string}` });
+      tokens.push({
+        symbol: nativeSymbol,
+        address: '0x0000000000000000000000000000000000000000',
+        balance: formatUnits(raw, NATIVE_DECIMALS),
+        decimals: NATIVE_DECIMALS,
+      });
+    } catch {
+      tokens.push({
+        symbol: nativeSymbol,
+        address: '0x0000000000000000000000000000000000000000',
+        balance: '0',
+        decimals: NATIVE_DECIMALS,
+      });
+    }
+
+    // ERC-20 tokens via Blockscout
+    try {
+      const erc20s = await fetchBlockscoutTokens(chainName, address);
+      tokens.push(...erc20s);
+    } catch {
+      // Blockscout unavailable — return native only
+    }
+
+    return tokens;
+  }
+
   // ─── Assemble adapter ────────────────────────────────────────────────────────
 
   return {
@@ -270,5 +310,6 @@ export function createEvmAdapter(
     send,
     faucet,
     sign,
+    ownedTokens,
   };
 }

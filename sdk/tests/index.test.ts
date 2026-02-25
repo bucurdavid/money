@@ -430,30 +430,17 @@ describe('money.registerToken with network', () => {
 // ─── money.tokens ─────────────────────────────────────────────────────────────
 
 describe('money.tokens', () => {
-  it('returns empty aliases and owned when no tokens registered', async () => {
+  it('returns empty owned when no tokens discovered', async () => {
     await seedConfig(tmpDir);
     await money.setup({ chain: 'fast' });
     const result = await money.tokens({ chain: 'fast' });
-    assert.ok(Array.isArray(result.aliases));
     assert.ok(Array.isArray(result.owned));
     assert.ok(typeof result.note === 'string');
     assert.equal(result.chain, 'fast');
-    // fast chain has no DEFAULT_ALIASES so should be empty
-    assert.equal(result.aliases.length, 0);
-  });
-
-  it('returns aliases after registerToken', async () => {
-    await seedConfig(tmpDir);
-    await money.setup({ chain: 'fast' });
-    await money.registerToken({ chain: 'fast', name: 'TKN', address: '0xaaa' + '0'.repeat(37), decimals: 6 });
-    const result = await money.tokens({ chain: 'fast' });
-    assert.ok(result.aliases.some((t: { name: string }) => t.name === 'TKN'));
   });
 
   it('returns empty for unconfigured chain (no throw)', async () => {
     const result = await money.tokens({ chain: 'unknown' });
-    assert.ok(Array.isArray(result.aliases));
-    assert.equal(result.aliases.length, 0);
     assert.ok(Array.isArray(result.owned));
     assert.equal(result.owned.length, 0);
   });

@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "build:sdk": "tsc -p sdk/tsconfig.build.json",
-    "bundle": "npm run build:sdk && esbuild dist/src/index.js --bundle --platform=node --format=esm --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\" --outfile=public/money.bundle.js && shasum -a 256 public/money.bundle.js > public/money.bundle.js.sha256",
+    "bundle": "npm run build:sdk && esbuild dist/src/index.js --bundle --platform=node --format=esm --banner:js=\"import { createRequire } from 'module'; import { fileURLToPath as __fp } from 'url'; import { dirname as __dn } from 'path'; const require = createRequire(import.meta.url); const __filename = __fp(import.meta.url); const __dirname = __dn(__filename);\" --outfile=public/money.bundle.js && shasum -a 256 public/money.bundle.js > public/money.bundle.js.sha256",
     "test": "tsc -p sdk/tsconfig.json && node --test --test-force-exit dist/tests/*.test.js dist/tests/**/*.test.js",
     "test:coverage": "tsc -p sdk/tsconfig.json --experimental-test-coverage && node --test --test-force-exit dist/tests/*.test.js dist/tests/**/*.test.js"
   },

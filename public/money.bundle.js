@@ -1,4 +1,4 @@
-import { createRequire } from 'module'; const require = createRequire(import.meta.url);
+import { createRequire } from 'module'; import { fileURLToPath as __fp } from 'url'; import { dirname as __dn } from 'path'; const require = createRequire(import.meta.url); const __filename = __fp(import.meta.url); const __dirname = __dn(__filename);
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -68677,19 +68677,6 @@ async function setAlias(cacheKey2, name, config) {
   all[cacheKey2] = { ...all[cacheKey2] ?? {}, [name]: config };
   await saveAliases(all);
 }
-async function getAliases(cacheKey2) {
-  const all = await loadAliases();
-  const entries = all[cacheKey2] ?? {};
-  const { chain: chain2, network } = parseConfigKey(cacheKey2);
-  return Object.entries(entries).map(([name, tc]) => ({
-    chain: chain2,
-    network,
-    name,
-    ...tc.address ? { address: tc.address } : {},
-    ...tc.mint ? { mint: tc.mint } : {},
-    decimals: tc.decimals ?? 6
-  }));
-}
 async function getEvmAliases(cacheKey2) {
   const all = await loadAliases();
   const entries = all[cacheKey2] ?? {};
@@ -70233,6 +70220,76 @@ function privateKeyToAccount(privateKey, options = {}) {
 // node_modules/viem/_esm/accounts/index.js
 init_publicKeyToAddress();
 
+// dist/src/providers/blockscout.js
+var BLOCKSCOUT_HOSTS = {
+  ethereum: "eth.blockscout.com",
+  base: "base.blockscout.com",
+  arbitrum: "arbitrum.blockscout.com",
+  optimism: "optimism.blockscout.com",
+  zksync: "zksync.blockscout.com",
+  scroll: "scroll.blockscout.com"
+};
+function formatRawBalance(value, decimals) {
+  if (decimals === 0)
+    return value;
+  const raw = BigInt(value);
+  const divisor = BigInt(10) ** BigInt(decimals);
+  const whole = raw / divisor;
+  const remainder = raw % divisor;
+  if (remainder === 0n)
+    return whole.toString();
+  const fracStr = remainder.toString().padStart(decimals, "0").replace(/0+$/, "");
+  return `${whole}.${fracStr}`;
+}
+async function fetchBlockscoutTokens(chain2, address) {
+  const host = BLOCKSCOUT_HOSTS[chain2];
+  if (!host)
+    return [];
+  const results = [];
+  try {
+    let url = `https://${host}/api/v2/addresses/${address}/tokens?type=ERC-20`;
+    let pagesLeft = 4;
+    while (url !== null && pagesLeft > 0) {
+      pagesLeft -= 1;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15e3);
+      let data;
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!res.ok)
+          return results;
+        data = await res.json();
+      } catch {
+        clearTimeout(timeoutId);
+        return results;
+      }
+      for (const item of data.items) {
+        const { token, value } = item;
+        if (token.decimals === null || token.symbol === null)
+          continue;
+        const decimals = Number(token.decimals);
+        const balance = formatRawBalance(value, decimals);
+        results.push({
+          symbol: token.symbol,
+          address: token.address_hash,
+          balance,
+          decimals
+        });
+      }
+      if (data.next_page_params === null) {
+        url = null;
+      } else {
+        const p = data.next_page_params;
+        url = `https://${host}/api/v2/addresses/${address}/tokens?type=ERC-20&id=${p.id}&value=${encodeURIComponent(p.value)}&fiat_value=${encodeURIComponent(p.fiat_value)}&items_count=${p.items_count}`;
+      }
+    }
+  } catch {
+    return results;
+  }
+  return results;
+}
+
 // dist/src/adapters/evm.js
 var ADDRESS_PATTERN2 = /^0x[0-9a-fA-F]{40}$/;
 var NATIVE_DECIMALS = 18;
@@ -70392,6 +70449,31 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain
       return { signature, address: account.address };
     });
   }
+  async function ownedTokens(address) {
+    const tokens = [];
+    try {
+      const raw = await publicClient.getBalance({ address });
+      tokens.push({
+        symbol: nativeSymbol,
+        address: "0x0000000000000000000000000000000000000000",
+        balance: formatUnits(raw, NATIVE_DECIMALS),
+        decimals: NATIVE_DECIMALS
+      });
+    } catch {
+      tokens.push({
+        symbol: nativeSymbol,
+        address: "0x0000000000000000000000000000000000000000",
+        balance: "0",
+        decimals: NATIVE_DECIMALS
+      });
+    }
+    try {
+      const erc20s = await fetchBlockscoutTokens(chainName, address);
+      tokens.push(...erc20s);
+    } catch {
+    }
+    return tokens;
+  }
   return {
     chain: chainName,
     addressPattern: ADDRESS_PATTERN2,
@@ -70399,7 +70481,8 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain
     getBalance: getBalance2,
     send,
     faucet,
-    sign: sign2
+    sign: sign2,
+    ownedTokens
   };
 }
 
@@ -72368,7 +72451,6 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       return {
         chain: chain2,
         network: network ?? "testnet",
-        aliases: [],
         owned: [],
         note: `Chain "${chain2}" is not configured. Run setup first:
   await money.setup({ chain: "${chain2}" })`
@@ -72376,7 +72458,6 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     }
     const { key, chainConfig: chainConfig2 } = resolved;
     const { chain: resolvedChain, network: resolvedNetwork } = parseConfigKey(key);
-    const aliasResults = await getAliases(key);
     let owned = [];
     try {
       const adapter = await getAdapter(key);
@@ -72387,12 +72468,27 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       }
     } catch {
     }
+    const isHexLike = (s) => /^0x[0-9a-fA-F]+$/.test(s) || /^[0-9a-fA-F]{40,}$/.test(s);
+    for (const tok of owned) {
+      if (tok.symbol && !isHexLike(tok.symbol)) {
+        try {
+          if (resolvedChain === "solana") {
+            await setAlias(key, tok.symbol, { mint: tok.address, decimals: tok.decimals });
+          } else {
+            await setAlias(key, tok.symbol, { address: tok.address, decimals: tok.decimals });
+          }
+        } catch {
+        }
+      }
+    }
+    if (owned.length > 0) {
+      evictAdapter(key);
+    }
     return {
       chain: resolvedChain,
       network: resolvedNetwork,
-      aliases: aliasResults,
       owned,
-      note: owned.length > 0 ? "" : "On-chain token discovery is not available for this chain. Register tokens with money.registerToken() and they will appear in aliases."
+      note: owned.length > 0 ? "" : "On-chain token discovery not available for this chain. Use money.registerToken() to register tokens manually."
     };
   },
   async history(params) {

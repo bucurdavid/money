@@ -9,7 +9,7 @@ import { identifyChains, isValidAddress } from './detect.js';
 import { MoneyError } from './errors.js';
 import { getAdapter, evictAdapter, _resetAdapterCache } from './registry.js';
 import { DEFAULT_CHAIN_CONFIGS, configKey, parseConfigKey, supportedChains } from './defaults.js';
-import { getAlias, setAlias, getAliases } from './aliases.js';
+import { getAlias, setAlias } from './aliases.js';
 import { appendHistory, readHistory } from './history.js';
 import {
   registerSwapProvider,
@@ -705,7 +705,6 @@ export const money = {
       return {
         chain,
         network: network ?? 'testnet',
-        aliases: [],
         owned: [],
         note: `Chain "${chain}" is not configured. Run setup first:\n  await money.setup({ chain: "${chain}" })`,
       };
@@ -713,9 +712,6 @@ export const money = {
 
     const { key, chainConfig } = resolved;
     const { chain: resolvedChain, network: resolvedNetwork } = parseConfigKey(key);
-
-    // Get aliases (always available)
-    const aliasResults = await getAliases(key);
 
     // Attempt on-chain token discovery
     let owned: OwnedToken[] = [];
@@ -727,17 +723,39 @@ export const money = {
         owned = await adapter.ownedTokens(address);
       }
     } catch {
-      // On-chain discovery failed — return aliases only
+      // On-chain discovery failed — return empty
+    }
+
+    // Auto-cache discovered tokens as aliases for name resolution
+    // This lets money.balance({ token: "USDC" }) work after a tokens() call
+    const isHexLike = (s: string): boolean => /^0x[0-9a-fA-F]+$/.test(s) || /^[0-9a-fA-F]{40,}$/.test(s);
+    for (const tok of owned) {
+      if (tok.symbol && !isHexLike(tok.symbol)) {
+        try {
+          // Determine the right token config shape based on chain type
+          if (resolvedChain === 'solana') {
+            await setAlias(key, tok.symbol, { mint: tok.address, decimals: tok.decimals });
+          } else {
+            await setAlias(key, tok.symbol, { address: tok.address, decimals: tok.decimals });
+          }
+        } catch {
+          // Non-critical — skip if alias write fails
+        }
+      }
+    }
+
+    // Evict adapter cache so next getBalance()/send() picks up new aliases
+    if (owned.length > 0) {
+      evictAdapter(key);
     }
 
     return {
       chain: resolvedChain,
       network: resolvedNetwork as NetworkType,
-      aliases: aliasResults,
       owned,
       note: owned.length > 0
         ? ''
-        : 'On-chain token discovery is not available for this chain. Register tokens with money.registerToken() and they will appear in aliases.',
+        : 'On-chain token discovery not available for this chain. Use money.registerToken() to register tokens manually.',
     };
   },
 

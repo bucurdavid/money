@@ -20,7 +20,7 @@ tags:
 
 # MONEY SKILL
 
-Everything works out of the box. RPCs, token addresses, explorer URLs — all built in for 13 chains, testnet and mainnet. Swap tokens via Jupiter (Solana) and Paraswap (EVM). Bridge cross-chain via DeBridge. Look up prices via DexScreener. Sign messages on any chain. Register any EVM chain at runtime. You do not need API keys or config files.
+Everything works out of the box. RPCs, token addresses, explorer URLs — all built in for 13 chains, testnet and mainnet. Discover tokens in your wallet automatically. Swap tokens via Jupiter (Solana) and Paraswap (EVM). Bridge cross-chain via DeBridge. Look up prices via DexScreener. Sign messages on any chain. Register any EVM chain at runtime. You do not need API keys or config files.
 
 ## Install
 
@@ -80,7 +80,7 @@ Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"polygon"` `"opti
 | Handle an error | Error Recovery |
 | Avoid sending twice | Idempotency |
 | Check if you received tokens | Receiving |
-| Use USDC or a custom token | Tokens |
+| Discover tokens or register new ones | Tokens |
 | Convert between human and raw units | Unit Conversion |
 | View past sends | History |
 | Register a custom provider | Custom Providers |
@@ -171,6 +171,10 @@ const bal = await money.balance({ chain: "base", token: "USDC" });
 
 // Check mainnet balance
 const bal = await money.balance({ chain: "base", network: "mainnet" });
+
+// Tip: run money.tokens() first to discover tokens, then check by name
+const t = await money.tokens({ chain: "base", network: "mainnet" });
+const bal = await money.balance({ chain: "base", network: "mainnet", token: "USDC" });
 ```
 
 For balances across all configured chains, use `money.status()`.
@@ -412,7 +416,31 @@ Native token works immediately after `setup()` — no configuration needed.
 | Fantom | FTM |
 | Solana | SOL |
 
-Built-in tokens (USDC, USDT, WETH, WBTC, DAI) are hardcoded — no registration needed. For other tokens, register a named token once and use it by name forever (persists to `~/.money/aliases.json` across sessions):
+Built-in tokens (USDC, USDT, WETH, WBTC, DAI) are hardcoded — no registration needed.
+
+### Discover tokens you hold
+
+`money.tokens()` does a live on-chain fetch of all tokens in your wallet. After calling it, discovered tokens are auto-cached and usable by name in `balance()`, `send()`, etc.
+
+```js
+const t = await money.tokens({ chain: "fast" });
+// t = { chain: "fast", network: "testnet", owned: [
+//   { symbol: "SET", address: "0xfa575e70...", balance: "2287.5", decimals: 18 },
+//   { symbol: "testMONEY", address: "0x5d5387...", balance: "7500000000", decimals: 18 },
+// ], note: "" }
+
+// Now use discovered tokens by name
+const bal = await money.balance({ chain: "fast", token: "testMONEY" });
+```
+
+Token discovery works on all chain types:
+- **Fast** — via `proxy_getAccountInfo` + `proxy_getTokenInfo` RPC
+- **Solana** — via `getParsedTokenAccountsByOwner` RPC
+- **EVM** — via Blockscout API (no API key). Works on: Ethereum, Base, Arbitrum, Optimism, zkSync, Scroll. Returns empty for BSC, Avalanche, Fantom, Linea, Polygon.
+
+### Register tokens you don't own yet
+
+For tokens not yet in your wallet (e.g., want to send to, or use in swaps), register them once — persists to disk:
 
 ```js
 // Register a named token — separate registration per network (different contract addresses)
@@ -423,9 +451,8 @@ await money.registerToken({ chain: "base", network: "mainnet", name: "USDC", add
 await money.send({ to: "0x1234...abcd", amount: 25, chain: "base", token: "USDC" });
 await money.send({ to: "0x1234...abcd", amount: 25, chain: "base", network: "mainnet", token: "USDC" });
 
-// Look up or list tokens
+// Look up a registered token
 const info = await money.getToken({ chain: "base", name: "USDC" });
-const { tokens } = await money.tokens({ chain: "base" });
 ```
 
 **Known USDC addresses:**
@@ -498,7 +525,7 @@ const human = await money.toHumanUnits({ amount: 10000000000n, decimals: 8 });
 // human = "100"
 ```
 
-Two modes: **token lookup** (pass `chain` + optional `token` — decimals resolved from aliases or native token defaults) or **explicit decimals** (pass `decimals` directly — no chain needed).
+Two modes: **token lookup** (pass `chain` + optional `token` — decimals resolved from registered tokens or native token defaults) or **explicit decimals** (pass `decimals` directly — no chain needed).
 
 ---
 
@@ -568,7 +595,7 @@ Custom providers are used alongside built-ins. The SDK selects the first provide
 | `money.bridge({ from: { chain, token }, to: { chain, token? }, amount, network, receiver?, provider? })` | `{ txHash, explorerUrl, fromChain, toChain, fromAmount, toAmount, orderId?, estimatedTime?, note }` |
 | `money.getToken({ chain, network?, name })` | `TokenInfo` or `null` |
 | `money.registerToken({ chain, network?, name, address?, mint?, decimals? })` | `void` |
-| `money.tokens({ chain, network? })` | `{ tokens: TokenInfo[], note }` |
+| `money.tokens({ chain, network? })` | `{ chain, network, owned: OwnedToken[], note }` where `OwnedToken = { symbol, address, balance, decimals }` |
 | `money.toRawUnits({ amount, chain?, network?, token?, decimals? })` | `bigint` |
 | `money.toHumanUnits({ amount, chain?, network?, token?, decimals? })` | `string` |
 | `money.history({ chain?, network?, limit? })` | `{ entries: [...], note }` |
@@ -584,3 +611,19 @@ All errors: `{ code, message, note }`. The `note` field contains a code example 
 Swap, quote, and bridge **require `network: "mainnet"` explicitly**. Price and tokenInfo are read-only and work regardless of network.
 
 Solana swaps require a Jupiter API key (free at portal.jup.ag). Run `money.setApiKey({ provider: "jupiter", apiKey: "..." })` once before your first Solana swap.
+
+---
+
+## Bundled Dependencies
+
+The SDK bundle includes all dependencies — no additional installs needed.
+
+| Package | Purpose |
+|---------|---------|
+| [viem](https://viem.sh) | EVM chain interactions (transactions, balances, contract calls) |
+| [@solana/web3.js](https://solana-labs.github.io/solana-web3.js) | Solana RPC and transaction handling |
+| [@solana/spl-token](https://spl.solana.com) | SPL token operations (transfers, account lookup) |
+| [@mysten/bcs](https://github.com/MystenLabs/sui/tree/main/sdk/bcs) | Binary Canonical Serialization for Fast chain transactions |
+| [@noble/ed25519](https://github.com/paulmillr/noble-ed25519) | Ed25519 signing (Fast chain, Solana) |
+| [@noble/hashes](https://github.com/paulmillr/noble-hashes) | Keccak-256 hashing (Fast chain transaction IDs) |
+| [bech32](https://github.com/bitcoinjs/bech32) | Bech32m address encoding (Fast chain `set1...` addresses) |

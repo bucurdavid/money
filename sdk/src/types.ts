@@ -180,7 +180,6 @@ export interface OwnedToken {
 export interface TokensResult {
   chain: string;
   network: NetworkType;
-  aliases: TokenInfo[];
   owned: OwnedToken[];
   note: string;
 }
