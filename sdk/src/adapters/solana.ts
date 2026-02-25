@@ -48,13 +48,6 @@ async function getSpl(): Promise<typeof import('@solana/spl-token')> {
   return _spl;
 }
 
-let _anchor: typeof import('@coral-xyz/anchor') | null = null;
-
-async function getAnchor(): Promise<typeof import('@coral-xyz/anchor')> {
-  if (!_anchor) _anchor = await import('@coral-xyz/anchor');
-  return _anchor;
-}
-
 // ─── Factory ──────────────────────────────────────────────────────────────────
 
 export function createSolanaAdapter(
@@ -75,17 +68,6 @@ export function createSolanaAdapter(
   }
 
   const decimalsCache = new Map<string, number>();
-
-  // ─── Well-known Solana accounts (auto-resolved) ────────────────────────────
-
-  const WELL_KNOWN_ACCOUNTS: Record<string, string> = {
-    systemProgram: '11111111111111111111111111111111',
-    tokenProgram: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',
-    associatedTokenProgram: 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
-    rent: 'SysvarRent111111111111111111111111111111111',
-    clock: 'SysvarC1ock11111111111111111111111111111111',
-    token2022Program: 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb',
-  };
 
   // ─── Keypair reconstruction ────────────────────────────────────────────────
   // Solana's secret key = 64 bytes: [32-byte private scalar || 32-byte public key]
@@ -144,95 +126,6 @@ export function createSolanaAdapter(
     }
 
     throw new MoneyError('TOKEN_NOT_FOUND', `Token "${t}" is not configured for chain "solana".`, { chain: 'solana', note: `Register the token first:\n  await money.registerToken({ chain: "solana", name: "${t}", mint: "...", decimals: 9 })` });
-  }
-
-  // ─── Instruction builder from IDL ─────────────────────────────────────────
-
-  async function buildInstruction(params: {
-    address: string;
-    idl: unknown;
-    functionName: string;
-    args?: unknown[];
-    accounts?: Record<string, string>;
-    signerPubkey?: string;
-  }): Promise<{
-    instruction: import('@solana/web3.js').TransactionInstruction;
-    programId: import('@solana/web3.js').PublicKey;
-  }> {
-    const { BorshCoder } = await getAnchor();
-    const { PublicKey, TransactionInstruction } = await getWeb3();
-
-    const idl = params.idl as {
-      name: string;
-      instructions: Array<{
-        name: string;
-        accounts: Array<{ name: string; isMut: boolean; isSigner: boolean }>;
-        args: Array<{ name: string; type: unknown }>;
-      }>;
-    };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const coder = new BorshCoder(idl as any);
-
-    // Find the instruction definition in the IDL
-    const ixDef = idl.instructions.find((ix) => ix.name === params.functionName);
-    if (!ixDef) {
-      throw new MoneyError('INVALID_PARAMS', `Instruction "${params.functionName}" not found in IDL for program "${idl.name}".`, {
-        chain: 'solana',
-        note: `Available instructions: ${idl.instructions.map((ix) => ix.name).join(', ')}`,
-      });
-    }
-
-    // Encode instruction data using BorshCoder
-    const data = coder.instruction.encode(params.functionName, params.args ?? {});
-
-    // Build account keys
-    const programId = new PublicKey(params.address);
-    const userAccounts = params.accounts ?? {};
-
-    const keys = ixDef.accounts.map((acc) => {
-      // Check user-provided accounts first
-      const userAddr = userAccounts[acc.name];
-      if (userAddr) {
-        return {
-          pubkey: new PublicKey(userAddr),
-          isSigner: acc.isSigner,
-          isWritable: acc.isMut,
-        };
-      }
-
-      // Auto-resolve well-known accounts
-      const wellKnown = WELL_KNOWN_ACCOUNTS[acc.name];
-      if (wellKnown) {
-        return {
-          pubkey: new PublicKey(wellKnown),
-          isSigner: false,
-          isWritable: acc.isMut,
-        };
-      }
-
-      // If the account is the signer and we have the signer pubkey, use it
-      if (acc.isSigner && params.signerPubkey) {
-        return {
-          pubkey: new PublicKey(params.signerPubkey),
-          isSigner: true,
-          isWritable: acc.isMut,
-        };
-      }
-
-      throw new MoneyError('INVALID_PARAMS', `Missing account "${acc.name}" for instruction "${params.functionName}".`, {
-        chain: 'solana',
-        note: `Provide the account in the "accounts" parameter:\n  accounts: { ${acc.name}: "address..." }`,
-      });
-    });
-
-    const instruction = new TransactionInstruction({
-      keys,
-      programId,
-      data,
-    });
-
-    return { instruction, programId };
   }
 
   // ─── setupWallet ──────────────────────────────────────────────────────────
@@ -373,174 +266,6 @@ export function createSolanaAdapter(
     }
   }
 
-  // ─── readContract ─────────────────────────────────────────────────────────
-
-  async function readContract(params: {
-    address: string;
-    abi?: unknown[];
-    idl?: unknown;
-    accounts?: Record<string, string>;
-    functionName: string;
-    args?: unknown[];
-  }): Promise<unknown> {
-    if (!params.idl) {
-      throw new MoneyError('INVALID_PARAMS', 'Solana readContract requires "idl" parameter.', {
-        chain: 'solana',
-        note: 'Provide an Anchor IDL:\n  await money.readContract({ chain: "solana", address: "...", idl: {...}, functionName: "..." })\nOr fetch it:\n  const { idl } = await money.fetchContractInterface({ chain: "solana", address: "..." })',
-      });
-    }
-
-    const { Transaction } = await getWeb3();
-    const connection = await getConnection();
-
-    const { instruction } = await buildInstruction({
-      address: params.address,
-      idl: params.idl,
-      functionName: params.functionName,
-      args: params.args,
-      accounts: params.accounts,
-    });
-
-    const tx = new Transaction().add(instruction);
-    tx.feePayer = instruction.keys.find((k) => k.isSigner)?.pubkey ?? instruction.programId;
-
-    const latestBlockhash = await connection.getLatestBlockhash();
-    tx.recentBlockhash = latestBlockhash.blockhash;
-
-    const simulation = await connection.simulateTransaction(tx);
-
-    if (simulation.value.err) {
-      throw new MoneyError('TX_FAILED', `Simulation failed: ${JSON.stringify(simulation.value.err)}`, {
-        chain: 'solana',
-        note: 'Check that all accounts are correct and the instruction args match the IDL.',
-      });
-    }
-
-    return {
-      logs: simulation.value.logs ?? [],
-      returnData: simulation.value.returnData ?? null,
-      unitsConsumed: simulation.value.unitsConsumed ?? 0,
-    };
-  }
-
-  // ─── writeContract ────────────────────────────────────────────────────────
-
-  async function writeContract(params: {
-    address: string;
-    abi?: unknown[];
-    idl?: unknown;
-    accounts?: Record<string, string>;
-    functionName: string;
-    args?: unknown[];
-    value?: bigint;
-    keyfile: string;
-  }): Promise<{ txHash: string; explorerUrl: string; fee: string }> {
-    if (!params.idl) {
-      throw new MoneyError('INVALID_PARAMS', 'Solana writeContract requires "idl" parameter.', {
-        chain: 'solana',
-        note: 'Provide an Anchor IDL:\n  await money.writeContract({ chain: "solana", address: "...", idl: {...}, functionName: "...", accounts: {...} })',
-      });
-    }
-
-    try {
-      return await withKey(params.keyfile, async (kp) => {
-        const {
-          PublicKey,
-          Transaction,
-          SystemProgram,
-          sendAndConfirmTransaction,
-        } = await getWeb3();
-        const connection = await getConnection();
-        const signer = await keypairFromHex(kp.privateKey, kp.publicKey);
-
-        const { instruction } = await buildInstruction({
-          address: params.address,
-          idl: params.idl!,
-          functionName: params.functionName,
-          args: params.args,
-          accounts: params.accounts,
-          signerPubkey: signer.publicKey.toBase58(),
-        });
-
-        const tx = new Transaction();
-
-        // If value is provided, add a SOL transfer instruction first
-        if (params.value && params.value > 0n) {
-          const toPubkey = new PublicKey(params.address);
-          tx.add(
-            SystemProgram.transfer({
-              fromPubkey: signer.publicKey,
-              toPubkey,
-              lamports: params.value,
-            }),
-          );
-        }
-
-        tx.add(instruction);
-
-        const txHash = await sendAndConfirmTransaction(connection, tx, [signer]);
-
-        // Fetch fee from transaction
-        let fee = '0';
-        try {
-          const txDetail = await connection.getTransaction(txHash, {
-            commitment: 'confirmed',
-            maxSupportedTransactionVersion: 0,
-          });
-          if (txDetail?.meta?.fee != null) {
-            fee = toHuman(txDetail.meta.fee, SOL_DECIMALS);
-          }
-        } catch {
-          // Non-critical — fee stays '0'
-        }
-
-        return { txHash, explorerUrl: explorerUrl(txHash), fee };
-      });
-    } catch (err: unknown) {
-      if (err instanceof MoneyError) throw err;
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('debit an account') || msg.includes('insufficient') || msg.includes('0x1')) {
-        throw new MoneyError('INSUFFICIENT_BALANCE', msg, { chain: 'solana', note: `Get testnet tokens:\n  await money.faucet({ chain: "solana" })` });
-      }
-      throw new MoneyError('TX_FAILED', msg, { chain: 'solana', note: `Wait 5 seconds, then retry the call.` });
-    }
-  }
-
-  // ─── fetchContractInterface ───────────────────────────────────────────────
-
-  async function fetchContractInterface(address: string): Promise<{
-    name: string | null;
-    abi: unknown[] | null;
-    idl: unknown | null;
-  }> {
-    try {
-      const { Program } = await getAnchor();
-      const { PublicKey } = await getWeb3();
-      const connection = await getConnection();
-
-      // Anchor's fetchIdl needs a minimal provider-like object
-      const programId = new PublicKey(address);
-
-      // Fetch the IDL account directly — Anchor stores IDLs at a deterministic PDA
-      const idl = await Program.fetchIdl(programId.toBase58(), {
-        connection,
-      } as Parameters<typeof Program.fetchIdl>[1]);
-
-      if (!idl) {
-        return { name: null, abi: null, idl: null };
-      }
-
-      const idlObj = idl as { name?: string };
-      return {
-        name: idlObj.name ?? null,
-        abi: null,
-        idl,
-      };
-    } catch {
-      return { name: null, abi: null, idl: null };
-    }
-  }
-
   // ─── faucet ───────────────────────────────────────────────────────────────
 
   async function faucet(address: string): Promise<{ amount: string; token: string; txHash: string }> {
@@ -576,8 +301,5 @@ export function createSolanaAdapter(
     getBalance,
     send,
     faucet,
-    readContract,
-    writeContract,
-    fetchContractInterface,
   };
 }
