@@ -629,6 +629,29 @@ const describeMeta = {
   notes: 'Returns null if the method name is not found. Use money.help() to see all methods.',
 } as const;
 
+// ─── providers ──────────────────────────────────────────────────────────────
+
+const ProviderEntry = z.object({
+  name: z.string().describe('Provider name (e.g. "jupiter", "paraswap", "debridge", "omniset")'),
+  chains: z.array(z.string()).describe('Chains this provider supports'),
+  networks: z.array(z.string()).optional().describe('Networks this provider supports (omitted = mainnet only)'),
+});
+
+export const ProvidersResult = z.object({
+  swap: z.array(ProviderEntry).describe('Registered swap providers'),
+  bridge: z.array(ProviderEntry).describe('Registered bridge providers'),
+  price: z.array(ProviderEntry).describe('Registered price providers'),
+  note: z.string(),
+});
+
+const providersMeta = {
+  description: 'List all registered providers (swap, bridge, price) with their supported chains and networks.',
+  examples: [
+    'await money.providers()',
+  ],
+  notes: 'Returns built-in and custom-registered providers. Use registerSwapProvider/registerBridgeProvider/registerPriceProvider to add custom ones.',
+} as const;
+
 // ─── Method schema entry ─────────────────────────────────────────────────────
 
 export interface MethodEntry {
@@ -667,6 +690,7 @@ export const METHOD_SCHEMAS: Record<string, MethodEntry> = {
   registerSwapProvider:  { params: null,                   result: null,                 ...registerSwapProviderMeta },
   registerBridgeProvider:{ params: null,                   result: null,                 ...registerBridgeProviderMeta },
   registerPriceProvider: { params: null,                   result: null,                 ...registerPriceProviderMeta },
+  providers:             { params: null,                   result: ProvidersResult,      ...providersMeta },
   help:                  { params: null,                   result: null,                 ...helpMeta },
   describe:              { params: null,                   result: null,                 ...describeMeta },
 };

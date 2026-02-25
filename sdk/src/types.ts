@@ -180,6 +180,11 @@ export type BridgeParams = z.infer<typeof S.BridgeParams>;
 /** Result of money.bridge() */
 export type BridgeResult = z.infer<typeof S.BridgeResult>;
 
+// ─── Providers type ─────────────────────────────────────────────────────────
+
+/** Result of money.providers() */
+export type ProvidersResult = z.infer<typeof S.ProvidersResult>;
+
 // ─── Help / Describe types ──────────────────────────────────────────────────
 
 /** A brief entry returned by money.help() */

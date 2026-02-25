@@ -18,6 +18,9 @@ import {
   getSwapProvider,
   getBridgeProvider,
   getPriceProvider,
+  listSwapProviders,
+  listBridgeProviders,
+  listPriceProviders,
 } from './providers/registry.js';
 import { resolveTokenAddress, NATIVE_TOKEN_ADDRESS, NATIVE_TOKEN_DECIMALS, NATIVE_TOKEN_SYMBOL } from './providers/tokens.js';
 import { jupiterProvider } from './providers/jupiter.js';
@@ -75,6 +78,7 @@ import type {
   SetApiKeyParams,
   HelpEntry,
   DescribeResult,
+  ProvidersResult,
 } from './types.js';
 
 import { parseUnits, formatUnits } from 'viem';
@@ -163,35 +167,35 @@ function resolveChainKey(
   return null;
 }
 
-/** Built-in EVM chain IDs */
-const BUILT_IN_CHAIN_IDS: Record<string, number> = {
-  ethereum: 1,
-  base: 8453,
-  arbitrum: 42161,
-  polygon: 137,
-  optimism: 10,
-  bsc: 56,
-  avalanche: 43114,
-  fantom: 250,
-  zksync: 324,
-  linea: 59144,
-  scroll: 534352,
+/** Built-in EVM chain IDs (mainnet + testnet) */
+const BUILT_IN_CHAIN_IDS: Record<string, { mainnet: number; testnet: number }> = {
+  ethereum:  { mainnet: 1,      testnet: 11155111 },
+  base:      { mainnet: 8453,   testnet: 84532 },
+  arbitrum:  { mainnet: 42161,  testnet: 421614 },
+  polygon:   { mainnet: 137,    testnet: 80002 },
+  optimism:  { mainnet: 10,     testnet: 11155420 },
+  bsc:       { mainnet: 56,     testnet: 97 },
+  avalanche: { mainnet: 43114,  testnet: 43113 },
+  fantom:    { mainnet: 250,    testnet: 4002 },
+  zksync:    { mainnet: 324,    testnet: 300 },
+  linea:     { mainnet: 59144,  testnet: 59141 },
+  scroll:    { mainnet: 534352, testnet: 534351 },
 };
 
-/** Built-in explorer base URLs (tx hash is appended) */
-const BUILT_IN_EXPLORERS: Record<string, string> = {
-  ethereum: 'https://etherscan.io/tx/',
-  base: 'https://basescan.org/tx/',
-  arbitrum: 'https://arbiscan.io/tx/',
-  polygon: 'https://polygonscan.com/tx/',
-  optimism: 'https://optimistic.etherscan.io/tx/',
-  bsc: 'https://bscscan.com/tx/',
-  avalanche: 'https://snowtrace.io/tx/',
-  fantom: 'https://ftmscan.com/tx/',
-  zksync: 'https://explorer.zksync.io/tx/',
-  linea: 'https://lineascan.build/tx/',
-  scroll: 'https://scrollscan.com/tx/',
-  solana: 'https://solscan.io/tx/',
+/** Built-in explorer base URLs (mainnet + testnet; tx hash is appended) */
+const BUILT_IN_EXPLORERS: Record<string, { mainnet: string; testnet: string }> = {
+  ethereum:  { mainnet: 'https://etherscan.io/tx/',               testnet: 'https://sepolia.etherscan.io/tx/' },
+  base:      { mainnet: 'https://basescan.org/tx/',               testnet: 'https://sepolia.basescan.org/tx/' },
+  arbitrum:  { mainnet: 'https://arbiscan.io/tx/',                testnet: 'https://sepolia.arbiscan.io/tx/' },
+  polygon:   { mainnet: 'https://polygonscan.com/tx/',            testnet: 'https://amoy.polygonscan.com/tx/' },
+  optimism:  { mainnet: 'https://optimistic.etherscan.io/tx/',    testnet: 'https://sepolia-optimism.etherscan.io/tx/' },
+  bsc:       { mainnet: 'https://bscscan.com/tx/',                testnet: 'https://testnet.bscscan.com/tx/' },
+  avalanche: { mainnet: 'https://snowtrace.io/tx/',               testnet: 'https://testnet.snowtrace.io/tx/' },
+  fantom:    { mainnet: 'https://ftmscan.com/tx/',                testnet: 'https://testnet.ftmscan.com/tx/' },
+  zksync:    { mainnet: 'https://explorer.zksync.io/tx/',         testnet: 'https://sepolia.explorer.zksync.io/tx/' },
+  linea:     { mainnet: 'https://lineascan.build/tx/',            testnet: 'https://sepolia.lineascan.build/tx/' },
+  scroll:    { mainnet: 'https://scrollscan.com/tx/',             testnet: 'https://sepolia.scrollscan.com/tx/' },
+  solana:    { mainnet: 'https://solscan.io/tx/',                 testnet: 'https://solscan.io/tx/' },
 };
 
 /**
@@ -262,20 +266,25 @@ function toRawAmount(amount: string, decimals: number): string {
 
 /**
  * Get the EVM chain ID for a built-in chain.
- * Falls back to 1 (ethereum) if chain is unknown.
+ * Uses network to pick mainnet or testnet chain ID.
+ * Falls back to 1 (ethereum mainnet) if chain is unknown.
  */
-function getBuiltInChainId(chain: string): number {
-  return BUILT_IN_CHAIN_IDS[chain] ?? 1;
+function getBuiltInChainId(chain: string, network: string): number {
+  const ids = BUILT_IN_CHAIN_IDS[chain];
+  if (!ids) return 1;
+  return network === 'mainnet' ? ids.mainnet : ids.testnet;
 }
 
 /**
  * Build an explorer URL for a transaction.
  * Checks custom chains first, then built-in explorer map.
+ * Uses chainConfig.network to pick mainnet or testnet explorer.
  */
-function getExplorerUrl(chain: string, txHash: string, _chainConfig: ChainConfig): string {
-  const baseUrl = BUILT_IN_EXPLORERS[chain];
-  if (baseUrl) return `${baseUrl}${txHash}`;
-  return '';
+function getExplorerUrl(chain: string, txHash: string, chainConfig: ChainConfig): string {
+  const entry = BUILT_IN_EXPLORERS[chain];
+  if (!entry) return '';
+  const baseUrl = chainConfig.network === 'mainnet' ? entry.mainnet : entry.testnet;
+  return `${baseUrl}${txHash}`;
 }
 
 /**
@@ -292,7 +301,8 @@ function createEvmExecutor(keyfilePath: string, chainConfig: ChainConfig, chain:
     const kp = await loadKeyfile(keyfilePath);
     const account = privateKeyToAccount(`0x${kp.privateKey}` as `0x${string}`);
     const customChain = await getCustomChain(chain);
-    const chainId = customChain?.chainId ?? getBuiltInChainId(chain);
+    const networkType = chainConfig.network === 'mainnet' ? 'mainnet' : 'testnet';
+    const chainId = customChain?.chainId ?? getBuiltInChainId(chain, networkType);
     const { defineChain } = await import('viem');
     const viemChain = defineChain({
       id: chainId,
@@ -1135,7 +1145,7 @@ export const money = {
     // Execute swap
     const result = await provider.swap({
       chain,
-      chainId: getBuiltInChainId(chain),
+      chainId: getBuiltInChainId(chain, 'mainnet'),
       fromToken: fromResolved.address,
       toToken: toResolved.address,
       fromDecimals: fromResolved.decimals,
@@ -1352,8 +1362,8 @@ export const money = {
     const result = await provider.bridge({
       fromChain: from.chain,
       toChain: to.chain,
-      fromChainId: getBuiltInChainId(from.chain),
-      toChainId: getBuiltInChainId(to.chain),
+      fromChainId: getBuiltInChainId(from.chain, resolvedNetwork),
+      toChainId: getBuiltInChainId(to.chain, resolvedNetwork),
       fromToken: fromTokenResolved.address,
       toToken: toTokenResolved.address,
       fromDecimals: fromTokenResolved.decimals,
@@ -1414,6 +1424,17 @@ export const money = {
       result: entry.result ? schemaToResultString(entry.result) : 'void',
       examples: [...entry.examples],
       notes: entry.notes,
+    };
+  },
+
+  // ─── providers ────────────────────────────────────────────────────────────
+
+  providers(): ProvidersResult {
+    return {
+      swap: listSwapProviders(),
+      bridge: listBridgeProviders(),
+      price: listPriceProviders().map((p) => ({ name: p.name, chains: p.chains ?? [] })),
+      note: 'Use registerSwapProvider/registerBridgeProvider/registerPriceProvider to add custom providers.',
     };
   },
 

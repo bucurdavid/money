@@ -102,8 +102,11 @@ export function listSwapProviders(): Array<{ name: string; chains: string[] }> {
   return swapProviders.map((p) => ({ name: p.name, chains: [...p.chains] }));
 }
 
-export function listBridgeProviders(): Array<{ name: string; chains: string[] }> {
-  return bridgeProviders.map((p) => ({ name: p.name, chains: [...p.chains] }));
+export function listBridgeProviders(): Array<{ name: string; chains: string[]; networks?: string[] }> {
+  return bridgeProviders.map((p) => {
+    const nets = (p as { networks?: string[] }).networks;
+    return { name: p.name, chains: [...p.chains], ...(nets ? { networks: [...nets] } : {}) };
+  });
 }
 
 export function listPriceProviders(): Array<{ name: string; chains?: string[] }> {

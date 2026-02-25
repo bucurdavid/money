@@ -71607,6 +71607,18 @@ function getPriceProvider(providerName, chain2) {
   }
   return priceProviders.find((p) => !p.chains) ?? priceProviders[0] ?? null;
 }
+function listSwapProviders() {
+  return swapProviders.map((p) => ({ name: p.name, chains: [...p.chains] }));
+}
+function listBridgeProviders() {
+  return bridgeProviders.map((p) => {
+    const nets = p.networks;
+    return { name: p.name, chains: [...p.chains], ...nets ? { networks: [...nets] } : {} };
+  });
+}
+function listPriceProviders() {
+  return priceProviders.map((p) => ({ name: p.name, chains: p.chains ? [...p.chains] : void 0 }));
+}
 
 // dist/src/providers/tokens.js
 var EVM_NATIVE = "0x0000000000000000000000000000000000000000";
@@ -86833,6 +86845,24 @@ var describeMeta = {
   ],
   notes: "Returns null if the method name is not found. Use money.help() to see all methods."
 };
+var ProviderEntry = external_exports.object({
+  name: external_exports.string().describe('Provider name (e.g. "jupiter", "paraswap", "debridge", "omniset")'),
+  chains: external_exports.array(external_exports.string()).describe("Chains this provider supports"),
+  networks: external_exports.array(external_exports.string()).optional().describe("Networks this provider supports (omitted = mainnet only)")
+});
+var ProvidersResult = external_exports.object({
+  swap: external_exports.array(ProviderEntry).describe("Registered swap providers"),
+  bridge: external_exports.array(ProviderEntry).describe("Registered bridge providers"),
+  price: external_exports.array(ProviderEntry).describe("Registered price providers"),
+  note: external_exports.string()
+});
+var providersMeta = {
+  description: "List all registered providers (swap, bridge, price) with their supported chains and networks.",
+  examples: [
+    "await money.providers()"
+  ],
+  notes: "Returns built-in and custom-registered providers. Use registerSwapProvider/registerBridgeProvider/registerPriceProvider to add custom ones."
+};
 var METHOD_SCHEMAS = {
   setup: { params: SetupParams, result: SetupResult, ...setupMeta },
   status: { params: null, result: StatusResult, ...statusMeta },
@@ -86859,6 +86889,7 @@ var METHOD_SCHEMAS = {
   registerSwapProvider: { params: null, result: null, ...registerSwapProviderMeta },
   registerBridgeProvider: { params: null, result: null, ...registerBridgeProviderMeta },
   registerPriceProvider: { params: null, result: null, ...registerPriceProviderMeta },
+  providers: { params: null, result: ProvidersResult, ...providersMeta },
   help: { params: null, result: null, ...helpMeta },
   describe: { params: null, result: null, ...describeMeta }
 };
@@ -86950,31 +86981,31 @@ function resolveChainKey(chain2, chains, network) {
   return null;
 }
 var BUILT_IN_CHAIN_IDS = {
-  ethereum: 1,
-  base: 8453,
-  arbitrum: 42161,
-  polygon: 137,
-  optimism: 10,
-  bsc: 56,
-  avalanche: 43114,
-  fantom: 250,
-  zksync: 324,
-  linea: 59144,
-  scroll: 534352
+  ethereum: { mainnet: 1, testnet: 11155111 },
+  base: { mainnet: 8453, testnet: 84532 },
+  arbitrum: { mainnet: 42161, testnet: 421614 },
+  polygon: { mainnet: 137, testnet: 80002 },
+  optimism: { mainnet: 10, testnet: 11155420 },
+  bsc: { mainnet: 56, testnet: 97 },
+  avalanche: { mainnet: 43114, testnet: 43113 },
+  fantom: { mainnet: 250, testnet: 4002 },
+  zksync: { mainnet: 324, testnet: 300 },
+  linea: { mainnet: 59144, testnet: 59141 },
+  scroll: { mainnet: 534352, testnet: 534351 }
 };
 var BUILT_IN_EXPLORERS = {
-  ethereum: "https://etherscan.io/tx/",
-  base: "https://basescan.org/tx/",
-  arbitrum: "https://arbiscan.io/tx/",
-  polygon: "https://polygonscan.com/tx/",
-  optimism: "https://optimistic.etherscan.io/tx/",
-  bsc: "https://bscscan.com/tx/",
-  avalanche: "https://snowtrace.io/tx/",
-  fantom: "https://ftmscan.com/tx/",
-  zksync: "https://explorer.zksync.io/tx/",
-  linea: "https://lineascan.build/tx/",
-  scroll: "https://scrollscan.com/tx/",
-  solana: "https://solscan.io/tx/"
+  ethereum: { mainnet: "https://etherscan.io/tx/", testnet: "https://sepolia.etherscan.io/tx/" },
+  base: { mainnet: "https://basescan.org/tx/", testnet: "https://sepolia.basescan.org/tx/" },
+  arbitrum: { mainnet: "https://arbiscan.io/tx/", testnet: "https://sepolia.arbiscan.io/tx/" },
+  polygon: { mainnet: "https://polygonscan.com/tx/", testnet: "https://amoy.polygonscan.com/tx/" },
+  optimism: { mainnet: "https://optimistic.etherscan.io/tx/", testnet: "https://sepolia-optimism.etherscan.io/tx/" },
+  bsc: { mainnet: "https://bscscan.com/tx/", testnet: "https://testnet.bscscan.com/tx/" },
+  avalanche: { mainnet: "https://snowtrace.io/tx/", testnet: "https://testnet.snowtrace.io/tx/" },
+  fantom: { mainnet: "https://ftmscan.com/tx/", testnet: "https://testnet.ftmscan.com/tx/" },
+  zksync: { mainnet: "https://explorer.zksync.io/tx/", testnet: "https://sepolia.explorer.zksync.io/tx/" },
+  linea: { mainnet: "https://lineascan.build/tx/", testnet: "https://sepolia.lineascan.build/tx/" },
+  scroll: { mainnet: "https://scrollscan.com/tx/", testnet: "https://sepolia.scrollscan.com/tx/" },
+  solana: { mainnet: "https://solscan.io/tx/", testnet: "https://solscan.io/tx/" }
 };
 async function getAddressForChain(chainConfig2) {
   const keyfilePath = expandHome(chainConfig2.keyfile);
@@ -87015,14 +87046,18 @@ function toRawAmount(amount, decimals) {
   const raw = BigInt(intPart + paddedFrac);
   return raw.toString();
 }
-function getBuiltInChainId(chain2) {
-  return BUILT_IN_CHAIN_IDS[chain2] ?? 1;
+function getBuiltInChainId(chain2, network) {
+  const ids = BUILT_IN_CHAIN_IDS[chain2];
+  if (!ids)
+    return 1;
+  return network === "mainnet" ? ids.mainnet : ids.testnet;
 }
-function getExplorerUrl(chain2, txHash, _chainConfig) {
-  const baseUrl = BUILT_IN_EXPLORERS[chain2];
-  if (baseUrl)
-    return `${baseUrl}${txHash}`;
-  return "";
+function getExplorerUrl(chain2, txHash, chainConfig2) {
+  const entry = BUILT_IN_EXPLORERS[chain2];
+  if (!entry)
+    return "";
+  const baseUrl = chainConfig2.network === "mainnet" ? entry.mainnet : entry.testnet;
+  return `${baseUrl}${txHash}`;
 }
 function createEvmExecutor(keyfilePath, chainConfig2, chain2) {
   let _clients = null;
@@ -87032,7 +87067,8 @@ function createEvmExecutor(keyfilePath, chainConfig2, chain2) {
     const kp = await loadKeyfile(keyfilePath);
     const account = privateKeyToAccount(`0x${kp.privateKey}`);
     const customChain = await getCustomChain(chain2);
-    const chainId = customChain?.chainId ?? getBuiltInChainId(chain2);
+    const networkType = chainConfig2.network === "mainnet" ? "mainnet" : "testnet";
+    const chainId = customChain?.chainId ?? getBuiltInChainId(chain2, networkType);
     const { defineChain: defineChain2 } = await Promise.resolve().then(() => (init_esm2(), esm_exports2));
     const viemChain = defineChain2({
       id: chainId,
@@ -87751,7 +87787,7 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     const solanaExecutor = isSolana ? createSolanaExecutor(keyfilePath, chainConfig2.rpc) : void 0;
     const result = await provider.swap({
       chain: chain2,
-      chainId: getBuiltInChainId(chain2),
+      chainId: getBuiltInChainId(chain2, "mainnet"),
       fromToken: fromResolved.address,
       toToken: toResolved.address,
       fromDecimals: fromResolved.decimals,
@@ -87933,8 +87969,8 @@ Or pass receiver address:
     const result = await provider.bridge({
       fromChain: from14.chain,
       toChain: to.chain,
-      fromChainId: getBuiltInChainId(from14.chain),
-      toChainId: getBuiltInChainId(to.chain),
+      fromChainId: getBuiltInChainId(from14.chain, resolvedNetwork),
+      toChainId: getBuiltInChainId(to.chain, resolvedNetwork),
       fromToken: fromTokenResolved.address,
       toToken: toTokenResolved.address,
       fromDecimals: fromTokenResolved.decimals,
@@ -87989,6 +88025,15 @@ Or pass receiver address:
       result: entry.result ? schemaToResultString(entry.result) : "void",
       examples: [...entry.examples],
       notes: entry.notes
+    };
+  },
+  // ─── providers ────────────────────────────────────────────────────────────
+  providers() {
+    return {
+      swap: listSwapProviders(),
+      bridge: listBridgeProviders(),
+      price: listPriceProviders().map((p) => ({ name: p.name, chains: p.chains ?? [] })),
+      note: "Use registerSwapProvider/registerBridgeProvider/registerPriceProvider to add custom providers."
     };
   },
   // ─── provider registration ────────────────────────────────────────────────
