@@ -1,5 +1,6 @@
 ---
 name: money
+version: {{VERSION}}
 description: >
   Universal payment SDK for AI agents. Send tokens, check balances, swap tokens, bridge cross-chain,
   look up prices, sign messages, list providers, and register custom EVM chains across 13 chains
