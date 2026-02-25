@@ -29,6 +29,9 @@ export interface MoneyConfig {
   chains: Record<string, ChainConfig>;
   customChains?: Record<string, CustomChainDef>;
   apiKeys?: Record<string, string>;
+  fiatHost?: string;
+  fiatAccountId?: string;
+  fiatWalletId?: string;
 }
 
 /** Params for money.setApiKey() */
@@ -364,43 +367,140 @@ export interface FormatUnitsParams {
   decimals?: number;
 }
 
-// ─── On/Off-ramp types ──────────────────────────────────────────────────────
+// ─── Fiat configuration types ────────────────────────────────────────────────
 
-/** Params for money.onRamp() */
-export interface OnRampParams {
-  chain: string;
-  amount?: number | string;   // fiat amount (e.g. 100 for $100)
-  currency?: string;          // fiat currency code, default "USD"
-  token?: string;             // crypto token, default "USDC"
-  network?: NetworkType;
+export interface ConfigureFiatParams {
+  host: string;
 }
 
-/** Result of money.onRamp() */
-export interface OnRampResult {
-  url: string;
-  address: string;
-  provider: string;
-  chain: string;
-  network: NetworkType;
+// ─── Fiat on/off-ramp types ──────────────────────────────────────────────────
+
+export interface FiatCreateAccountParams {
+  email: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface FiatCreateAccountResult {
+  accountId: string;
+  kycUrl: string;
   note: string;
 }
 
-/** Params for money.offRamp() */
-export interface OffRampParams {
-  chain: string;
-  amount?: number | string;   // crypto amount to sell
-  token?: string;             // crypto token, default "USDC"
-  currency?: string;          // target fiat currency, default "USD"
-  network?: NetworkType;
+export interface FiatGetKycLinkParams {
+  accountId?: string;
 }
 
-/** Result of money.offRamp() */
-export interface OffRampResult {
+export interface FiatGetKycLinkResult {
   url: string;
-  address: string;
-  provider: string;
+  note: string;
+}
+
+export interface FiatLinkWalletParams {
   chain: string;
-  network: NetworkType;
+  network?: NetworkType;
+  accountId?: string;
+}
+
+export interface FiatLinkWalletResult {
+  walletId: string;
+  address: string;
+  note: string;
+}
+
+export interface FiatCreateRecipientParams {
+  name: string;
+  details: Record<string, string>;
+  accountId?: string;
+}
+
+export interface FiatCreateRecipientResult {
+  recipientId: string;
+  note: string;
+}
+
+export interface FiatRail {
+  rail: string;
+  currency: string;
+  amount?: string;
+}
+
+export interface FiatQuoteParams {
+  source: FiatRail;
+  destination: FiatRail;
+  accountId?: string;
+}
+
+export interface FiatQuoteResult {
+  quoteToken: string;
+  source: { rail: string; currency: string; amount: string; fee: string };
+  destination: { rail: string; currency: string; amount: string; fee: string };
+  fxRate: number;
+  expiresAt: string;
+  note: string;
+}
+
+export interface FiatOnRampParams {
+  quoteToken: string;
+  walletId?: string;
+  accountId?: string;
+}
+
+export interface FiatOnRampResult {
+  transferId: string;
+  bankingDetails: Record<string, unknown>;
+  note: string;
+}
+
+export interface FiatOffRampParams {
+  quoteToken: string;
+  recipientId: string;
+  accountId?: string;
+}
+
+export interface FiatOffRampResult {
+  transferId: string;
+  note: string;
+}
+
+export interface FiatGetFundingAddressParams {
+  transferId: string;
+  accountId?: string;
+}
+
+export interface FiatGetFundingAddressResult {
+  address: string;
+  chain: string;
+  amount: string;
+  note: string;
+}
+
+export interface FiatStatusParams {
+  transferId: string;
+  accountId?: string;
+}
+
+export interface FiatStatusResult {
+  status: string;
+  source?: { rail: string; currency: string; amount: string };
+  destination?: { rail: string; currency: string; amount: string };
+  note: string;
+}
+
+// ─── WaitFor types ───────────────────────────────────────────────────────────
+
+export interface WaitForParams {
+  type: 'fiat' | 'bridge';
+  id: string;
+  timeout?: number;   // ms, default 600_000 (10 min)
+  interval?: number;  // ms, default 10_000 (10s)
+}
+
+export interface WaitForResult {
+  status: string;
+  type: string;
+  id: string;
+  details?: Record<string, unknown>;
   note: string;
 }
 
