@@ -53495,8 +53495,6 @@ function buildSec1Der(privKeyBuf) {
 function extractSpkiPublicKey(spkiDer) {
   return spkiDer.slice(SPKI_SECP256K1_POINT_OFFSET);
 }
-var HEX_KEY_RE = /(?<!0x)\b[0-9a-fA-F]{64,}\b/g;
-var REDACTED = "[REDACTED]";
 async function generateEd25519Key() {
   const privKeyBuf = randomBytes3(32);
   const pubKeyBytes = await getPublicKeyAsync(privKeyBuf);
@@ -53562,19 +53560,6 @@ async function withKey(keyfilePath, fn) {
     privBuf.fill(0);
     keypair.privateKey = "0".repeat(keypair.privateKey.length);
   }
-}
-function scrubKeyFromError(error) {
-  if (error instanceof Error) {
-    const scrubbedMessage = error.message.replace(HEX_KEY_RE, REDACTED);
-    const out = new Error(scrubbedMessage);
-    out.name = error.name;
-    if (error.stack) {
-      out.stack = error.stack.replace(HEX_KEY_RE, REDACTED);
-    }
-    return out;
-  }
-  const raw = String(error);
-  return new Error(raw.replace(HEX_KEY_RE, REDACTED));
 }
 
 // dist/detect.js
@@ -53650,7 +53635,7 @@ var DEFAULT_CHAIN_CONFIGS = {
     },
     mainnet: {
       rpc: "https://proxy.fastset.xyz",
-      keyfile: "~/.money/keys/fast-mainnet.json",
+      keyfile: "~/.money/keys/fast.json",
       network: "mainnet",
       defaultToken: "SET"
     }
@@ -53664,7 +53649,7 @@ var DEFAULT_CHAIN_CONFIGS = {
     },
     mainnet: {
       rpc: "https://mainnet.base.org",
-      keyfile: "~/.money/keys/evm-mainnet.json",
+      keyfile: "~/.money/keys/evm.json",
       network: "mainnet",
       defaultToken: "ETH"
     }
@@ -53678,7 +53663,7 @@ var DEFAULT_CHAIN_CONFIGS = {
     },
     mainnet: {
       rpc: "https://eth.llamarpc.com",
-      keyfile: "~/.money/keys/evm-mainnet.json",
+      keyfile: "~/.money/keys/evm.json",
       network: "mainnet",
       defaultToken: "ETH"
     }
@@ -53692,7 +53677,7 @@ var DEFAULT_CHAIN_CONFIGS = {
     },
     mainnet: {
       rpc: "https://arb1.arbitrum.io/rpc",
-      keyfile: "~/.money/keys/evm-mainnet.json",
+      keyfile: "~/.money/keys/evm.json",
       network: "mainnet",
       defaultToken: "ETH"
     }
@@ -53706,7 +53691,7 @@ var DEFAULT_CHAIN_CONFIGS = {
     },
     mainnet: {
       rpc: "https://api.mainnet-beta.solana.com",
-      keyfile: "~/.money/keys/solana-mainnet.json",
+      keyfile: "~/.money/keys/solana.json",
       network: "mainnet",
       defaultToken: "SOL"
     }
@@ -55042,8 +55027,7 @@ function createFastAdapter(rpcUrl, network = "testnet") {
       } catch (err2) {
         if (err2 instanceof MoneyError)
           throw err2;
-        const scrubbed = scrubKeyFromError(err2 instanceof Error ? err2 : new Error(String(err2)));
-        const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
+        const msg = err2 instanceof Error ? err2.message : String(err2);
         if (msg.includes("InsufficientFunding") || msg.includes("insufficient")) {
           throw new MoneyError("INSUFFICIENT_BALANCE", msg, { chain: "fast", note: `Get testnet tokens:
   await money.faucet({ chain: "fast" })` });
@@ -64065,8 +64049,7 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain
     } catch (err2) {
       if (err2 instanceof MoneyError)
         throw err2;
-      const scrubbed = scrubKeyFromError(err2);
-      const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
+      const msg = err2 instanceof Error ? err2.message : String(err2);
       if (msg.includes("insufficient funds") || msg.includes("exceeds balance")) {
         throw new MoneyError("INSUFFICIENT_BALANCE", msg, { chain: chainName, note: `Get tokens:
   await money.faucet({ chain: "${chainName}" })` });
@@ -64225,8 +64208,7 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
     } catch (err2) {
       if (err2 instanceof MoneyError)
         throw err2;
-      const scrubbed = scrubKeyFromError(err2 instanceof Error ? err2 : new Error(String(err2)));
-      const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
+      const msg = err2 instanceof Error ? err2.message : String(err2);
       if (msg.includes("debit an account") || msg.includes("insufficient") || msg.includes("0x1")) {
         throw new MoneyError("INSUFFICIENT_BALANCE", msg, { chain: "solana", note: `Get testnet tokens:
   await money.faucet({ chain: "solana" })` });
@@ -64831,7 +64813,7 @@ var money = {
       const result = await adapter.setupWallet(keyfilePath);
       address = result.address;
     } catch (err2) {
-      throw scrubKeyFromError(err2);
+      throw err2;
     }
     const note = network === "testnet" ? `Fund this wallet:
   await money.faucet({ chain: "${chain2}" })` : "";
@@ -64964,8 +64946,7 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     } catch (err2) {
       if (err2 instanceof MoneyError)
         throw err2;
-      const scrubbed = scrubKeyFromError(err2);
-      const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
+      const msg = err2 instanceof Error ? err2.message : String(err2);
       throw new MoneyError("TX_FAILED", msg, { chain: chain2, note: `Wait 5 seconds, then retry:
   await money.send({ to: "${to}", amount: "${amountStr}", chain: "${chain2}" })` });
     }
