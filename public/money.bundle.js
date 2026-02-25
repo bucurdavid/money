@@ -70668,6 +70668,38 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
     });
     return { amount: "1", token: DEFAULT_TOKEN2, txHash: sig };
   }
+  const METAPLEX_PROGRAM_ID = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s";
+  async function resolveTokenSymbols(mints) {
+    if (mints.length === 0)
+      return /* @__PURE__ */ new Map();
+    const { PublicKey: PublicKey23 } = await getWeb3();
+    const connection = await getConnection();
+    const metaplexProgramId = new PublicKey23(METAPLEX_PROGRAM_ID);
+    const pdas = mints.map((mint) => {
+      const [pda] = PublicKey23.findProgramAddressSync([Buffer.from("metadata"), metaplexProgramId.toBuffer(), new PublicKey23(mint).toBuffer()], metaplexProgramId);
+      return pda;
+    });
+    const accounts = await connection.getMultipleAccountsInfo(pdas);
+    const result = /* @__PURE__ */ new Map();
+    for (let i = 0; i < mints.length; i++) {
+      const acct = accounts[i];
+      if (!acct?.data)
+        continue;
+      try {
+        const data = Buffer.from(acct.data);
+        let off = 65;
+        const nameLen = data.readUInt32LE(off);
+        off += 4 + nameLen;
+        const symLen = data.readUInt32LE(off);
+        off += 4;
+        const symbol = data.subarray(off, off + symLen).toString("utf8").replace(/\0/g, "").trim();
+        if (symbol)
+          result.set(mints[i], symbol);
+      } catch {
+      }
+    }
+    return result;
+  }
   async function ownedTokens(address) {
     const { PublicKey: PublicKey23 } = await getWeb3();
     const { TOKEN_PROGRAM_ID: TOKEN_PROGRAM_ID2 } = await getSpl();
@@ -70692,6 +70724,7 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
         decimals: SOL_DECIMALS
       });
     }
+    const mintAddresses = [];
     try {
       const tokenAccounts = await connection.getParsedTokenAccountsByOwner(pubkey, {
         programId: TOKEN_PROGRAM_ID2
@@ -70704,6 +70737,7 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
         const balance = info.tokenAmount?.uiAmountString ?? "0";
         const rawBalance = info.tokenAmount?.amount ?? "0";
         const decimals = info.tokenAmount?.decimals ?? 0;
+        mintAddresses.push(info.mint);
         tokens.push({
           symbol: info.mint,
           address: info.mint,
@@ -70713,6 +70747,17 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
         });
       }
     } catch {
+    }
+    if (mintAddresses.length > 0) {
+      try {
+        const symbolMap = await resolveTokenSymbols(mintAddresses);
+        for (const tok of tokens) {
+          const resolved = symbolMap.get(tok.address);
+          if (resolved)
+            tok.symbol = resolved;
+        }
+      } catch {
+      }
     }
     return tokens;
   }

@@ -325,6 +325,49 @@ export function createSolanaAdapter(
     return { amount: '1', token: DEFAULT_TOKEN, txHash: sig };
   }
 
+  // ─── resolveTokenSymbols ────────────────────────────────────────────────
+
+  const METAPLEX_PROGRAM_ID = 'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s';
+
+  async function resolveTokenSymbols(
+    mints: string[],
+  ): Promise<Map<string, string>> {
+    if (mints.length === 0) return new Map();
+    const { PublicKey } = await getWeb3();
+    const connection = await getConnection();
+    const metaplexProgramId = new PublicKey(METAPLEX_PROGRAM_ID);
+
+    // Derive Metaplex metadata PDAs for all mints
+    const pdas = mints.map(mint => {
+      const [pda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('metadata'), metaplexProgramId.toBuffer(), new PublicKey(mint).toBuffer()],
+        metaplexProgramId,
+      );
+      return pda;
+    });
+
+    // Batch fetch all metadata accounts in a single RPC call
+    const accounts = await connection.getMultipleAccountsInfo(pdas);
+
+    const result = new Map<string, string>();
+    for (let i = 0; i < mints.length; i++) {
+      const acct = accounts[i];
+      if (!acct?.data) continue;
+      try {
+        const data = Buffer.from(acct.data);
+        // Metaplex metadata layout: 1 (key) + 32 (update authority) + 32 (mint) = 65
+        let off = 65;
+        const nameLen = data.readUInt32LE(off); off += 4 + nameLen;
+        const symLen = data.readUInt32LE(off); off += 4;
+        const symbol = data.subarray(off, off + symLen).toString('utf8').replace(/\0/g, '').trim();
+        if (symbol) result.set(mints[i], symbol);
+      } catch {
+        // Malformed metadata — skip
+      }
+    }
+    return result;
+  }
+
   // ─── ownedTokens ──────────────────────────────────────────────────────────
 
   async function ownedTokens(
@@ -358,6 +401,7 @@ export function createSolanaAdapter(
     }
 
     // Discover all SPL token accounts
+    const mintAddresses: string[] = [];
     try {
       const tokenAccounts = await connection.getParsedTokenAccountsByOwner(pubkey, {
         programId: TOKEN_PROGRAM_ID,
@@ -372,6 +416,7 @@ export function createSolanaAdapter(
         const rawBalance = info.tokenAmount?.amount ?? '0';
         const decimals = info.tokenAmount?.decimals ?? 0;
 
+        mintAddresses.push(info.mint);
         tokens.push({
           symbol: info.mint,
           address: info.mint,
@@ -382,6 +427,19 @@ export function createSolanaAdapter(
       }
     } catch {
       // If token account fetch fails, just return SOL balance
+    }
+
+    // Resolve human-readable symbols from Metaplex on-chain metadata
+    if (mintAddresses.length > 0) {
+      try {
+        const symbolMap = await resolveTokenSymbols(mintAddresses);
+        for (const tok of tokens) {
+          const resolved = symbolMap.get(tok.address);
+          if (resolved) tok.symbol = resolved;
+        }
+      } catch {
+        // Metadata resolution failed — symbols stay as mint addresses
+      }
     }
 
     return tokens;
