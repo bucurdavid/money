@@ -75,7 +75,7 @@ Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"polygon"` `"opti
 | Swap tokens (e.g. SOL to USDC) | Swap |
 | Bridge tokens cross-chain | Bridge |
 | Look up token price | Price |
-| Sign a message | Sign |
+| Sign or verify a message | Sign |
 | Get free testnet tokens | Faucet |
 | Handle an error | Error Recovery |
 | Avoid sending twice | Idempotency |
@@ -376,6 +376,37 @@ const sig = await money.sign({ chain: "solana", message: "Verify me" });
 const sig = await money.sign({ chain: "base", message: new Uint8Array([1, 2, 3]) });
 ```
 
+### Verify
+
+Verify a signature without needing the private key. Works on all chains.
+
+```js
+// Verify on EVM
+const v = await money.verifySign({
+  chain: "base",
+  message: "Sign in to MyApp",
+  signature: "0x...",
+  address: "0x1234...abcd",
+});
+// v = { valid: true, address: "0x1234...abcd", chain: "base", network: "testnet", note: "" }
+
+// Verify on Fast
+const v = await money.verifySign({
+  chain: "fast",
+  message: "Hello world",
+  signature: "a1b2c3...",
+  address: "set1...",
+});
+
+// Verify on Solana
+const v = await money.verifySign({
+  chain: "solana",
+  message: "Verify me",
+  signature: "3xYz...",
+  address: "7abc...",
+});
+```
+
 ---
 
 ## Export Keys
@@ -588,6 +619,7 @@ Custom providers are used alongside built-ins. The SDK selects the first provide
 | `money.identifyChains({ address })` | `{ chains: string[], note }` |
 | `money.exportKeys({ chain, network? })` | `{ address, privateKey, keyfile, chain, chainType, note }` |
 | `money.sign({ chain, message, network? })` | `{ signature, address, chain, network, note }` |
+| `money.verifySign({ chain, message, signature, address, network? })` | `{ valid, address, chain, network, note }` |
 | `money.quote({ chain, from, to, amount, network, slippageBps?, provider? })` | `{ fromToken, toToken, fromAmount, toAmount, rate, priceImpact, provider, chain, network, note }` |
 | `money.swap({ chain, from, to, amount, network, slippageBps?, provider? })` | `{ txHash, explorerUrl, fromToken, toToken, fromAmount, toAmount, provider, chain, network, note }` |
 | `money.price({ token, chain?, provider? })` | `{ price, symbol, name, priceChange24h?, volume24h?, liquidity?, marketCap?, chain?, note }` |

@@ -11,6 +11,7 @@ import {
   http,
   formatUnits,
   parseUnits,
+  verifyMessage,
 } from 'viem';
 import { privateKeyToAccount, publicKeyToAddress } from 'viem/accounts';
 import type { Chain, PublicClient } from 'viem';
@@ -303,6 +304,27 @@ export function createEvmAdapter(
     return tokens;
   }
 
+  // ─── verifySign ──────────────────────────────────────────────────────────
+
+  async function verifySign(params: {
+    message: string | Uint8Array;
+    signature: string;
+    address: string;
+  }): Promise<{ valid: boolean }> {
+    try {
+      const valid = await verifyMessage({
+        address: params.address as `0x${string}`,
+        message: typeof params.message === 'string'
+          ? params.message
+          : { raw: params.message },
+        signature: params.signature as `0x${string}`,
+      });
+      return { valid };
+    } catch {
+      return { valid: false };
+    }
+  }
+
   // ─── Assemble adapter ────────────────────────────────────────────────────────
 
   return {
@@ -314,5 +336,6 @@ export function createEvmAdapter(
     faucet,
     sign,
     ownedTokens,
+    verifySign,
   };
 }

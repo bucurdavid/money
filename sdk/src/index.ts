@@ -58,6 +58,8 @@ import type {
   ExportKeysResult,
   SignParams,
   SignResult,
+  VerifySignParams,
+  VerifySignResult,
   SwapParams,
   QuoteResult,
   SwapResult,
@@ -116,6 +118,8 @@ export type {
   ExportKeysResult,
   SignParams,
   SignResult,
+  VerifySignParams,
+  VerifySignResult,
   SwapParams,
 } from './types.js';
 
@@ -930,6 +934,64 @@ export const money = {
       chain: resolvedChain,
       network: resolvedNetwork as NetworkType,
       note: '',
+    };
+  },
+
+  // ─── verifySign ────────────────────────────────────────────────────────────
+
+  async verifySign(params: VerifySignParams): Promise<VerifySignResult> {
+    const { chain, message, signature, address, network } = params;
+    if (!chain) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: chain', {
+        note: 'Provide a chain name:\n  await money.verifySign({ chain: "base", message: "hello", signature: "0x...", address: "0x..." })',
+      });
+    }
+    if (!message) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: message', {
+        note: 'Provide the original message that was signed.',
+      });
+    }
+    if (!signature) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: signature', {
+        note: 'Provide the signature to verify.',
+      });
+    }
+    if (!address) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: address', {
+        note: 'Provide the address of the expected signer.',
+      });
+    }
+
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain, config.chains, network);
+    if (!resolved) {
+      throw new MoneyError('CHAIN_NOT_CONFIGURED', `Chain "${chain}" is not configured.`, {
+        chain,
+        note: `Run setup first:\n  await money.setup({ chain: "${chain}" })`,
+      });
+    }
+
+    const { key } = resolved;
+    const { chain: resolvedChain, network: resolvedNetwork } = parseConfigKey(key);
+    const adapter = await getAdapter(key);
+
+    if (!adapter.verifySign) {
+      throw new MoneyError('UNSUPPORTED_OPERATION', `Signature verification is not supported on chain "${resolvedChain}".`, {
+        chain: resolvedChain,
+        note: 'This chain adapter does not implement verifySign.',
+      });
+    }
+
+    const result = await adapter.verifySign({ message, signature, address });
+
+    return {
+      valid: result.valid,
+      address,
+      chain: resolvedChain,
+      network: resolvedNetwork as NetworkType,
+      note: result.valid
+        ? ''
+        : 'Signature verification failed. The signature does not match the provided address and message.',
     };
   },
 

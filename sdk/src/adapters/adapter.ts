@@ -29,4 +29,11 @@ export interface ChainAdapter {
     rawBalance: string;
     decimals: number;
   }>>;
+
+  /** Verify a signature against an address (optional) */
+  verifySign?(params: {
+    message: string | Uint8Array;
+    signature: string;
+    address: string;
+  }): Promise<{ valid: boolean }>;
 }

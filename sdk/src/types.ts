@@ -245,6 +245,24 @@ export interface SignResult {
   note: string;
 }
 
+/** Params for money.verifySign() */
+export interface VerifySignParams {
+  chain: string;
+  message: string | Uint8Array;
+  signature: string;
+  address: string;
+  network?: NetworkType;
+}
+
+/** Result of money.verifySign() */
+export interface VerifySignResult {
+  valid: boolean;
+  address: string;
+  chain: string;
+  network: NetworkType;
+  note: string;
+}
+
 // ─── Swap / Quote types ─────────────────────────────────────────────────────
 
 /** Params for money.quote() and money.swap() */

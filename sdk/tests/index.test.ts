@@ -673,3 +673,108 @@ describe('history CSV round-trip', () => {
     assert.equal(result.entries[0].amount, '1.0');
   });
 });
+
+// ─── money.verifySign ─────────────────────────────────────────────────────────
+
+describe('money.verifySign', () => {
+  it('throws INVALID_PARAMS when chain is missing', async () => {
+    await assert.rejects(
+      () => money.verifySign({ chain: '', message: 'hello', signature: 'abc', address: 'abc' } as Parameters<typeof money.verifySign>[0]),
+      (err: Error) => {
+        assert.ok(err instanceof MoneyError);
+        assert.equal((err as MoneyError).code, 'INVALID_PARAMS');
+        return true;
+      },
+    );
+  });
+
+  it('throws INVALID_PARAMS when signature is missing', async () => {
+    await assert.rejects(
+      () => money.verifySign({ chain: 'fast', message: 'hello', signature: '', address: 'abc' } as Parameters<typeof money.verifySign>[0]),
+      (err: Error) => {
+        assert.ok(err instanceof MoneyError);
+        assert.equal((err as MoneyError).code, 'INVALID_PARAMS');
+        return true;
+      },
+    );
+  });
+
+  it('throws CHAIN_NOT_CONFIGURED for unconfigured chain', async () => {
+    await assert.rejects(
+      () => money.verifySign({ chain: 'unknown', message: 'hello', signature: 'abc', address: 'abc' }),
+      (err: Error) => {
+        assert.ok(err instanceof MoneyError);
+        assert.equal((err as MoneyError).code, 'CHAIN_NOT_CONFIGURED');
+        return true;
+      },
+    );
+  });
+
+  it('verifies a valid fast chain signature (sign then verify round-trip)', async () => {
+    await seedConfig(tmpDir);
+    await money.setup({ chain: 'fast' });
+    const signed = await money.sign({ chain: 'fast', message: 'verify me' });
+    const result = await money.verifySign({
+      chain: 'fast',
+      message: 'verify me',
+      signature: signed.signature,
+      address: signed.address,
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.chain, 'fast');
+    assert.equal(result.address, signed.address);
+  });
+
+  it('returns valid=false for a wrong message on fast chain', async () => {
+    await seedConfig(tmpDir);
+    await money.setup({ chain: 'fast' });
+    const signed = await money.sign({ chain: 'fast', message: 'original' });
+    const result = await money.verifySign({
+      chain: 'fast',
+      message: 'tampered',
+      signature: signed.signature,
+      address: signed.address,
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it('returns valid=false for a wrong address on fast chain', async () => {
+    await seedConfig(tmpDir);
+    await money.setup({ chain: 'fast' });
+    const signed = await money.sign({ chain: 'fast', message: 'hello' });
+    const result = await money.verifySign({
+      chain: 'fast',
+      message: 'hello',
+      signature: signed.signature,
+      address: 'set1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq8x0jnp',
+    });
+    assert.equal(result.valid, false);
+  });
+
+  it('verifies a valid EVM signature (sign then verify round-trip)', async () => {
+    await seedConfig(tmpDir);
+    await money.setup({ chain: 'base' });
+    const signed = await money.sign({ chain: 'base', message: 'verify me EVM' });
+    const result = await money.verifySign({
+      chain: 'base',
+      message: 'verify me EVM',
+      signature: signed.signature,
+      address: signed.address,
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.chain, 'base');
+  });
+
+  it('returns valid=false for wrong message on EVM', async () => {
+    await seedConfig(tmpDir);
+    await money.setup({ chain: 'base' });
+    const signed = await money.sign({ chain: 'base', message: 'original' });
+    const result = await money.verifySign({
+      chain: 'base',
+      message: 'tampered',
+      signature: signed.signature,
+      address: signed.address,
+    });
+    assert.equal(result.valid, false);
+  });
+});

@@ -68171,6 +68171,37 @@ var signAsync = async (msg, privKey) => {
   const rBytes = await sha512a(e2.prefix, m);
   return hashFinishA(_sign(e2, rBytes, m));
 };
+var veriOpts = { zip215: true };
+var _verify = (sig, msg, pub, opts = veriOpts) => {
+  sig = toU8(sig, L2);
+  msg = toU8(msg);
+  pub = toU8(pub, L);
+  const { zip215 } = opts;
+  let A;
+  let R;
+  let s;
+  let SB;
+  let hashable = Uint8Array.of();
+  try {
+    A = Point.fromHex(pub, zip215);
+    R = Point.fromHex(sig.slice(0, L), zip215);
+    s = bytesToNumLE(sig.slice(L, L2));
+    SB = G.multiply(s, false);
+    hashable = concatBytes(R.toBytes(), A.toBytes(), msg);
+  } catch (error) {
+  }
+  const finish = (hashed) => {
+    if (SB == null)
+      return false;
+    if (!zip215 && A.isSmallOrder())
+      return false;
+    const k = modL_LE(hashed);
+    const RkA = R.add(A.multiply(k, false));
+    return RkA.add(SB.negate()).clearCofactor().is0();
+  };
+  return { hashable, finish };
+};
+var verifyAsync = async (s, m, p, opts = veriOpts) => hashFinishA(_verify(s, m, p, opts));
 var etc = {
   sha512Async: async (...messages) => {
     const s = subtle();
@@ -68336,6 +68367,14 @@ async function signEd25519(message, privateKeyHex) {
     return await signAsync(message, privKeyBuf);
   } finally {
     privKeyBuf.fill(0);
+  }
+}
+async function verifyEd25519(signature, message, publicKeyHex) {
+  try {
+    const pubKeyBytes = Buffer.from(publicKeyHex, "hex");
+    return await verifyAsync(signature, message, pubKeyBytes);
+  } catch {
+    return false;
   }
 }
 async function withKey(keyfilePath, fn) {
@@ -69954,6 +69993,22 @@ function createFastAdapter(rpcUrl, network = "testnet") {
       });
     },
     // -----------------------------------------------------------------------
+    // verifySign: verify an Ed25519 signature against a set1... address
+    // -----------------------------------------------------------------------
+    async verifySign(params) {
+      try {
+        const decoded = import_bech32.bech32m.decode(params.address, 90);
+        const pubkeyBytes = import_bech32.bech32m.fromWords(decoded.words);
+        const publicKeyHex = Buffer.from(new Uint8Array(pubkeyBytes)).toString("hex");
+        const sigBytes = Buffer.from(params.signature, "hex");
+        const msgBytes = typeof params.message === "string" ? new TextEncoder().encode(params.message) : params.message;
+        const valid = await verifyEd25519(sigBytes, msgBytes, publicKeyHex);
+        return { valid };
+      } catch {
+        return { valid: false };
+      }
+    },
+    // -----------------------------------------------------------------------
     // faucet: proxy_faucetDrip (returns null on success)
     // -----------------------------------------------------------------------
     async faucet(address) {
@@ -70483,6 +70538,18 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain
     }
     return tokens;
   }
+  async function verifySign(params) {
+    try {
+      const valid = await verifyMessage({
+        address: params.address,
+        message: typeof params.message === "string" ? params.message : { raw: params.message },
+        signature: params.signature
+      });
+      return { valid };
+    } catch {
+      return { valid: false };
+    }
+  }
   return {
     chain: chainName,
     addressPattern: ADDRESS_PATTERN2,
@@ -70491,7 +70558,8 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain
     send,
     faucet,
     sign: sign2,
-    ownedTokens
+    ownedTokens,
+    verifySign
   };
 }
 
@@ -70761,6 +70829,21 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
     }
     return tokens;
   }
+  async function verifySign(params) {
+    try {
+      const { PublicKey: PublicKey23 } = await getWeb3();
+      const bs58Module = await Promise.resolve().then(() => __toESM(require_bs58(), 1));
+      const bs58Decode = bs58Module.default?.decode ?? bs58Module.decode;
+      const sigBytes = bs58Decode(params.signature);
+      const msgBytes = typeof params.message === "string" ? new TextEncoder().encode(params.message) : params.message;
+      const pubkey = new PublicKey23(params.address);
+      const publicKeyHex = Buffer.from(pubkey.toBytes()).toString("hex");
+      const valid = await verifyEd25519(sigBytes, msgBytes, publicKeyHex);
+      return { valid };
+    } catch {
+      return { valid: false };
+    }
+  }
   return {
     chain: "solana",
     addressPattern: ADDRESS_PATTERN3,
@@ -70769,7 +70852,8 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
     send,
     faucet,
     sign: sign2,
-    ownedTokens
+    ownedTokens,
+    verifySign
   };
 }
 
@@ -72693,6 +72777,56 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       chain: resolvedChain,
       network: resolvedNetwork,
       note: ""
+    };
+  },
+  // ─── verifySign ────────────────────────────────────────────────────────────
+  async verifySign(params) {
+    const { chain: chain2, message, signature, address, network } = params;
+    if (!chain2) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
+        note: 'Provide a chain name:\n  await money.verifySign({ chain: "base", message: "hello", signature: "0x...", address: "0x..." })'
+      });
+    }
+    if (!message) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: message", {
+        note: "Provide the original message that was signed."
+      });
+    }
+    if (!signature) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: signature", {
+        note: "Provide the signature to verify."
+      });
+    }
+    if (!address) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: address", {
+        note: "Provide the address of the expected signer."
+      });
+    }
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain2, config.chains, network);
+    if (!resolved) {
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
+        chain: chain2,
+        note: `Run setup first:
+  await money.setup({ chain: "${chain2}" })`
+      });
+    }
+    const { key } = resolved;
+    const { chain: resolvedChain, network: resolvedNetwork } = parseConfigKey(key);
+    const adapter = await getAdapter(key);
+    if (!adapter.verifySign) {
+      throw new MoneyError("UNSUPPORTED_OPERATION", `Signature verification is not supported on chain "${resolvedChain}".`, {
+        chain: resolvedChain,
+        note: "This chain adapter does not implement verifySign."
+      });
+    }
+    const result = await adapter.verifySign({ message, signature, address });
+    return {
+      valid: result.valid,
+      address,
+      chain: resolvedChain,
+      network: resolvedNetwork,
+      note: result.valid ? "" : "Signature verification failed. The signature does not match the provided address and message."
     };
   },
   // ─── quote ────────────────────────────────────────────────────────────────

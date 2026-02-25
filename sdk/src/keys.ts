@@ -184,6 +184,23 @@ export async function signEd25519(message: Uint8Array, privateKeyHex: string): P
 }
 
 /**
+ * Verify an Ed25519 signature.
+ * Returns true if the signature is valid for the given message and public key.
+ */
+export async function verifyEd25519(
+  signature: Uint8Array,
+  message: Uint8Array,
+  publicKeyHex: string,
+): Promise<boolean> {
+  try {
+    const pubKeyBytes = Buffer.from(publicKeyHex, 'hex');
+    return await ed.verifyAsync(signature, message, pubKeyBytes);
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Sign a message hash with secp256k1 (ECDSA).
  * Returns r, s as 64-char hex strings and v as a recovery hint (0).
  *

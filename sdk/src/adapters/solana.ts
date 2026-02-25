@@ -20,6 +20,7 @@ import {
   loadKeyfile,
   withKey,
   signEd25519,
+  verifyEd25519,
 } from '../keys.js';
 import { MoneyError } from '../errors.js';
 import { toRaw, toHuman } from '../utils.js';
@@ -445,6 +446,39 @@ export function createSolanaAdapter(
     return tokens;
   }
 
+  // ─── verifySign ──────────────────────────────────────────────────────────
+
+  async function verifySign(params: {
+    message: string | Uint8Array;
+    signature: string;
+    address: string;
+  }): Promise<{ valid: boolean }> {
+    try {
+      const { PublicKey } = await getWeb3();
+
+      // Decode base58 signature to bytes
+      // @ts-ignore
+      const bs58Module = await import('bs58');
+      const bs58Decode = (bs58Module.default?.decode ?? bs58Module.decode) as (str: string) => Uint8Array;
+      const sigBytes = bs58Decode(params.signature);
+
+      // Convert message to bytes
+      const msgBytes = typeof params.message === 'string'
+        ? new TextEncoder().encode(params.message)
+        : params.message;
+
+      // Get public key hex from base58 address
+      const pubkey = new PublicKey(params.address);
+      const publicKeyHex = Buffer.from(pubkey.toBytes()).toString('hex');
+
+      // Verify Ed25519 signature
+      const valid = await verifyEd25519(sigBytes, msgBytes, publicKeyHex);
+      return { valid };
+    } catch {
+      return { valid: false };
+    }
+  }
+
   // ─── Assemble adapter ─────────────────────────────────────────────────────
 
   return {
@@ -456,5 +490,6 @@ export function createSolanaAdapter(
     faucet,
     sign,
     ownedTokens,
+    verifySign,
   };
 }

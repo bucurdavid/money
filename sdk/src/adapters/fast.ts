@@ -18,6 +18,7 @@ import {
   loadKeyfile,
   withKey,
   signEd25519,
+  verifyEd25519,
 } from '../keys.js';
 import { MoneyError } from '../errors.js';
 import { toHex, fromHex } from '../utils.js';
@@ -400,6 +401,36 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
 
         return { signature, address };
       });
+    },
+
+    // -----------------------------------------------------------------------
+    // verifySign: verify an Ed25519 signature against a set1... address
+    // -----------------------------------------------------------------------
+    async verifySign(params: {
+      message: string | Uint8Array;
+      signature: string;
+      address: string;
+    }): Promise<{ valid: boolean }> {
+      try {
+        // Decode bech32m address to public key bytes
+        const decoded = bech32m.decode(params.address, 90);
+        const pubkeyBytes = bech32m.fromWords(decoded.words);
+        const publicKeyHex = Buffer.from(new Uint8Array(pubkeyBytes)).toString('hex');
+
+        // Decode hex signature to bytes
+        const sigBytes = Buffer.from(params.signature, 'hex');
+
+        // Convert message to bytes
+        const msgBytes = typeof params.message === 'string'
+          ? new TextEncoder().encode(params.message)
+          : params.message;
+
+        // Verify Ed25519 signature
+        const valid = await verifyEd25519(sigBytes, msgBytes, publicKeyHex);
+        return { valid };
+      } catch {
+        return { valid: false };
+      }
     },
 
     // -----------------------------------------------------------------------
