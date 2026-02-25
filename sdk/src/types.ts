@@ -28,6 +28,13 @@ export interface CustomChainDef {
 export interface MoneyConfig {
   chains: Record<string, ChainConfig>;
   customChains?: Record<string, CustomChainDef>;
+  apiKeys?: Record<string, string>;
+}
+
+/** Params for money.setApiKey() */
+export interface SetApiKeyParams {
+  provider: string;    // provider name (e.g. "jupiter", "my-dex")
+  apiKey: string;
 }
 
 // ─── Param types (JSON-only method signatures) ───────────────────────────────

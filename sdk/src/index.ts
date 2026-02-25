@@ -2,7 +2,7 @@
  * index.ts — Main entry point for the money SDK
  */
 
-import { loadConfig, setChainConfig, getChainConfig, getCustomChain, setCustomChain } from './config.js';
+import { loadConfig, saveConfig, setChainConfig, getChainConfig, getCustomChain, setCustomChain } from './config.js';
 import { expandHome, compareDecimalStrings } from './utils.js';
 import { loadKeyfile, withKey } from './keys.js';
 import { identifyChains, isValidAddress } from './detect.js';
@@ -63,11 +63,13 @@ import type {
   TokenInfoResult,
   BridgeParams,
   BridgeResult,
+  SetApiKeyParams,
 } from './types.js';
 
 import { parseUnits, formatUnits } from 'viem';
-import { createWalletClient, http } from 'viem';
+import { createWalletClient, createPublicClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import type { EvmTxExecutor, SolanaTxExecutor } from './providers/types.js';
 
 // ─── Register built-in providers ──────────────────────────────────────────────
 
@@ -121,6 +123,7 @@ export type {
   MoneyConfig,
   ChainName,
   TokenConfig,
+  SetApiKeyParams,
 } from './types.js';
 
 export type {
@@ -261,6 +264,122 @@ function getExplorerUrl(chain: string, txHash: string, _chainConfig: ChainConfig
   const baseUrl = BUILT_IN_EXPLORERS[chain];
   if (baseUrl) return `${baseUrl}${txHash}`;
   return '';
+}
+
+/**
+ * Create an EvmTxExecutor for a given chain config.
+ * Lazily initializes wallet+public clients on first use.
+ */
+function createEvmExecutor(keyfilePath: string, chainConfig: ChainConfig, chain: string): EvmTxExecutor {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let _clients: { walletClient: any; publicClient: any; account: any; viemChain: any } | null = null;
+
+  async function getClients(): Promise<{ walletClient: any; publicClient: any; account: any; viemChain: any }> {
+    if (_clients) return _clients;
+
+    const kp = await loadKeyfile(keyfilePath);
+    const account = privateKeyToAccount(`0x${kp.privateKey}` as `0x${string}`);
+    const customChain = await getCustomChain(chain);
+    const chainId = customChain?.chainId ?? getBuiltInChainId(chain);
+    const { defineChain } = await import('viem');
+    const viemChain = defineChain({
+      id: chainId,
+      name: chain,
+      nativeCurrency: { name: chainConfig.defaultToken, symbol: chainConfig.defaultToken, decimals: 18 },
+      rpcUrls: { default: { http: [chainConfig.rpc] } },
+    });
+    const walletClient = createWalletClient({
+      account,
+      chain: viemChain,
+      transport: http(chainConfig.rpc),
+    });
+    const publicClient = createPublicClient({
+      chain: viemChain,
+      transport: http(chainConfig.rpc),
+    });
+    _clients = { walletClient, publicClient, account, viemChain };
+    return _clients;
+  }
+
+  const executor: EvmTxExecutor = {
+    async sendTx(tx) {
+      if (!tx.to) throw new MoneyError('INVALID_PARAMS', 'Transaction target (to) is empty', { note: 'The provider returned an invalid transaction with no target address.' });
+      const { walletClient, publicClient, viemChain } = await getClients();
+      const hash = await walletClient.sendTransaction({
+        to: tx.to as `0x${string}`,
+        data: tx.data as `0x${string}`,
+        value: BigInt(tx.value || '0'),
+        ...(tx.gas ? { gas: BigInt(tx.gas) } : {}),
+        chain: viemChain,
+      });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash });
+      return {
+        txHash: hash,
+        status: receipt.status === 'success' ? 'success' as const : 'reverted' as const,
+      };
+    },
+
+    async checkAllowance(token, spender, owner) {
+      const { publicClient } = await getClients();
+      // allowance(address,address) selector = 0xdd62ed3e
+      const ownerPadded = owner.toLowerCase().replace('0x', '').padStart(64, '0');
+      const spenderPadded = spender.toLowerCase().replace('0x', '').padStart(64, '0');
+      const data = `0xdd62ed3e${ownerPadded}${spenderPadded}` as `0x${string}`;
+      const result = await publicClient.call({ to: token as `0x${string}`, data });
+      if (!result.data) return 0n;
+      return BigInt(result.data);
+    },
+
+    async approveErc20(token, spender, amount) {
+      // approve(address,uint256) selector = 0x095ea7b3
+      const spenderPadded = spender.toLowerCase().replace('0x', '').padStart(64, '0');
+      const amountHex = BigInt(amount).toString(16).padStart(64, '0');
+      const calldata = `0x095ea7b3${spenderPadded}${amountHex}` as `0x${string}`;
+      const receipt = await executor.sendTx({ to: token, data: calldata, value: '0' });
+      if (receipt.status === 'reverted') {
+        throw new MoneyError('TX_FAILED', `ERC-20 approval reverted for token ${token}`, { note: 'The approval transaction was reverted. Check that you have sufficient balance.' });
+      }
+      return receipt.txHash;
+    },
+  };
+
+  return executor;
+}
+
+/**
+ * Create a SolanaTxExecutor for a given keyfile and RPC endpoint.
+ */
+function createSolanaExecutor(keyfilePath: string, rpc: string): SolanaTxExecutor {
+  return {
+    async signAndSend(txBytes) {
+      return await withKey(keyfilePath, async (kp) => {
+        const { VersionedTransaction, Keypair, Connection } = await import('@solana/web3.js');
+        const vtx = VersionedTransaction.deserialize(txBytes);
+        const secretKey = Buffer.concat([
+          Buffer.from(kp.privateKey, 'hex'),
+          Buffer.from(kp.publicKey, 'hex'),
+        ]);
+        vtx.sign([Keypair.fromSecretKey(secretKey)]);
+
+        const connection = new Connection(rpc, 'confirmed');
+        const signature = await connection.sendRawTransaction(vtx.serialize(), {
+          skipPreflight: false,
+          maxRetries: 3,
+        });
+
+        // Wait for confirmation
+        const latestBlockhash = await connection.getLatestBlockhash();
+        const confirmation = await connection.confirmTransaction({
+          signature,
+          blockhash: latestBlockhash.blockhash,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
+        });
+
+        const status = confirmation.value.err ? 'failed' as const : 'success' as const;
+        return { txHash: signature, status };
+      });
+    },
+  };
 }
 
 // ─── SDK Object ───────────────────────────────────────────────────────────────
@@ -651,6 +770,20 @@ export const money = {
     await setChainConfig(key, chainConfig);
   },
 
+  // ─── setApiKey ─────────────────────────────────────────────────────────────
+
+  async setApiKey(params: SetApiKeyParams): Promise<void> {
+    if (!params.provider || !params.apiKey) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing provider or apiKey', {
+        note: 'await money.setApiKey({ provider: "jupiter", apiKey: "your-key" })',
+      });
+    }
+    const config = await loadConfig();
+    config.apiKeys = config.apiKeys ?? {};
+    config.apiKeys[params.provider] = params.apiKey;
+    await saveConfig(config);
+  },
+
   // ─── sign ──────────────────────────────────────────────────────────────────
 
   async sign(params: SignParams): Promise<SignResult> {
@@ -721,6 +854,8 @@ export const money = {
     const resolved = resolveChainKey(chain, config.chains, network);
     const userAddress = resolved ? await getAddressForChain(resolved.chainConfig) : '';
 
+    const apiKey = config.apiKeys?.[provider.name];
+
     const fromResolved = resolveSwapToken(from, chain);
     const toResolved = resolveSwapToken(to, chain);
 
@@ -735,6 +870,7 @@ export const money = {
       amount: fromRaw,
       slippageBps,
       userAddress,
+      apiKey,
     });
 
     const rate = Number(quote.toAmountHuman) / Number(quote.fromAmountHuman);
@@ -808,10 +944,17 @@ export const money = {
       userAddress,
     });
 
+    const apiKey = config.apiKeys?.[provider.name];
+
+    // Build executors based on chain type
+    const isSolana = chain === 'solana';
+    const evmExecutor = isSolana ? undefined : createEvmExecutor(keyfilePath, chainConfig, chain);
+    const solanaExecutor = isSolana ? createSolanaExecutor(keyfilePath, chainConfig.rpc) : undefined;
+
     // Execute swap
-    const adapter = await getAdapter(key);
     const result = await provider.swap({
       chain,
+      chainId: getBuiltInChainId(chain),
       fromToken: fromResolved.address,
       toToken: toResolved.address,
       fromDecimals: fromResolved.decimals,
@@ -820,60 +963,9 @@ export const money = {
       slippageBps,
       userAddress,
       route: quote.route,
-      signTransaction: async (tx: Uint8Array) => {
-        return await withKey(keyfilePath, async (kp) => {
-          // For Solana: sign the versioned transaction
-          const { VersionedTransaction } = await import('@solana/web3.js');
-          const vtx = VersionedTransaction.deserialize(tx);
-          const { Keypair } = await import('@solana/web3.js');
-          const secretKey = Buffer.concat([
-            Buffer.from(kp.privateKey, 'hex'),
-            Buffer.from(kp.publicKey, 'hex'),
-          ]);
-          const keypair = Keypair.fromSecretKey(secretKey);
-          vtx.sign([keypair]);
-          return vtx.serialize();
-        });
-      },
-      sendRawTransaction: async (signedTx: Uint8Array) => {
-        const { Connection } = await import('@solana/web3.js');
-        const connection = new Connection(chainConfig.rpc, 'confirmed');
-        const sig = await connection.sendRawTransaction(signedTx, { skipPreflight: false });
-        const latestBlockhash = await connection.getLatestBlockhash();
-        await connection.confirmTransaction({
-          signature: sig,
-          blockhash: latestBlockhash.blockhash,
-          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight,
-        });
-        return sig;
-      },
-      signAndSendEvmTransaction: async (tx) => {
-        return await withKey(keyfilePath, async (kp) => {
-          const account = privateKeyToAccount(`0x${kp.privateKey}` as `0x${string}`);
-          const customChain = await getCustomChain(chain);
-          const chainId = customChain?.chainId ?? getBuiltInChainId(chain);
-          const { defineChain } = await import('viem');
-          const viemChain = defineChain({
-            id: chainId,
-            name: chain,
-            nativeCurrency: { name: chainConfig.defaultToken, symbol: chainConfig.defaultToken, decimals: 18 },
-            rpcUrls: { default: { http: [chainConfig.rpc] } },
-          });
-          const walletClient = createWalletClient({
-            account,
-            chain: viemChain,
-            transport: http(chainConfig.rpc),
-          });
-          const txHash = await walletClient.sendTransaction({
-            to: tx.to as `0x${string}`,
-            data: tx.data as `0x${string}`,
-            value: BigInt(tx.value || '0'),
-            ...(tx.gas ? { gas: BigInt(tx.gas) } : {}),
-            chain: viemChain,
-          });
-          return txHash;
-        });
-      },
+      evmExecutor,
+      solanaExecutor,
+      apiKey,
     });
 
     // Get explorer URL from adapter
@@ -925,12 +1017,16 @@ export const money = {
       });
     }
 
+    const config = await loadConfig();
+    const apiKey = config.apiKeys?.[provider.name];
+
     try {
-      const result = await provider.getPrice({ token, chain });
+      const result = await provider.getPrice({ token, chain, apiKey });
+      const chainHint = chain ? `chain: "${chain}"` : `chain: "ethereum"`;
       return {
         ...result,
         chain,
-        note: '',
+        note: `To use this token in balance/send, register it:\n  await money.registerToken({ ${chainHint}, name: "${result.symbol}", address: "${token}", decimals: 18 })`,
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -960,12 +1056,17 @@ export const money = {
       });
     }
 
+    const config = await loadConfig();
+    const apiKey = config.apiKeys?.[provider.name];
+
     try {
-      const result = await provider.getTokenInfo({ token, chain });
+      const result = await provider.getTokenInfo({ token, chain, apiKey });
+      const chainHint = chain ? `chain: "${chain}"` : `chain: "ethereum"`;
+      const decimalsHint = result.decimals !== undefined ? result.decimals : 18;
       return {
         ...result,
         chain,
-        note: '',
+        note: `To use this token in balance/send, register it:\n  await money.registerToken({ ${chainHint}, name: "${result.symbol}", address: "${result.address}", decimals: ${decimalsHint} })`,
       };
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -1029,53 +1130,27 @@ export const money = {
     const toTokenResolved = resolveSwapToken(toToken, to.chain);
     const fromRaw = toRawAmount(String(amount), fromTokenResolved.decimals);
 
+    // Build executors based on source chain type
+    const isSolanaSource = from.chain === 'solana';
+    const evmExecutor = isSolanaSource ? undefined : createEvmExecutor(keyfilePath, srcResolved.chainConfig, from.chain);
+    const solanaExecutor = isSolanaSource ? createSolanaExecutor(keyfilePath, srcResolved.chainConfig.rpc) : undefined;
+
+    const apiKey = config.apiKeys?.[provider.name];
+
     const result = await provider.bridge({
       fromChain: from.chain,
       toChain: to.chain,
+      fromChainId: getBuiltInChainId(from.chain),
+      toChainId: getBuiltInChainId(to.chain),
       fromToken: fromTokenResolved.address,
       toToken: toTokenResolved.address,
       fromDecimals: fromTokenResolved.decimals,
       amount: fromRaw,
       senderAddress,
       receiverAddress,
-      signTransaction: async (tx: Uint8Array) => {
-        return await withKey(keyfilePath, async (kp) => {
-          const { VersionedTransaction, Keypair } = await import('@solana/web3.js');
-          const vtx = VersionedTransaction.deserialize(tx);
-          const secretKey = Buffer.concat([
-            Buffer.from(kp.privateKey, 'hex'),
-            Buffer.from(kp.publicKey, 'hex'),
-          ]);
-          vtx.sign([Keypair.fromSecretKey(secretKey)]);
-          return vtx.serialize();
-        });
-      },
-      signAndSendEvmTransaction: async (tx) => {
-        return await withKey(keyfilePath, async (kp) => {
-          const account = privateKeyToAccount(`0x${kp.privateKey}` as `0x${string}`);
-          const customChain = await getCustomChain(from.chain);
-          const chainId = customChain?.chainId ?? getBuiltInChainId(from.chain);
-          const { defineChain } = await import('viem');
-          const viemChain = defineChain({
-            id: chainId,
-            name: from.chain,
-            nativeCurrency: { name: srcResolved.chainConfig.defaultToken, symbol: srcResolved.chainConfig.defaultToken, decimals: 18 },
-            rpcUrls: { default: { http: [srcResolved.chainConfig.rpc] } },
-          });
-          const walletClient = createWalletClient({
-            account,
-            chain: viemChain,
-            transport: http(srcResolved.chainConfig.rpc),
-          });
-          return await walletClient.sendTransaction({
-            to: tx.to as `0x${string}`,
-            data: tx.data as `0x${string}`,
-            value: BigInt(tx.value || '0'),
-            ...(tx.gas ? { gas: BigInt(tx.gas) } : {}),
-            chain: viemChain,
-          });
-        });
-      },
+      evmExecutor,
+      solanaExecutor,
+      apiKey,
     });
 
     const explorerUrl = getExplorerUrl(from.chain, result.txHash, srcResolved.chainConfig);

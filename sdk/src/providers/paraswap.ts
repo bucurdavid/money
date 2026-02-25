@@ -94,9 +94,8 @@ export const paraswapProvider: SwapProvider = {
 
   async swap(params): Promise<{ txHash: string }> {
     const chainId = params.chainId ?? CHAIN_IDS[params.chain];
-    if (!chainId) {
-      throw new Error(`Paraswap does not support chain "${params.chain}"`);
-    }
+    if (!chainId) throw new Error(`Paraswap does not support chain "${params.chain}"`);
+    if (!params.evmExecutor) throw new Error('Paraswap swap requires evmExecutor');
 
     // Step 1: Build the transaction using the priceRoute from quote
     const buildRes = await fetch(`${BASE_URL}/transactions/${chainId}?ignoreChecks=true`, {
@@ -109,7 +108,7 @@ export const paraswapProvider: SwapProvider = {
         destAmount: (params.route as { destAmount: string }).destAmount,
         priceRoute: params.route,
         userAddress: params.userAddress,
-        slippage: params.slippageBps, // Paraswap takes slippage in bps
+        slippage: params.slippageBps,
       }),
     });
 
@@ -128,19 +127,31 @@ export const paraswapProvider: SwapProvider = {
       chainId: number;
     };
 
-    // Step 2: Sign and send the EVM transaction
-    if (params.signAndSendEvmTransaction) {
-      const txHash = await params.signAndSendEvmTransaction({
-        to: txData.to,
-        data: txData.data,
-        value: txData.value,
-        gas: txData.gas,
-        gasPrice: txData.gasPrice,
-      });
-      return { txHash };
+    // Step 2: ERC-20 approval if not native token
+    const NATIVE = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+    if (params.fromToken.toLowerCase() !== NATIVE.toLowerCase()) {
+      const spender = txData.to; // Paraswap's TokenTransferProxy
+      const currentAllowance = await params.evmExecutor.checkAllowance(params.fromToken, spender, params.userAddress);
+      if (currentAllowance < BigInt(params.amount)) {
+        await params.evmExecutor.approveErc20(params.fromToken, spender, params.amount);
+      }
     }
 
-    throw new Error('Paraswap swap requires signAndSendEvmTransaction callback');
+    // Step 3: Validate and send the swap transaction
+    if (!txData.to) throw new Error('Paraswap returned empty transaction target');
+
+    const receipt = await params.evmExecutor.sendTx({
+      to: txData.to,
+      data: txData.data,
+      value: txData.value,
+      gas: txData.gas,
+    });
+
+    if (receipt.status === 'reverted') {
+      throw new Error(`Paraswap swap transaction reverted: ${receipt.txHash}`);
+    }
+
+    return { txHash: receipt.txHash };
   },
 };
 

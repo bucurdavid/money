@@ -18,6 +18,22 @@ export interface SwapQuote {
   provider: string;        // which provider generated this quote
 }
 
+/** Transaction executor for EVM chains — handles signing, sending, confirmation, and ERC-20 approvals */
+export interface EvmTxExecutor {
+  /** Send a transaction, wait for on-chain confirmation, return receipt */
+  sendTx(tx: { to: string; data: string; value: string; gas?: string }): Promise<{ txHash: string; status: 'success' | 'reverted' }>;
+  /** Check current ERC-20 allowance for spender */
+  checkAllowance(token: string, spender: string, owner: string): Promise<bigint>;
+  /** Approve ERC-20 spending, wait for confirmation, return approval tx hash */
+  approveErc20(token: string, spender: string, amount: string): Promise<string>;
+}
+
+/** Transaction executor for Solana — handles signing, sending, and confirmation */
+export interface SolanaTxExecutor {
+  /** Sign a serialized transaction, send it, wait for confirmation */
+  signAndSend(txBytes: Uint8Array): Promise<{ txHash: string; status: 'success' | 'failed' }>;
+}
+
 /** Swap provider interface */
 export interface SwapProvider {
   name: string;
@@ -32,6 +48,7 @@ export interface SwapProvider {
     amount: string;           // raw units
     slippageBps: number;
     userAddress: string;
+    apiKey?: string;           // for providers that need an API key (e.g. Jupiter)
   }): Promise<SwapQuote>;
   swap(params: {
     chain: string;
@@ -44,10 +61,9 @@ export interface SwapProvider {
     slippageBps: number;
     userAddress: string;
     route: unknown;           // from quote()
-    signTransaction: (tx: Uint8Array) => Promise<Uint8Array>;
-    sendRawTransaction?: (signedTx: Uint8Array) => Promise<string>;  // returns txHash
-    // EVM-specific: sign and send a prepared tx object
-    signAndSendEvmTransaction?: (tx: { to: string; data: string; value: string; gas?: string; gasPrice?: string }) => Promise<string>;
+    evmExecutor?: EvmTxExecutor;
+    solanaExecutor?: SolanaTxExecutor;
+    apiKey?: string;           // for providers that need an API key (e.g. Jupiter)
   }): Promise<{ txHash: string }>;
 }
 
@@ -66,8 +82,9 @@ export interface BridgeProvider {
     amount: string;          // raw units
     senderAddress: string;
     receiverAddress: string;
-    signTransaction: (tx: Uint8Array) => Promise<Uint8Array>;
-    signAndSendEvmTransaction?: (tx: { to: string; data: string; value: string; gas?: string }) => Promise<string>;
+    evmExecutor?: EvmTxExecutor;
+    solanaExecutor?: SolanaTxExecutor;
+    apiKey?: string;           // for providers that need an API key
   }): Promise<{
     txHash: string;
     orderId?: string;        // for tracking bridge status
@@ -81,6 +98,7 @@ export interface PriceProvider {
   getPrice(params: {
     token: string;           // symbol or address
     chain?: string;
+    apiKey?: string;         // for providers that need an API key
   }): Promise<{
     price: string;           // USD price
     symbol: string;
@@ -93,6 +111,7 @@ export interface PriceProvider {
   getTokenInfo?(params: {
     token: string;
     chain?: string;
+    apiKey?: string;         // for providers that need an API key
   }): Promise<{
     name: string;
     symbol: string;

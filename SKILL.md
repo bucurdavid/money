@@ -83,6 +83,7 @@ Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"polygon"` `"opti
 | Convert between human and raw units | Unit Conversion |
 | View past sends | History |
 | Register a custom provider | Custom Providers |
+| Configure API keys (e.g. Jupiter) | Swap |
 | See all methods | Reference |
 
 ## NOT for this skill
@@ -261,17 +262,23 @@ For confirmed incoming verification, use a block explorer — outside this skill
 
 Swap tokens on-chain. Uses Jupiter (Solana) and Paraswap (11 EVM chains) automatically. **Requires `network: "mainnet"` explicitly** — testnet DEXes have no liquidity.
 
-```js
-// Get a quote first (read-only, no transaction)
-const q = await money.quote({ chain: "solana", from: "SOL", to: "USDC", amount: 1, network: "mainnet" });
-// q = { fromToken: "SOL", toToken: "USDC", fromAmount: "1", toAmount: "145.23", rate: "1 SOL = 145.23 USDC", priceImpact: "0.05", provider: "jupiter", chain, network, note }
+ERC-20 token approvals are handled automatically — the SDK checks allowance and approves if needed before swapping. All transactions are confirmed on-chain before returning.
 
-// Execute the swap (sends a transaction)
-const tx = await money.swap({ chain: "solana", from: "SOL", to: "USDC", amount: 1, network: "mainnet" });
+```js
+// EVM swap (e.g. ETH to USDC on Base) — works immediately
+const tx = await money.swap({ chain: "base", from: "ETH", to: "USDC", amount: 0.5, network: "mainnet" });
 // tx = { txHash, explorerUrl, fromToken, toToken, fromAmount, toAmount, provider, chain, network, note }
 
-// EVM swap (e.g. ETH to USDC on Base)
-const tx = await money.swap({ chain: "base", from: "ETH", to: "USDC", amount: 0.5, network: "mainnet" });
+// EVM swap with ERC-20 token (approval handled automatically)
+const tx = await money.swap({ chain: "base", from: "USDC", to: "WETH", amount: 100, network: "mainnet" });
+
+// Solana swap — requires one-time Jupiter API key setup (free at portal.jup.ag)
+await money.setApiKey({ provider: "jupiter", apiKey: "your-free-key-from-portal.jup.ag" });
+const tx = await money.swap({ chain: "solana", from: "SOL", to: "USDC", amount: 1, network: "mainnet" });
+
+// Get a quote first (read-only, no transaction)
+const q = await money.quote({ chain: "solana", from: "SOL", to: "USDC", amount: 1, network: "mainnet" });
+// q = { fromToken, toToken, fromAmount, toAmount, rate, priceImpact, provider, chain, network, note }
 
 // Custom slippage (default is 50 bps = 0.5%)
 const tx = await money.swap({ chain: "base", from: "USDC", to: "WETH", amount: 100, network: "mainnet", slippageBps: 100 });
@@ -286,6 +293,8 @@ Supported swap chains: Solana (Jupiter), Ethereum, Base, Arbitrum, Polygon, Opti
 ## Bridge
 
 Bridge tokens between chains. Uses DeBridge DLN. **Requires `network: "mainnet"` explicitly.**
+
+ERC-20 token approvals are handled automatically. Transactions are confirmed on-chain before the SDK returns — no phantom transaction hashes.
 
 ```js
 // Bridge USDC from Ethereum to Base
@@ -334,6 +343,8 @@ const info = await money.tokenInfo({ token: "USDC", chain: "ethereum" });
 // Use a custom price provider (must be registered first via registerPriceProvider)
 const p = await money.price({ token: "BTC", provider: "my-oracle" });
 ```
+
+The `note` field in price/tokenInfo responses includes a `money.registerToken()` hint so you can easily use the discovered token in balance/send calls.
 
 ---
 
@@ -515,6 +526,7 @@ Custom providers are used alongside built-ins. The SDK selects the first provide
 |--------|---------|
 | `money.setup({ chain, network?, rpc? })` | `{ chain, address, network, note }` |
 | `money.registerEvmChain({ chain, chainId, rpc, explorer?, defaultToken?, network? })` | `void` |
+| `money.setApiKey({ provider, apiKey })` | `void` |
 | `money.status()` | `{ entries: [...], note }` |
 | `money.balance({ chain, network?, token? })` | `{ amount, token, chain, network, address, note }` |
 | `money.send({ to, amount, chain, network?, token? })` | `{ txHash, explorerUrl, fee, chain, network, note }` |
@@ -541,3 +553,5 @@ All errors: `{ code, message, note }`. The `note` field contains a code example 
 `token` is optional on send/balance. When omitted, the chain's native token is used: SET (Fast), ETH (Base/Ethereum/Arbitrum/Optimism/zkSync/Linea/Scroll), POL (Polygon), BNB (BSC), AVAX (Avalanche), FTM (Fantom), SOL (Solana).
 
 Swap, quote, and bridge **require `network: "mainnet"` explicitly**. Price and tokenInfo are read-only and work regardless of network.
+
+Solana swaps require a Jupiter API key (free at portal.jup.ag). Run `money.setApiKey({ provider: "jupiter", apiKey: "..." })` once before your first Solana swap.

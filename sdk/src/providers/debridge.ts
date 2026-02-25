@@ -82,21 +82,49 @@ export const debridgeProvider: BridgeProvider = {
 
     if (isSolanaSource) {
       // Solana: tx.data is a base64-encoded transaction
-      const txBytes = Buffer.from(data.tx.data, 'base64');
-      const _signedTx = await params.signTransaction(new Uint8Array(txBytes));
-      // sendRawTransaction is not part of the bridge interface — coming soon
-      throw new Error('Solana bridge support requires sendRawTransaction — coming soon');
-    } else {
-      // EVM: use signAndSendEvmTransaction
-      if (!params.signAndSendEvmTransaction) {
-        throw new Error('DeBridge EVM bridge requires signAndSendEvmTransaction callback');
+      if (!params.solanaExecutor) {
+        throw new Error('DeBridge Solana bridge requires solanaExecutor');
       }
-      txHash = await params.signAndSendEvmTransaction({
+      const txBytes = Buffer.from(data.tx.data, 'base64');
+      const result = await params.solanaExecutor.signAndSend(new Uint8Array(txBytes));
+      if (result.status === 'failed') {
+        throw new Error(`DeBridge Solana bridge transaction failed: ${result.txHash}`);
+      }
+      txHash = result.txHash;
+    } else {
+      // EVM: use evmExecutor
+      if (!params.evmExecutor) {
+        throw new Error('DeBridge EVM bridge requires evmExecutor');
+      }
+
+      // ERC-20 approval if needed
+      if (data.tx.allowanceTarget && data.tx.allowanceValue) {
+        const currentAllowance = await params.evmExecutor.checkAllowance(
+          params.fromToken, data.tx.allowanceTarget, params.senderAddress
+        );
+        if (currentAllowance < BigInt(data.tx.allowanceValue)) {
+          await params.evmExecutor.approveErc20(
+            params.fromToken, data.tx.allowanceTarget, data.tx.allowanceValue
+          );
+        }
+      }
+
+      // Validate tx target
+      if (!data.tx.to) {
+        throw new Error('DeBridge returned empty transaction target');
+      }
+
+      const receipt = await params.evmExecutor.sendTx({
         to: data.tx.to,
         data: data.tx.data,
         value: data.tx.value,
-        gas: undefined,
       });
+
+      if (receipt.status === 'reverted') {
+        throw new Error(`DeBridge bridge transaction reverted: ${receipt.txHash}`);
+      }
+
+      txHash = receipt.txHash;
     }
 
     return {

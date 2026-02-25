@@ -130,7 +130,7 @@ describe('money.price', () => {
     assert.equal(result.name, 'Ethereum');
     assert.ok(result.volume24h, 'should have volume24h');
     assert.ok(result.liquidity, 'should have liquidity');
-    assert.equal(result.note, '');
+    assert.ok(result.note.includes('registerToken'), 'note should contain registerToken hint');
   });
 
   it('returns price with chain filter', async () => {
@@ -181,7 +181,7 @@ describe('money.tokenInfo', () => {
     assert.ok(Array.isArray(result.pairs), 'should have pairs array');
     assert.ok(result.pairs.length > 0, 'should have at least one pair');
     assert.equal(result.pairs[0]!.dex, 'uniswap');
-    assert.equal(result.note, '');
+    assert.ok(result.note.includes('registerToken'), 'note should contain registerToken hint');
   });
 
   it('throws TX_FAILED when token info is not found', async () => {

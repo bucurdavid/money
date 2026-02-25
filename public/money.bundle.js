@@ -71253,7 +71253,10 @@ function resolveTokenAddress(token, chain2) {
 }
 
 // dist/src/providers/jupiter.js
-var BASE_URL = "https://quote-api.jup.ag/v6";
+var BASE_URL = "https://api.jup.ag/swap/v1";
+function throwApiKeyError() {
+  throw new Error('Jupiter API requires an API key. Get a free key at https://portal.jup.ag and set it:\n  await money.setApiKey({ provider: "jupiter", apiKey: "your-key" })');
+}
 var jupiterProvider = {
   name: "jupiter",
   chains: ["solana"],
@@ -71263,7 +71266,11 @@ var jupiterProvider = {
     url.searchParams.set("outputMint", params.toToken);
     url.searchParams.set("amount", params.amount);
     url.searchParams.set("slippageBps", String(params.slippageBps));
+    url.searchParams.set("restrictIntermediateTokens", "true");
     const res = await fetch(url.toString());
+    if (res.status === 401 || res.status === 403) {
+      throwApiKeyError();
+    }
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Jupiter quote failed (${res.status}): ${text}`);
@@ -71285,29 +71292,43 @@ var jupiterProvider = {
     };
   },
   async swap(params) {
+    const headers = { "Content-Type": "application/json" };
+    if (params.apiKey) {
+      headers["x-api-key"] = params.apiKey;
+    }
     const swapRes = await fetch(`${BASE_URL}/swap`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify({
-        quoteResponse: params.route,
         userPublicKey: params.userAddress,
-        wrapAndUnwrapSol: true,
+        quoteResponse: params.route,
         dynamicComputeUnitLimit: true,
-        prioritizationFeeLamports: "auto"
+        dynamicSlippage: true,
+        prioritizationFeeLamports: {
+          priorityLevelWithMaxLamports: {
+            priorityLevel: "veryHigh",
+            maxLamports: 1e6
+          }
+        }
       })
     });
+    if (swapRes.status === 401 || swapRes.status === 403) {
+      throwApiKeyError();
+    }
     if (!swapRes.ok) {
       const text = await swapRes.text();
       throw new Error(`Jupiter swap failed (${swapRes.status}): ${text}`);
     }
     const swapData = await swapRes.json();
     const txBytes = Buffer.from(swapData.swapTransaction, "base64");
-    const signedTxBytes = await params.signTransaction(new Uint8Array(txBytes));
-    if (params.sendRawTransaction) {
-      const txHash = await params.sendRawTransaction(signedTxBytes);
-      return { txHash };
+    if (params.solanaExecutor) {
+      const result = await params.solanaExecutor.signAndSend(new Uint8Array(txBytes));
+      if (result.status === "failed") {
+        throw new Error(`Jupiter swap transaction failed: ${result.txHash}`);
+      }
+      return { txHash: result.txHash };
     }
-    throw new Error("Jupiter swap requires sendRawTransaction callback");
+    throw new Error("Jupiter swap requires solanaExecutor");
   }
 };
 function formatAmount(raw, decimals) {
@@ -71382,9 +71403,10 @@ var paraswapProvider = {
   },
   async swap(params) {
     const chainId = params.chainId ?? CHAIN_IDS[params.chain];
-    if (!chainId) {
+    if (!chainId)
       throw new Error(`Paraswap does not support chain "${params.chain}"`);
-    }
+    if (!params.evmExecutor)
+      throw new Error("Paraswap swap requires evmExecutor");
     const buildRes = await fetch(`${BASE_URL2}/transactions/${chainId}?ignoreChecks=true`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -71396,7 +71418,6 @@ var paraswapProvider = {
         priceRoute: params.route,
         userAddress: params.userAddress,
         slippage: params.slippageBps
-        // Paraswap takes slippage in bps
       })
     });
     if (!buildRes.ok) {
@@ -71404,17 +71425,26 @@ var paraswapProvider = {
       throw new Error(`Paraswap build tx failed (${buildRes.status}): ${text}`);
     }
     const txData = await buildRes.json();
-    if (params.signAndSendEvmTransaction) {
-      const txHash = await params.signAndSendEvmTransaction({
-        to: txData.to,
-        data: txData.data,
-        value: txData.value,
-        gas: txData.gas,
-        gasPrice: txData.gasPrice
-      });
-      return { txHash };
+    const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+    if (params.fromToken.toLowerCase() !== NATIVE.toLowerCase()) {
+      const spender = txData.to;
+      const currentAllowance = await params.evmExecutor.checkAllowance(params.fromToken, spender, params.userAddress);
+      if (currentAllowance < BigInt(params.amount)) {
+        await params.evmExecutor.approveErc20(params.fromToken, spender, params.amount);
+      }
     }
-    throw new Error("Paraswap swap requires signAndSendEvmTransaction callback");
+    if (!txData.to)
+      throw new Error("Paraswap returned empty transaction target");
+    const receipt = await params.evmExecutor.sendTx({
+      to: txData.to,
+      data: txData.data,
+      value: txData.value,
+      gas: txData.gas
+    });
+    if (receipt.status === "reverted") {
+      throw new Error(`Paraswap swap transaction reverted: ${receipt.txHash}`);
+    }
+    return { txHash: receipt.txHash };
   }
 };
 function formatAmount2(raw, decimals) {
@@ -71561,19 +71591,37 @@ var debridgeProvider = {
     const isSolanaSource = params.fromChain === "solana";
     let txHash;
     if (isSolanaSource) {
-      const txBytes = Buffer.from(data.tx.data, "base64");
-      const _signedTx = await params.signTransaction(new Uint8Array(txBytes));
-      throw new Error("Solana bridge support requires sendRawTransaction \u2014 coming soon");
-    } else {
-      if (!params.signAndSendEvmTransaction) {
-        throw new Error("DeBridge EVM bridge requires signAndSendEvmTransaction callback");
+      if (!params.solanaExecutor) {
+        throw new Error("DeBridge Solana bridge requires solanaExecutor");
       }
-      txHash = await params.signAndSendEvmTransaction({
+      const txBytes = Buffer.from(data.tx.data, "base64");
+      const result = await params.solanaExecutor.signAndSend(new Uint8Array(txBytes));
+      if (result.status === "failed") {
+        throw new Error(`DeBridge Solana bridge transaction failed: ${result.txHash}`);
+      }
+      txHash = result.txHash;
+    } else {
+      if (!params.evmExecutor) {
+        throw new Error("DeBridge EVM bridge requires evmExecutor");
+      }
+      if (data.tx.allowanceTarget && data.tx.allowanceValue) {
+        const currentAllowance = await params.evmExecutor.checkAllowance(params.fromToken, data.tx.allowanceTarget, params.senderAddress);
+        if (currentAllowance < BigInt(data.tx.allowanceValue)) {
+          await params.evmExecutor.approveErc20(params.fromToken, data.tx.allowanceTarget, data.tx.allowanceValue);
+        }
+      }
+      if (!data.tx.to) {
+        throw new Error("DeBridge returned empty transaction target");
+      }
+      const receipt = await params.evmExecutor.sendTx({
         to: data.tx.to,
         data: data.tx.data,
-        value: data.tx.value,
-        gas: void 0
+        value: data.tx.value
       });
+      if (receipt.status === "reverted") {
+        throw new Error(`DeBridge bridge transaction reverted: ${receipt.txHash}`);
+      }
+      txHash = receipt.txHash;
     }
     return {
       txHash,
@@ -71670,6 +71718,103 @@ function getExplorerUrl(chain2, txHash, _chainConfig) {
   if (baseUrl)
     return `${baseUrl}${txHash}`;
   return "";
+}
+function createEvmExecutor(keyfilePath, chainConfig2, chain2) {
+  let _clients = null;
+  async function getClients() {
+    if (_clients)
+      return _clients;
+    const kp = await loadKeyfile(keyfilePath);
+    const account = privateKeyToAccount(`0x${kp.privateKey}`);
+    const customChain = await getCustomChain(chain2);
+    const chainId = customChain?.chainId ?? getBuiltInChainId(chain2);
+    const { defineChain: defineChain2 } = await Promise.resolve().then(() => (init_esm2(), esm_exports2));
+    const viemChain = defineChain2({
+      id: chainId,
+      name: chain2,
+      nativeCurrency: { name: chainConfig2.defaultToken, symbol: chainConfig2.defaultToken, decimals: 18 },
+      rpcUrls: { default: { http: [chainConfig2.rpc] } }
+    });
+    const walletClient = createWalletClient({
+      account,
+      chain: viemChain,
+      transport: http(chainConfig2.rpc)
+    });
+    const publicClient = createPublicClient({
+      chain: viemChain,
+      transport: http(chainConfig2.rpc)
+    });
+    _clients = { walletClient, publicClient, account, viemChain };
+    return _clients;
+  }
+  const executor = {
+    async sendTx(tx) {
+      if (!tx.to)
+        throw new MoneyError("INVALID_PARAMS", "Transaction target (to) is empty", { note: "The provider returned an invalid transaction with no target address." });
+      const { walletClient, publicClient, viemChain } = await getClients();
+      const hash3 = await walletClient.sendTransaction({
+        to: tx.to,
+        data: tx.data,
+        value: BigInt(tx.value || "0"),
+        ...tx.gas ? { gas: BigInt(tx.gas) } : {},
+        chain: viemChain
+      });
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: hash3 });
+      return {
+        txHash: hash3,
+        status: receipt.status === "success" ? "success" : "reverted"
+      };
+    },
+    async checkAllowance(token, spender, owner) {
+      const { publicClient } = await getClients();
+      const ownerPadded = owner.toLowerCase().replace("0x", "").padStart(64, "0");
+      const spenderPadded = spender.toLowerCase().replace("0x", "").padStart(64, "0");
+      const data = `0xdd62ed3e${ownerPadded}${spenderPadded}`;
+      const result = await publicClient.call({ to: token, data });
+      if (!result.data)
+        return 0n;
+      return BigInt(result.data);
+    },
+    async approveErc20(token, spender, amount) {
+      const spenderPadded = spender.toLowerCase().replace("0x", "").padStart(64, "0");
+      const amountHex = BigInt(amount).toString(16).padStart(64, "0");
+      const calldata = `0x095ea7b3${spenderPadded}${amountHex}`;
+      const receipt = await executor.sendTx({ to: token, data: calldata, value: "0" });
+      if (receipt.status === "reverted") {
+        throw new MoneyError("TX_FAILED", `ERC-20 approval reverted for token ${token}`, { note: "The approval transaction was reverted. Check that you have sufficient balance." });
+      }
+      return receipt.txHash;
+    }
+  };
+  return executor;
+}
+function createSolanaExecutor(keyfilePath, rpc) {
+  return {
+    async signAndSend(txBytes) {
+      return await withKey(keyfilePath, async (kp) => {
+        const { VersionedTransaction, Keypair: Keypair4, Connection } = await Promise.resolve().then(() => __toESM(require_index_cjs(), 1));
+        const vtx = VersionedTransaction.deserialize(txBytes);
+        const secretKey = Buffer.concat([
+          Buffer.from(kp.privateKey, "hex"),
+          Buffer.from(kp.publicKey, "hex")
+        ]);
+        vtx.sign([Keypair4.fromSecretKey(secretKey)]);
+        const connection = new Connection(rpc, "confirmed");
+        const signature = await connection.sendRawTransaction(vtx.serialize(), {
+          skipPreflight: false,
+          maxRetries: 3
+        });
+        const latestBlockhash = await connection.getLatestBlockhash();
+        const confirmation = await connection.confirmTransaction({
+          signature,
+          blockhash: latestBlockhash.blockhash,
+          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
+        });
+        const status = confirmation.value.err ? "failed" : "success";
+        return { txHash: signature, status };
+      });
+    }
+  };
 }
 var money = {
   async setup(params) {
@@ -72000,6 +72145,18 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     };
     await setChainConfig(key, chainConfig2);
   },
+  // ─── setApiKey ─────────────────────────────────────────────────────────────
+  async setApiKey(params) {
+    if (!params.provider || !params.apiKey) {
+      throw new MoneyError("INVALID_PARAMS", "Missing provider or apiKey", {
+        note: 'await money.setApiKey({ provider: "jupiter", apiKey: "your-key" })'
+      });
+    }
+    const config = await loadConfig();
+    config.apiKeys = config.apiKeys ?? {};
+    config.apiKeys[params.provider] = params.apiKey;
+    await saveConfig(config);
+  },
   // ─── sign ──────────────────────────────────────────────────────────────────
   async sign(params) {
     const { chain: chain2, message, network } = params;
@@ -72063,6 +72220,7 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     const config = await loadConfig();
     const resolved = resolveChainKey(chain2, config.chains, network);
     const userAddress = resolved ? await getAddressForChain(resolved.chainConfig) : "";
+    const apiKey = config.apiKeys?.[provider.name];
     const fromResolved = resolveSwapToken(from14, chain2);
     const toResolved = resolveSwapToken(to, chain2);
     const fromRaw = toRawAmount(String(amount), fromResolved.decimals);
@@ -72074,7 +72232,8 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       toDecimals: toResolved.decimals,
       amount: fromRaw,
       slippageBps,
-      userAddress
+      userAddress,
+      apiKey
     });
     const rate = Number(quote.toAmountHuman) / Number(quote.fromAmountHuman);
     const rateStr = `1 ${from14.toUpperCase()} = ${rate.toFixed(6)} ${to.toUpperCase()}`;
@@ -72142,9 +72301,13 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       slippageBps,
       userAddress
     });
-    const adapter = await getAdapter(key);
+    const apiKey = config.apiKeys?.[provider.name];
+    const isSolana = chain2 === "solana";
+    const evmExecutor = isSolana ? void 0 : createEvmExecutor(keyfilePath, chainConfig2, chain2);
+    const solanaExecutor = isSolana ? createSolanaExecutor(keyfilePath, chainConfig2.rpc) : void 0;
     const result = await provider.swap({
       chain: chain2,
+      chainId: getBuiltInChainId(chain2),
       fromToken: fromResolved.address,
       toToken: toResolved.address,
       fromDecimals: fromResolved.decimals,
@@ -72153,59 +72316,9 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       slippageBps,
       userAddress,
       route: quote.route,
-      signTransaction: async (tx) => {
-        return await withKey(keyfilePath, async (kp) => {
-          const { VersionedTransaction } = await Promise.resolve().then(() => __toESM(require_index_cjs(), 1));
-          const vtx = VersionedTransaction.deserialize(tx);
-          const { Keypair: Keypair4 } = await Promise.resolve().then(() => __toESM(require_index_cjs(), 1));
-          const secretKey = Buffer.concat([
-            Buffer.from(kp.privateKey, "hex"),
-            Buffer.from(kp.publicKey, "hex")
-          ]);
-          const keypair = Keypair4.fromSecretKey(secretKey);
-          vtx.sign([keypair]);
-          return vtx.serialize();
-        });
-      },
-      sendRawTransaction: async (signedTx) => {
-        const { Connection } = await Promise.resolve().then(() => __toESM(require_index_cjs(), 1));
-        const connection = new Connection(chainConfig2.rpc, "confirmed");
-        const sig = await connection.sendRawTransaction(signedTx, { skipPreflight: false });
-        const latestBlockhash = await connection.getLatestBlockhash();
-        await connection.confirmTransaction({
-          signature: sig,
-          blockhash: latestBlockhash.blockhash,
-          lastValidBlockHeight: latestBlockhash.lastValidBlockHeight
-        });
-        return sig;
-      },
-      signAndSendEvmTransaction: async (tx) => {
-        return await withKey(keyfilePath, async (kp) => {
-          const account = privateKeyToAccount(`0x${kp.privateKey}`);
-          const customChain = await getCustomChain(chain2);
-          const chainId = customChain?.chainId ?? getBuiltInChainId(chain2);
-          const { defineChain: defineChain2 } = await Promise.resolve().then(() => (init_esm2(), esm_exports2));
-          const viemChain = defineChain2({
-            id: chainId,
-            name: chain2,
-            nativeCurrency: { name: chainConfig2.defaultToken, symbol: chainConfig2.defaultToken, decimals: 18 },
-            rpcUrls: { default: { http: [chainConfig2.rpc] } }
-          });
-          const walletClient = createWalletClient({
-            account,
-            chain: viemChain,
-            transport: http(chainConfig2.rpc)
-          });
-          const txHash = await walletClient.sendTransaction({
-            to: tx.to,
-            data: tx.data,
-            value: BigInt(tx.value || "0"),
-            ...tx.gas ? { gas: BigInt(tx.gas) } : {},
-            chain: viemChain
-          });
-          return txHash;
-        });
-      }
+      evmExecutor,
+      solanaExecutor,
+      apiKey
     });
     const explorerUrl = getExplorerUrl(chain2, result.txHash, chainConfig2);
     const { chain: sentChain, network: sentNetwork } = parseConfigKey(key);
@@ -72245,12 +72358,16 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
         note: providerName ? `Provider "${providerName}" is not registered. Check the name or omit provider to use the default.` : "A price provider should be registered automatically."
       });
     }
+    const config = await loadConfig();
+    const apiKey = config.apiKeys?.[provider.name];
     try {
-      const result = await provider.getPrice({ token, chain: chain2 });
+      const result = await provider.getPrice({ token, chain: chain2, apiKey });
+      const chainHint = chain2 ? `chain: "${chain2}"` : `chain: "ethereum"`;
       return {
         ...result,
         chain: chain2,
-        note: ""
+        note: `To use this token in balance/send, register it:
+  await money.registerToken({ ${chainHint}, name: "${result.symbol}", address: "${token}", decimals: 18 })`
       };
     } catch (err2) {
       const msg = err2 instanceof Error ? err2.message : String(err2);
@@ -72274,12 +72391,17 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
         note: providerName ? `Provider "${providerName}" is not registered or does not support getTokenInfo.` : "A price provider with getTokenInfo should be registered automatically."
       });
     }
+    const config = await loadConfig();
+    const apiKey = config.apiKeys?.[provider.name];
     try {
-      const result = await provider.getTokenInfo({ token, chain: chain2 });
+      const result = await provider.getTokenInfo({ token, chain: chain2, apiKey });
+      const chainHint = chain2 ? `chain: "${chain2}"` : `chain: "ethereum"`;
+      const decimalsHint = result.decimals !== void 0 ? result.decimals : 18;
       return {
         ...result,
         chain: chain2,
-        note: ""
+        note: `To use this token in balance/send, register it:
+  await money.registerToken({ ${chainHint}, name: "${result.symbol}", address: "${result.address}", decimals: ${decimalsHint} })`
       };
     } catch (err2) {
       const msg = err2 instanceof Error ? err2.message : String(err2);
@@ -72340,53 +72462,24 @@ Or pass receiver address:
     const toToken = to.token ?? from14.token;
     const toTokenResolved = resolveSwapToken(toToken, to.chain);
     const fromRaw = toRawAmount(String(amount), fromTokenResolved.decimals);
+    const isSolanaSource = from14.chain === "solana";
+    const evmExecutor = isSolanaSource ? void 0 : createEvmExecutor(keyfilePath, srcResolved.chainConfig, from14.chain);
+    const solanaExecutor = isSolanaSource ? createSolanaExecutor(keyfilePath, srcResolved.chainConfig.rpc) : void 0;
+    const apiKey = config.apiKeys?.[provider.name];
     const result = await provider.bridge({
       fromChain: from14.chain,
       toChain: to.chain,
+      fromChainId: getBuiltInChainId(from14.chain),
+      toChainId: getBuiltInChainId(to.chain),
       fromToken: fromTokenResolved.address,
       toToken: toTokenResolved.address,
       fromDecimals: fromTokenResolved.decimals,
       amount: fromRaw,
       senderAddress,
       receiverAddress,
-      signTransaction: async (tx) => {
-        return await withKey(keyfilePath, async (kp) => {
-          const { VersionedTransaction, Keypair: Keypair4 } = await Promise.resolve().then(() => __toESM(require_index_cjs(), 1));
-          const vtx = VersionedTransaction.deserialize(tx);
-          const secretKey = Buffer.concat([
-            Buffer.from(kp.privateKey, "hex"),
-            Buffer.from(kp.publicKey, "hex")
-          ]);
-          vtx.sign([Keypair4.fromSecretKey(secretKey)]);
-          return vtx.serialize();
-        });
-      },
-      signAndSendEvmTransaction: async (tx) => {
-        return await withKey(keyfilePath, async (kp) => {
-          const account = privateKeyToAccount(`0x${kp.privateKey}`);
-          const customChain = await getCustomChain(from14.chain);
-          const chainId = customChain?.chainId ?? getBuiltInChainId(from14.chain);
-          const { defineChain: defineChain2 } = await Promise.resolve().then(() => (init_esm2(), esm_exports2));
-          const viemChain = defineChain2({
-            id: chainId,
-            name: from14.chain,
-            nativeCurrency: { name: srcResolved.chainConfig.defaultToken, symbol: srcResolved.chainConfig.defaultToken, decimals: 18 },
-            rpcUrls: { default: { http: [srcResolved.chainConfig.rpc] } }
-          });
-          const walletClient = createWalletClient({
-            account,
-            chain: viemChain,
-            transport: http(srcResolved.chainConfig.rpc)
-          });
-          return await walletClient.sendTransaction({
-            to: tx.to,
-            data: tx.data,
-            value: BigInt(tx.value || "0"),
-            ...tx.gas ? { gas: BigInt(tx.gas) } : {},
-            chain: viemChain
-          });
-        });
-      }
+      evmExecutor,
+      solanaExecutor,
+      apiKey
     });
     const explorerUrl = getExplorerUrl(from14.chain, result.txHash, srcResolved.chainConfig);
     const { chain: sentChain, network: sentNetwork } = parseConfigKey(srcResolved.key);
