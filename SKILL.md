@@ -25,6 +25,20 @@ Then symlink this into your auto-discovery skills path, or simply move the SKILL
 
 v{{VERSION}}. Two files. Integrity verified via SHA-256. No dependencies.
 
+## Update
+
+Before updating, back up the current skill file so you can diff for migrations:
+
+```bash
+VER=$(grep 'version:' ~/.money/SKILL.md | head -1 | awk '{print $2}') && cp ~/.money/SKILL.md ~/.money/SKILL.md.v${VER}.bak
+```
+
+Then re-run the install commands above. After updating, diff the old and new versions to check for breaking changes:
+
+```bash
+diff ~/.money/SKILL.md.v${VER}.bak ~/.money/SKILL.md
+```
+
 ---
 
 The entire skill is 3 steps:

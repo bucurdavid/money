@@ -31,7 +31,7 @@ function fastTestnetConfig(tmpDir: string) {
 function fastMainnetConfig(tmpDir: string) {
   return {
     rpc: 'https://proxy.fastset.xyz',
-    keyfile: path.join(tmpDir, 'keys', 'fast-mainnet.json'),
+    keyfile: path.join(tmpDir, 'keys', 'fast.json'),
     network: 'mainnet',
     defaultToken: 'SET',
   };
@@ -123,18 +123,15 @@ describe('money.setup mainnet', () => {
     assert.ok(result.address.startsWith('set1'));
   });
 
-  it('testnet and mainnet use separate keyfiles', async () => {
+  it('testnet and mainnet share the same keyfile and address', async () => {
     await seedConfig(tmpDir, { 'fast:mainnet': fastMainnetConfig(tmpDir) });
     const testnet = await money.setup({ chain: 'fast' });
     const mainnet = await money.setup({ chain: 'fast', network: 'mainnet' });
 
-    // Different keyfiles should produce different addresses
-    // (unless user explicitly symlinks them — but in test they're separate)
+    // Same keyfile → same key → same address on both networks
     assert.ok(testnet.address.startsWith('set1'));
     assert.ok(mainnet.address.startsWith('set1'));
-    // Both should have valid addresses (they may be different)
-    assert.ok(testnet.address.length > 10);
-    assert.ok(mainnet.address.length > 10);
+    assert.equal(testnet.address, mainnet.address, 'testnet and mainnet should have the same address');
   });
 
   it('testnet and mainnet configs coexist in config.json', async () => {

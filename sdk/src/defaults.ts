@@ -17,7 +17,7 @@ export const DEFAULT_CHAIN_CONFIGS: Record<string, Record<NetworkType, ChainConf
     },
     mainnet: {
       rpc: 'https://proxy.fastset.xyz',
-      keyfile: '~/.money/keys/fast-mainnet.json',
+      keyfile: '~/.money/keys/fast.json',
       network: 'mainnet',
       defaultToken: 'SET',
     },
@@ -31,7 +31,7 @@ export const DEFAULT_CHAIN_CONFIGS: Record<string, Record<NetworkType, ChainConf
     },
     mainnet: {
       rpc: 'https://mainnet.base.org',
-      keyfile: '~/.money/keys/evm-mainnet.json',
+      keyfile: '~/.money/keys/evm.json',
       network: 'mainnet',
       defaultToken: 'ETH',
     },
@@ -45,7 +45,7 @@ export const DEFAULT_CHAIN_CONFIGS: Record<string, Record<NetworkType, ChainConf
     },
     mainnet: {
       rpc: 'https://eth.llamarpc.com',
-      keyfile: '~/.money/keys/evm-mainnet.json',
+      keyfile: '~/.money/keys/evm.json',
       network: 'mainnet',
       defaultToken: 'ETH',
     },
@@ -59,7 +59,7 @@ export const DEFAULT_CHAIN_CONFIGS: Record<string, Record<NetworkType, ChainConf
     },
     mainnet: {
       rpc: 'https://arb1.arbitrum.io/rpc',
-      keyfile: '~/.money/keys/evm-mainnet.json',
+      keyfile: '~/.money/keys/evm.json',
       network: 'mainnet',
       defaultToken: 'ETH',
     },
@@ -73,7 +73,7 @@ export const DEFAULT_CHAIN_CONFIGS: Record<string, Record<NetworkType, ChainConf
     },
     mainnet: {
       rpc: 'https://api.mainnet-beta.solana.com',
-      keyfile: '~/.money/keys/solana-mainnet.json',
+      keyfile: '~/.money/keys/solana.json',
       network: 'mainnet',
       defaultToken: 'SOL',
     },
