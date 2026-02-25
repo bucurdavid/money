@@ -18,7 +18,6 @@ import {
   loadKeyfile,
   withKey,
   signEd25519,
-  scrubKeyFromError,
 } from '../keys.js';
 import { MoneyError } from '../errors.js';
 import { toHex, fromHex } from '../utils.js';
@@ -361,8 +360,7 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
         );
       } catch (err) {
         if (err instanceof MoneyError) throw err;
-        const scrubbed = scrubKeyFromError(err instanceof Error ? err : new Error(String(err)));
-        const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
+        const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes('InsufficientFunding') || msg.includes('insufficient')) {
           throw new MoneyError('INSUFFICIENT_BALANCE', msg, { chain: 'fast', note: `Get testnet tokens:\n  await money.faucet({ chain: "fast" })` });
         }

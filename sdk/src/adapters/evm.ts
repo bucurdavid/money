@@ -19,7 +19,6 @@ import {
   generateSecp256k1Key,
   saveKeyfile,
   withKey,
-  scrubKeyFromError,
 } from '../keys.js';
 import { MoneyError } from '../errors.js';
 import type { ChainAdapter } from './adapter.js';
@@ -225,8 +224,7 @@ export function createEvmAdapter(
       };
     } catch (err) {
       if (err instanceof MoneyError) throw err;
-      const scrubbed = scrubKeyFromError(err);
-      const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
+      const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('insufficient funds') || msg.includes('exceeds balance')) {
         throw new MoneyError('INSUFFICIENT_BALANCE', msg, { chain: chainName, note: `Get tokens:\n  await money.faucet({ chain: "${chainName}" })` });
       }

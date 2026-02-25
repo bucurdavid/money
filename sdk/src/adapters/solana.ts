@@ -19,7 +19,6 @@ import {
   saveKeyfile,
   loadKeyfile,
   withKey,
-  scrubKeyFromError,
 } from '../keys.js';
 import { MoneyError } from '../errors.js';
 import { toRaw, toHuman } from '../utils.js';
@@ -259,8 +258,7 @@ export function createSolanaAdapter(
       });
     } catch (err) {
       if (err instanceof MoneyError) throw err;
-      const scrubbed = scrubKeyFromError(err instanceof Error ? err : new Error(String(err)));
-      const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
+      const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('debit an account') || msg.includes('insufficient') || msg.includes('0x1')) {
         throw new MoneyError('INSUFFICIENT_BALANCE', msg, { chain: 'solana', note: `Get testnet tokens:\n  await money.faucet({ chain: "solana" })` });
       }

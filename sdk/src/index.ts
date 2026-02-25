@@ -4,7 +4,7 @@
 
 import { loadConfig, setChainConfig, getChainConfig } from './config.js';
 import { expandHome, compareDecimalStrings } from './utils.js';
-import { loadKeyfile, scrubKeyFromError } from './keys.js';
+import { loadKeyfile } from './keys.js';
 import { identifyChains, isValidAddress } from './detect.js';
 import { MoneyError } from './errors.js';
 import { getAdapter, evictAdapter, _resetAdapterCache } from './registry.js';
@@ -137,7 +137,7 @@ export const money = {
       const result = await adapter.setupWallet(keyfilePath);
       address = result.address;
     } catch (err) {
-      throw scrubKeyFromError(err);
+      throw err;
     }
 
     const note = network === 'testnet'
@@ -292,8 +292,7 @@ export const money = {
       result = await adapter.send({ from, to, amount: amountStr, token, keyfile: keyfilePath });
     } catch (err) {
       if (err instanceof MoneyError) throw err;
-      const scrubbed = scrubKeyFromError(err);
-      const msg = scrubbed instanceof Error ? scrubbed.message : String(scrubbed);
+      const msg = err instanceof Error ? err.message : String(err);
       throw new MoneyError('TX_FAILED', msg, { chain, note: `Wait 5 seconds, then retry:\n  await money.send({ to: "${to}", amount: "${amountStr}", chain: "${chain}" })` });
     }
 

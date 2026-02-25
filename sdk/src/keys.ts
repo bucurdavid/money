@@ -95,16 +95,6 @@ function parseDerSignature(der: Buffer): { r: string; s: string } {
   return { r: rHex, s: sHex };
 }
 
-// ─── Hex private key redaction ────────────────────────────────────────────────
-
-/**
- * Regex matching a standalone 64+ character hex string (potential private key).
- * Uses a negative lookbehind for '0x' so that 0x-prefixed transaction hashes
- * (e.g. 0xabc123...) are preserved while bare hex private keys are redacted.
- */
-const HEX_KEY_RE = /(?<!0x)\b[0-9a-fA-F]{64,}\b/g;
-const REDACTED = '[REDACTED]';
-
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 /**
@@ -236,24 +226,6 @@ export async function withKey<T>(
     (keypair as { publicKey: string; privateKey: string }).privateKey =
       '0'.repeat(keypair.privateKey.length);
   }
-}
-
-/**
- * Scrub any hex string that looks like a private key (64+ hex chars) from
- * an error's message and stack trace.
- */
-export function scrubKeyFromError(error: unknown): Error {
-  if (error instanceof Error) {
-    const scrubbedMessage = error.message.replace(HEX_KEY_RE, REDACTED);
-    const out = new Error(scrubbedMessage);
-    out.name = error.name;
-    if (error.stack) {
-      out.stack = error.stack.replace(HEX_KEY_RE, REDACTED);
-    }
-    return out;
-  }
-  const raw = String(error);
-  return new Error(raw.replace(HEX_KEY_RE, REDACTED));
 }
 
 // expandHome imported from ./utils.js

@@ -12,7 +12,6 @@ import {
   signEd25519,
   signSecp256k1,
   withKey,
-  scrubKeyFromError,
 } from './keys.js';
 
 // ---------------------------------------------------------------------------
@@ -331,105 +330,4 @@ describe('withKey', () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// scrubKeyFromError
-// ---------------------------------------------------------------------------
 
-describe('scrubKeyFromError', () => {
-  it('replaces 64+ char hex strings in error message with [REDACTED]', () => {
-    const hexKey = 'a'.repeat(64); // exactly 64 hex chars
-    const err = new Error(`Key is ${hexKey} and should be hidden`);
-    const scrubbed = scrubKeyFromError(err);
-    assert.ok(scrubbed instanceof Error, 'result should be an Error');
-    assert.ok(
-      !scrubbed.message.includes(hexKey),
-      'scrubbed message should not contain the hex key',
-    );
-    assert.ok(
-      scrubbed.message.includes('[REDACTED]'),
-      'scrubbed message should contain [REDACTED]',
-    );
-  });
-
-  it('preserves non-hex error messages unchanged', () => {
-    const original = 'This is a normal error without any hex keys';
-    const err = new Error(original);
-    const scrubbed = scrubKeyFromError(err);
-    assert.ok(scrubbed instanceof Error, 'result should be an Error');
-    assert.equal(scrubbed.message, original, 'message should be unchanged');
-  });
-
-  it('handles non-Error inputs (strings) and returns an Error instance', () => {
-    const result = scrubKeyFromError('plain string error');
-    assert.ok(result instanceof Error, 'should return an Error');
-    assert.equal(result.message, 'plain string error');
-  });
-
-  it('handles a non-Error object and returns an Error instance', () => {
-    const result = scrubKeyFromError({ code: 42, info: 'something happened' });
-    assert.ok(result instanceof Error, 'should return an Error for non-Error objects');
-  });
-
-  it('returns an Error instance always (even for null/undefined)', () => {
-    const r1 = scrubKeyFromError(null);
-    const r2 = scrubKeyFromError(undefined);
-    assert.ok(r1 instanceof Error);
-    assert.ok(r2 instanceof Error);
-  });
-
-  it('redacts a bare 64-char hex string (private key pattern, no 0x prefix)', () => {
-    const bareKey = 'deadbeef'.repeat(8); // 64 hex chars, no 0x prefix
-    const err = new Error(`Key: ${bareKey} should be hidden`);
-    const scrubbed = scrubKeyFromError(err);
-    assert.ok(
-      !scrubbed.message.includes(bareKey),
-      'bare hex key should be redacted from message',
-    );
-    assert.ok(
-      scrubbed.message.includes('[REDACTED]'),
-      'message should contain [REDACTED] placeholder',
-    );
-  });
-
-  it('preserves a 0x-prefixed tx hash (not redacted)', () => {
-    const txHash = '0x' + 'cafebabe'.repeat(8); // 0x + 64 hex chars
-    const err = new Error(`TX failed: ${txHash}`);
-    const scrubbed = scrubKeyFromError(err);
-    assert.ok(
-      scrubbed.message.includes(txHash),
-      `0x-prefixed tx hash should be preserved, got: ${scrubbed.message}`,
-    );
-    assert.ok(
-      !scrubbed.message.includes('[REDACTED]'),
-      '0x-prefixed hash should not trigger redaction',
-    );
-  });
-
-  it('preserves 0x-prefixed tx hash in a realistic error message', () => {
-    const txHash = '0x' + '1234567890abcdef'.repeat(4); // 0x + 64 hex chars
-    const err = new Error(`TX failed: transaction ${txHash} was rejected by the network`);
-    const scrubbed = scrubKeyFromError(err);
-    assert.ok(
-      scrubbed.message.includes(txHash),
-      `tx hash should survive scrubbing, got: ${scrubbed.message}`,
-    );
-  });
-
-  it('redacts bare key in realistic message while preserving surrounding text', () => {
-    const bareKey = 'f'.repeat(64); // 64 hex chars, no 0x prefix
-    const err = new Error(`Signing error: key ${bareKey} leaked into logs`);
-    const scrubbed = scrubKeyFromError(err);
-    assert.ok(
-      !scrubbed.message.includes(bareKey),
-      'bare key should be redacted',
-    );
-    assert.ok(
-      scrubbed.message.includes('Signing error:'),
-      'surrounding text should be preserved',
-    );
-    assert.ok(
-      scrubbed.message.includes('[REDACTED]'),
-      'redaction marker should be present',
-    );
-  });
-});
