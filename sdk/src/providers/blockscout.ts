@@ -65,11 +65,11 @@ export function formatRawBalance(value: string, decimals: number): string {
 export async function fetchBlockscoutTokens(
   chain: string,
   address: string,
-): Promise<Array<{ symbol: string; address: string; balance: string; decimals: number }>> {
+): Promise<Array<{ symbol: string; address: string; balance: string; rawBalance: string; decimals: number }>> {
   const host = BLOCKSCOUT_HOSTS[chain];
   if (!host) return [];
 
-  const results: Array<{ symbol: string; address: string; balance: string; decimals: number }> = [];
+  const results: Array<{ symbol: string; address: string; balance: string; rawBalance: string; decimals: number }> = [];
 
   try {
     let url: string | null =
@@ -104,6 +104,7 @@ export async function fetchBlockscoutTokens(
           symbol: token.symbol,
           address: token.address_hash,
           balance,
+          rawBalance: value,
           decimals,
         });
       }

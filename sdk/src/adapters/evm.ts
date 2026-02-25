@@ -267,9 +267,10 @@ export function createEvmAdapter(
     symbol: string;
     address: string;
     balance: string;
+    rawBalance: string;
     decimals: number;
   }>> {
-    const tokens: Array<{ symbol: string; address: string; balance: string; decimals: number }> = [];
+    const tokens: Array<{ symbol: string; address: string; balance: string; rawBalance: string; decimals: number }> = [];
 
     // Native balance
     try {
@@ -278,6 +279,7 @@ export function createEvmAdapter(
         symbol: nativeSymbol,
         address: '0x0000000000000000000000000000000000000000',
         balance: formatUnits(raw, NATIVE_DECIMALS),
+        rawBalance: raw.toString(),
         decimals: NATIVE_DECIMALS,
       });
     } catch {
@@ -285,6 +287,7 @@ export function createEvmAdapter(
         symbol: nativeSymbol,
         address: '0x0000000000000000000000000000000000000000',
         balance: '0',
+        rawBalance: '0',
         decimals: NATIVE_DECIMALS,
       });
     }

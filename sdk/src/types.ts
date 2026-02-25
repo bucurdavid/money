@@ -173,7 +173,8 @@ export interface IdentifyChainsResult {
 export interface OwnedToken {
   symbol: string;       // token name from on-chain metadata, or address if unknown
   address: string;      // token ID (hex) or mint address
-  balance: string;      // human-readable amount
+  balance: string;      // human-readable amount (already decimal-adjusted)
+  rawBalance: string;   // raw units as decimal string (before decimal adjustment)
   decimals: number;
 }
 

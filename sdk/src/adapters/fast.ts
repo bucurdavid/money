@@ -462,6 +462,7 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
       symbol: string;
       address: string;
       balance: string;
+      rawBalance: string;
       decimals: number;
     }>> {
       let pubkey: Uint8Array;
@@ -484,15 +485,17 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
 
       if (!result) return [];
 
-      const tokens: Array<{ symbol: string; address: string; balance: string; decimals: number }> = [];
+      const tokens: Array<{ symbol: string; address: string; balance: string; rawBalance: string; decimals: number }> = [];
 
       // Always include native SET
       const nativeHex = result.balance ?? '0';
+      const nativeRaw = nativeHex === '0' ? '0' : BigInt(`0x${nativeHex}`).toString();
       const nativeAmount = fromHex(nativeHex, FAST_DECIMALS);
       tokens.push({
         symbol: 'SET',
         address: `0x${Buffer.from(SET_TOKEN_ID).toString('hex')}`,
         balance: nativeAmount,
+        rawBalance: nativeRaw,
         decimals: FAST_DECIMALS,
       });
 
@@ -530,10 +533,12 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
               const tidHex = `0x${Buffer.from(new Uint8Array(tid)).toString('hex')}`;
               const rawBal = balanceMap.get(tidHex) ?? '0';
               const decimals = meta?.decimals ?? FAST_DECIMALS;
+              const rawDecimal = rawBal === '0' ? '0' : BigInt(`0x${rawBal}`).toString();
               tokens.push({
                 symbol: meta?.token_name ?? tidHex,
                 address: tidHex,
                 balance: fromHex(rawBal, decimals),
+                rawBalance: rawDecimal,
                 decimals,
               });
             }
@@ -541,10 +546,12 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
         } catch {
           // If metadata fetch fails, still return tokens with hex addresses
           for (const [tidHex, rawBal] of balanceMap) {
+            const rawDecimal = rawBal === '0' ? '0' : BigInt(`0x${rawBal}`).toString();
             tokens.push({
               symbol: tidHex,
               address: tidHex,
               balance: fromHex(rawBal, FAST_DECIMALS),
+              rawBalance: rawDecimal,
               decimals: FAST_DECIMALS,
             });
           }

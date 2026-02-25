@@ -425,8 +425,8 @@ Built-in tokens (USDC, USDT, WETH, WBTC, DAI) are hardcoded — no registration 
 ```js
 const t = await money.tokens({ chain: "fast" });
 // t = { chain: "fast", network: "testnet", owned: [
-//   { symbol: "SET", address: "0xfa575e70...", balance: "2287.5", decimals: 18 },
-//   { symbol: "testMONEY", address: "0x5d5387...", balance: "7500000000", decimals: 18 },
+//   { symbol: "SET", address: "0xfa575e70...", balance: "2287.5", rawBalance: "2287500000000000000000", decimals: 18 },
+//   { symbol: "testMONEY", address: "0x5d5387...", balance: "7500000000", rawBalance: "7500000000000000000000000000", decimals: 18 },
 // ], note: "" }
 
 // Now use discovered tokens by name
@@ -595,7 +595,7 @@ Custom providers are used alongside built-ins. The SDK selects the first provide
 | `money.bridge({ from: { chain, token }, to: { chain, token? }, amount, network, receiver?, provider? })` | `{ txHash, explorerUrl, fromChain, toChain, fromAmount, toAmount, orderId?, estimatedTime?, note }` |
 | `money.getToken({ chain, network?, name })` | `TokenInfo` or `null` |
 | `money.registerToken({ chain, network?, name, address?, mint?, decimals? })` | `void` |
-| `money.tokens({ chain, network? })` | `{ chain, network, owned: OwnedToken[], note }` where `OwnedToken = { symbol, address, balance, decimals }` |
+| `money.tokens({ chain, network? })` | `{ chain, network, owned: OwnedToken[], note }` where `OwnedToken = { symbol, address, balance, rawBalance, decimals }`. `balance` is human-readable, `rawBalance` is raw units. |
 | `money.toRawUnits({ amount, chain?, network?, token?, decimals? })` | `bigint` |
 | `money.toHumanUnits({ amount, chain?, network?, token?, decimals? })` | `string` |
 | `money.history({ chain?, network?, limit? })` | `{ entries: [...], note }` |

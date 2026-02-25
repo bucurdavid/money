@@ -329,13 +329,13 @@ export function createSolanaAdapter(
 
   async function ownedTokens(
     address: string,
-  ): Promise<Array<{ symbol: string; address: string; balance: string; decimals: number }>> {
+  ): Promise<Array<{ symbol: string; address: string; balance: string; rawBalance: string; decimals: number }>> {
     const { PublicKey } = await getWeb3();
     const { TOKEN_PROGRAM_ID } = await getSpl();
     const connection = await getConnection();
     const pubkey = new PublicKey(address);
 
-    const tokens: Array<{ symbol: string; address: string; balance: string; decimals: number }> = [];
+    const tokens: Array<{ symbol: string; address: string; balance: string; rawBalance: string; decimals: number }> = [];
 
     // Always include native SOL
     try {
@@ -344,6 +344,7 @@ export function createSolanaAdapter(
         symbol: 'SOL',
         address: '11111111111111111111111111111111',
         balance: toHuman(lamports, SOL_DECIMALS),
+        rawBalance: String(lamports),
         decimals: SOL_DECIMALS,
       });
     } catch {
@@ -351,6 +352,7 @@ export function createSolanaAdapter(
         symbol: 'SOL',
         address: '11111111111111111111111111111111',
         balance: '0',
+        rawBalance: '0',
         decimals: SOL_DECIMALS,
       });
     }
@@ -362,17 +364,19 @@ export function createSolanaAdapter(
       });
 
       for (const { account } of tokenAccounts.value) {
-        const parsed = account.data as { parsed?: { info?: { mint?: string; tokenAmount?: { uiAmountString?: string; decimals?: number } } } };
+        const parsed = account.data as { parsed?: { info?: { mint?: string; tokenAmount?: { amount?: string; uiAmountString?: string; decimals?: number } } } };
         const info = parsed.parsed?.info;
         if (!info?.mint) continue;
 
         const balance = info.tokenAmount?.uiAmountString ?? '0';
+        const rawBalance = info.tokenAmount?.amount ?? '0';
         const decimals = info.tokenAmount?.decimals ?? 0;
 
         tokens.push({
           symbol: info.mint,
           address: info.mint,
           balance,
+          rawBalance,
           decimals,
         });
       }

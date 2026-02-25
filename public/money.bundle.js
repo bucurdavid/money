@@ -70014,11 +70014,13 @@ function createFastAdapter(rpcUrl, network = "testnet") {
         return [];
       const tokens = [];
       const nativeHex = result.balance ?? "0";
+      const nativeRaw = nativeHex === "0" ? "0" : BigInt(`0x${nativeHex}`).toString();
       const nativeAmount = fromHex(nativeHex, FAST_DECIMALS);
       tokens.push({
         symbol: "SET",
         address: `0x${Buffer.from(SET_TOKEN_ID).toString("hex")}`,
         balance: nativeAmount,
+        rawBalance: nativeRaw,
         decimals: FAST_DECIMALS
       });
       const customTokenIds = [];
@@ -70042,20 +70044,24 @@ function createFastAdapter(rpcUrl, network = "testnet") {
               const tidHex = `0x${Buffer.from(new Uint8Array(tid)).toString("hex")}`;
               const rawBal = balanceMap.get(tidHex) ?? "0";
               const decimals = meta?.decimals ?? FAST_DECIMALS;
+              const rawDecimal = rawBal === "0" ? "0" : BigInt(`0x${rawBal}`).toString();
               tokens.push({
                 symbol: meta?.token_name ?? tidHex,
                 address: tidHex,
                 balance: fromHex(rawBal, decimals),
+                rawBalance: rawDecimal,
                 decimals
               });
             }
           }
         } catch {
           for (const [tidHex, rawBal] of balanceMap) {
+            const rawDecimal = rawBal === "0" ? "0" : BigInt(`0x${rawBal}`).toString();
             tokens.push({
               symbol: tidHex,
               address: tidHex,
               balance: fromHex(rawBal, FAST_DECIMALS),
+              rawBalance: rawDecimal,
               decimals: FAST_DECIMALS
             });
           }
@@ -70274,6 +70280,7 @@ async function fetchBlockscoutTokens(chain2, address) {
           symbol: token.symbol,
           address: token.address_hash,
           balance,
+          rawBalance: value,
           decimals
         });
       }
@@ -70457,6 +70464,7 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain
         symbol: nativeSymbol,
         address: "0x0000000000000000000000000000000000000000",
         balance: formatUnits(raw, NATIVE_DECIMALS),
+        rawBalance: raw.toString(),
         decimals: NATIVE_DECIMALS
       });
     } catch {
@@ -70464,6 +70472,7 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain
         symbol: nativeSymbol,
         address: "0x0000000000000000000000000000000000000000",
         balance: "0",
+        rawBalance: "0",
         decimals: NATIVE_DECIMALS
       });
     }
@@ -70671,6 +70680,7 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
         symbol: "SOL",
         address: "11111111111111111111111111111111",
         balance: toHuman(lamports, SOL_DECIMALS),
+        rawBalance: String(lamports),
         decimals: SOL_DECIMALS
       });
     } catch {
@@ -70678,6 +70688,7 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
         symbol: "SOL",
         address: "11111111111111111111111111111111",
         balance: "0",
+        rawBalance: "0",
         decimals: SOL_DECIMALS
       });
     }
@@ -70691,11 +70702,13 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
         if (!info?.mint)
           continue;
         const balance = info.tokenAmount?.uiAmountString ?? "0";
+        const rawBalance = info.tokenAmount?.amount ?? "0";
         const decimals = info.tokenAmount?.decimals ?? 0;
         tokens.push({
           symbol: info.mint,
           address: info.mint,
           balance,
+          rawBalance,
           decimals
         });
       }

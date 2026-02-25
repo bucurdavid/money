@@ -26,6 +26,7 @@ export interface ChainAdapter {
     symbol: string;
     address: string;
     balance: string;
+    rawBalance: string;
     decimals: number;
   }>>;
 }
