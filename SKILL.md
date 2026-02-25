@@ -7,20 +7,12 @@ description: >
   Arbitrum, Polygon, Optimism, BSC, Avalanche, Fantom, zkSync, Linea, Scroll, Solana) or any EVM chain.
   Use when asked to pay, transfer, swap, bridge, check price, sign a message, fund a wallet, or check a balance.
   Do NOT use for yield farming, lending, staking, or detecting incoming payments.
-tags:
-  - payments
-  - blockchain
-  - evm
-  - solana
-  - swap
-  - bridge
-  - wallet
 
 ---
 
 # MONEY SKILL
 
-Everything works out of the box. RPCs, token addresses, explorer URLs — all built in for 13 chains, testnet and mainnet. Discover tokens in your wallet automatically. Swap tokens via Jupiter (Solana) and Paraswap (EVM). Bridge cross-chain via DeBridge. Look up prices via DexScreener. Sign messages on any chain. Register any EVM chain at runtime. You do not need API keys or config files.
+Everything works out of the box — RPCs, token addresses, explorer URLs, all built in for 13 chains, testnet and mainnet. No API keys or config files needed.
 
 ## Install
 
@@ -32,27 +24,11 @@ curl -sL {{HOST}}/money.bundle.js.sha256 -o /tmp/money.sha256
 (cd ~/.money && shasum -a 256 -c /tmp/money.sha256) && rm -f /tmp/money.sha256
 ```
 
-Then symlink this into your auto-discovery skills path, or simply move the SKILL.md file there.
-
 v{{VERSION}}. Two files. Integrity verified via SHA-256. No dependencies.
-
-## Update
-
-Before updating, back up the current skill file so you can diff for migrations:
-
-```bash
-VER=$(grep 'version:' ~/.money/SKILL.md | head -1 | awk '{print $2}') && cp ~/.money/SKILL.md ~/.money/SKILL.md.v${VER}.bak
-```
-
-Then re-run the install commands above. After updating, diff the old and new versions to check for breaking changes:
-
-```bash
-diff ~/.money/SKILL.md.v${VER}.bak ~/.money/SKILL.md
-```
 
 ---
 
-The entire skill is 3 steps:
+## Quickstart
 
 ```js
 const { money } = await import(`${process.env.HOME}/.money/money.bundle.js`);
@@ -61,163 +37,64 @@ const bal = await money.balance({ chain: "fast" });                            /
 const tx = await money.send({ to: "set1qxy...", amount: 10, chain: "fast" }); // 3. send tokens
 ```
 
-That pattern is identical on every chain. Only the chain name and address format change.
+Same pattern on every chain. Only the chain name and address format change.
 
 Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"polygon"` `"optimism"` `"bsc"` `"avalanche"` `"fantom"` `"zksync"` `"linea"` `"scroll"` `"solana"`
 
-## What do you want to do?
+## Discover All Methods
 
-| Goal | Go to |
-|------|-------|
-| Set up a wallet | Setup |
-| Send tokens | Send Tokens |
-| Check balance | Check Balance |
-| Swap tokens (e.g. SOL to USDC) | Swap |
-| Bridge tokens cross-chain | Bridge |
-| Bridge Fast ↔ EVM (deposit/withdraw) | Bridge (OmniSet) |
-| Look up token price | Price |
-| Sign or verify a message | Sign |
-| Get free testnet tokens | Faucet |
-| Handle an error | Error Recovery |
-| Avoid sending twice | Idempotency |
-| Check if you received tokens | Receiving |
-| Discover tokens or register new ones | Tokens |
-| Convert between human and raw units | Unit Conversion |
-| View past sends | History |
-| Register a custom provider | Custom Providers |
-| Export wallet private key | Export Keys |
-| Configure API keys (e.g. Jupiter) | Swap |
-| Discover available methods | Discovery |
+Call `money.help()` to list every method, or `money.describe("methodName")` for full details including params, result shape, examples, and notes. Both are synchronous.
 
-| See all methods | Reference |
+```js
+money.help();               // → [{ name, params, description }, ...]
+money.describe("bridge");   // → { name, params, paramDetails, result, examples, notes }
+money.describe("swap");     // → full details for swap
+```
 
-## NOT for this skill
+Use these instead of reading this entire document. The sections below cover **operational knowledge** that can't be discovered programmatically.
 
-Stop. Tell the user this skill cannot help with: yield farming, lending, staking, or detecting incoming payments from external senders.
+---
 
 ## Rules
 
 1. **Default is testnet.** Never pass `network: "mainnet"` unless the user explicitly requested mainnet. If unsure, always use testnet. Mainnet uses real money.
 2. **Sends are irreversible.** Verify the address before calling `send()`.
 3. **Amounts are in human units.** `10` means 10 tokens, not 10 wei or 10 lamports.
+4. **Mainnet requires explicit user consent.** Only call `setup({ network: "mainnet" })` when the user specifically asks.
 
 ---
 
-## Setup
+## Address Detection
 
-Call once per chain. Creates a wallet, stores RPC config. All defaults are built in — you only pass options to override.
-
-```js
-const { money } = await import(`${process.env.HOME}/.money/money.bundle.js`);
-
-// testnet (default) — safe, faucet available, RPC built in
-const w = await money.setup({ chain: "fast" });
-// w = { chain: "fast", address: "set1...", network: "testnet", note: "Fund this wallet:\n  await money.faucet({ chain: \"fast\" })" }
-
-// mainnet — real money, faucet disabled, optional custom RPC
-const w = await money.setup({ chain: "base", network: "mainnet", rpc: "https://your-rpc-url" });
-// w = { chain: "base", address: "0x...", network: "mainnet", note: "" }
-```
-
-Same call for every chain. Only the `chain` value changes. RPC is stored permanently — no need to pass it again.
-
-**Mainnet requires explicit user consent.** Only call `setup({ network: "mainnet" })` when the user specifically asks for mainnet. When in doubt, confirm with the user first.
-
----
-
-## Send Tokens
-
-Chain is always required. Use `identifyChains()` if you don't know which chain an address belongs to.
+Use `money.identifyChains({ address })` when you don't know the chain.
 
 | Address looks like | Chain | Default token |
 |---|---|---|
-| `set` prefix (bech32m, e.g. `set1abc...`) | Fast | SET |
-| `0x` + 40 hex chars | Any EVM chain (Base, Ethereum, Arbitrum, Polygon, Optimism, BSC, Avalanche, Fantom, zkSync, Linea, Scroll) | ETH (or POL, BNB, AVAX, FTM depending on chain) |
+| `set1` prefix (bech32m) | Fast | SET |
+| `0x` + 40 hex chars | Any EVM chain | ETH (or POL, BNB, AVAX, FTM) |
 | Base58, 32-44 chars | Solana | SOL |
-
-```js
-// Send native tokens
-const tx = await money.send({ to: "set1qxy...", amount: 10, chain: "fast" });
-// tx = { txHash, explorerUrl, fee, chain, network, note }
-
-// Send on EVM — chain is always required
-const tx = await money.send({ to: "0x1234...abcd", amount: 1.5, chain: "ethereum" });
-
-// Send non-native token
-const tx = await money.send({ to: "0x1234...abcd", amount: 25, chain: "base", token: "USDC" });
-
-// Send on mainnet — requires prior setup with network: "mainnet"
-const tx = await money.send({ to: "0x1234...abcd", amount: 1.5, chain: "ethereum", network: "mainnet" });
-```
-
-### Don't know the chain? Use identifyChains
-
-```js
-// Identify which chains an address format belongs to
-const result = await money.identifyChains({ address: "0x1234...abcd" });
-// result = { chains: ["base", "ethereum", "arbitrum"], note: "Multiple chains use this address format. Ask the user which chain to use." }
-```
-
-Solana works like Fast — native SOL by default. For SPL tokens pass the mint address or a registered token name as `token`.
-
----
-
-## Check Balance
-
-```js
-const bal = await money.balance({ chain: "fast" });
-// bal = { amount: "42.5", token: "SET", chain: "fast", network: "testnet", address: "set1...", note: "" }
-
-// Check a specific token
-const bal = await money.balance({ chain: "base", token: "USDC" });
-
-// Check mainnet balance
-const bal = await money.balance({ chain: "base", network: "mainnet" });
-
-// Tip: run money.tokens() first to discover tokens, then check by name
-const t = await money.tokens({ chain: "base", network: "mainnet" });
-const bal = await money.balance({ chain: "base", network: "mainnet", token: "USDC" });
-```
-
-For balances across all configured chains, use `money.status()`.
-
----
-
-## Faucet
-
-Testnet only. Not available on mainnet.
-
-```js
-const r = await money.faucet({ chain: "fast" });
-// r = { amount, token, txHash, chain, network, note: "Check balance:\n  await money.balance({ chain: \"fast\" })" }
-```
-
-If it throws `TX_FAILED`, the manual faucet URL is in `e.details.faucetUrl`.
 
 ---
 
 ## Error Recovery
 
-All errors have `{ code, message, note }`. The `note` field contains a working code example showing how to fix the error.
+All errors have `{ code, message, note }`. The `note` field contains a code example showing how to fix it.
 
-| `e.code` | Meaning | Action |
-|---|---|---|
-| `INVALID_PARAMS` | Missing or invalid parameter | Read `e.note` for the correct call shape. |
-| `INSUFFICIENT_BALANCE` | Not enough tokens | Testnet: `money.faucet({ chain })`, retry. Mainnet: fund wallet. |
-| `CHAIN_NOT_CONFIGURED` | No wallet for chain | `money.setup({ chain })`, retry. |
-| `TX_FAILED` | RPC/network error | Wait 5s, retry once. If still fails, stop. |
-| `FAUCET_THROTTLED` | Faucet rate limited | Wait and retry later. |
-| `INVALID_ADDRESS` | Bad address | Do not retry. Confirm address with user. |
-| `TOKEN_NOT_FOUND` | Token not registered | `money.registerToken({ chain, name, address, decimals })`, retry. |
-| `UNSUPPORTED_OPERATION` | Method not available for chain | Use an EVM chain for contract calls. |
+| `e.code` | Action |
+|---|---|
+| `INSUFFICIENT_BALANCE` | Testnet: `money.faucet({ chain })`, retry. Mainnet: fund wallet. |
+| `CHAIN_NOT_CONFIGURED` | `money.setup({ chain })`, retry. |
+| `TX_FAILED` | Wait 5s, retry once. If still fails, stop. |
+| `FAUCET_THROTTLED` | Wait and retry later. |
+| `INVALID_ADDRESS` | Do not retry. Confirm address with user. |
+| `TOKEN_NOT_FOUND` | `money.registerToken({ chain, name, address, decimals })`, retry. |
+| `INVALID_PARAMS` | Read `e.note` for correct call shape. |
+| `UNSUPPORTED_OPERATION` | Check `e.note` — method may not be available for this chain/network. |
 
 ```js
 try {
   await money.send({ to: "set1qxy...", amount: 10, chain: "fast" });
 } catch (e) {
-  // e.note contains a code example showing how to fix the error
-  console.log(e.code, e.message, e.note);
-
   if (e.code === "INSUFFICIENT_BALANCE") {
     await money.faucet({ chain: "fast" });
     await money.send({ to: "set1qxy...", amount: 10, chain: "fast" });
@@ -263,278 +140,33 @@ const delta = parseFloat(after.amount) - parseFloat(before.amount);
 if (delta > 0) console.log("Received:", delta, after.token);
 ```
 
-For confirmed incoming verification, use a block explorer — outside this skill.
-
 ---
 
-## Swap
+## Key Concepts
 
-Swap tokens on-chain. Uses Jupiter (Solana) and Paraswap (11 EVM chains) automatically. **Requires `network: "mainnet"` explicitly** — testnet DEXes have no liquidity.
+### Network rules
 
-ERC-20 token approvals are handled automatically — the SDK checks allowance and approves if needed before swapping. All transactions are confirmed on-chain before returning.
+- `swap`, `quote` require `network: "mainnet"` (testnet DEXes have no liquidity)
+- `bridge` depends on provider: DeBridge requires `"mainnet"`, OmniSet requires `"testnet"`
+- Solana swaps require a free Jupiter API key: `money.setApiKey({ provider: "jupiter", apiKey: "..." })`
+- `price`, `tokenInfo` are read-only — work regardless of network
 
+### Token discovery
+
+Call `money.tokens({ chain })` to discover all tokens in your wallet. Discovered tokens are auto-cached — use by name in `balance()`, `send()`, etc.
+
+### Token registration
+
+For tokens not yet in your wallet, register once:
 ```js
-// EVM swap (e.g. ETH to USDC on Base) — works immediately
-const tx = await money.swap({ chain: "base", from: "ETH", to: "USDC", amount: 0.5, network: "mainnet" });
-// tx = { txHash, explorerUrl, fromToken, toToken, fromAmount, toAmount, provider, chain, network, note }
-
-// EVM swap with ERC-20 token (approval handled automatically)
-const tx = await money.swap({ chain: "base", from: "USDC", to: "WETH", amount: 100, network: "mainnet" });
-
-// Solana swap — requires one-time Jupiter API key setup (free at portal.jup.ag)
-await money.setApiKey({ provider: "jupiter", apiKey: "your-free-key-from-portal.jup.ag" });
-const tx = await money.swap({ chain: "solana", from: "SOL", to: "USDC", amount: 1, network: "mainnet" });
-
-// Get a quote first (read-only, no transaction)
-const q = await money.quote({ chain: "solana", from: "SOL", to: "USDC", amount: 1, network: "mainnet" });
-// q = { fromToken, toToken, fromAmount, toAmount, rate, priceImpact, provider, chain, network, note }
-
-// Custom slippage (default is 50 bps = 0.5%)
-const tx = await money.swap({ chain: "base", from: "USDC", to: "WETH", amount: 100, network: "mainnet", slippageBps: 100 });
-```
-
-Known token symbols resolve automatically: USDC, USDT, WETH, WBTC, DAI, and native tokens (ETH, SOL, POL, BNB, AVAX, FTM). For other tokens, pass a contract address.
-
-Supported swap chains: Solana (Jupiter), Ethereum, Base, Arbitrum, Polygon, Optimism, BSC, Avalanche, Fantom, zkSync, Linea, Scroll (Paraswap).
-
----
-
-## Bridge
-
-Bridge tokens between chains. ERC-20 token approvals are handled automatically. Transactions are confirmed on-chain before the SDK returns — no phantom transaction hashes.
-
-### DeBridge (EVM ↔ EVM, EVM ↔ Solana) — mainnet
-
-Uses DeBridge DLN. **Requires `network: "mainnet"` explicitly.**
-
-```js
-// Bridge USDC from Ethereum to Base
-const tx = await money.bridge({
-  from: { chain: "ethereum", token: "USDC" },
-  to: { chain: "base" },
-  amount: 100,
-  network: "mainnet",
-});
-// tx = { txHash, explorerUrl, fromChain, toChain, fromAmount, toAmount, orderId, estimatedTime, note }
-
-// Bridge to a different address (default: your own address on the destination chain)
-const tx = await money.bridge({
-  from: { chain: "ethereum", token: "USDC" },
-  to: { chain: "base", token: "USDC" },
-  amount: 100,
-  network: "mainnet",
-  receiver: "0x1234...abcd",
-});
-```
-
-Supported DeBridge chains: Ethereum, Optimism, BSC, Polygon, Base, Arbitrum, Avalanche, Linea, Fantom, Solana.
-
-### OmniSet (Fast ↔ EVM) — testnet
-
-Bridge between Fast chain and EVM chains (Ethereum Sepolia, Arbitrum Sepolia). Supports depositing ETH/WETH/WSET from EVM to Fast, and withdrawing SET/setWETH from Fast to EVM. **Requires `network: "testnet"`.**
-
-```js
-// Deposit ETH from Ethereum Sepolia → Fast (auto-wraps to setWETH on Fast)
-const tx = await money.bridge({
-  from: { chain: "ethereum", token: "ETH" },
-  to: { chain: "fast" },
-  amount: 0.1,
-  network: "testnet",
-  provider: "omniset",
-});
-
-// Deposit WSET from Arbitrum Sepolia → Fast (burns WSET, mints SET on Fast)
-const tx = await money.bridge({
-  from: { chain: "arbitrum", token: "WSET" },
-  to: { chain: "fast" },
-  amount: 100,
-  network: "testnet",
-  provider: "omniset",
-});
-
-// Withdraw setWETH from Fast → Ethereum Sepolia (releases WETH on EVM)
-const tx = await money.bridge({
-  from: { chain: "fast", token: "WETH" },
-  to: { chain: "ethereum" },
-  amount: 0.1,
-  network: "testnet",
-  provider: "omniset",
-});
-
-// Withdraw SET from Fast → Arbitrum Sepolia (mints WSET on EVM)
-const tx = await money.bridge({
-  from: { chain: "fast", token: "SET" },
-  to: { chain: "arbitrum" },
-  amount: 100,
-  network: "testnet",
-  provider: "omniset",
-});
-```
-
-Supported OmniSet tokens: ETH, WETH, WSET, SET. Both source and destination chains must be set up first (`money.setup()`).
-
-Both source and destination chains must be set up first (`money.setup()`). If you don't provide `receiver`, the SDK uses your address on the destination chain.
-
----
-
-## Price
-
-Look up token prices via DexScreener. No setup required. Works on testnet or mainnet — read-only.
-
-```js
-// Get price by symbol
-const p = await money.price({ token: "ETH" });
-// p = { price: "2500.00", symbol: "ETH", name: "Ethereum", priceChange24h: "2.5", volume24h: "50000000", liquidity: "10000000", marketCap: "300000000000", note }
-
-// Get price by contract address on a specific chain
-const p = await money.price({ token: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", chain: "ethereum" });
-
-// Get detailed token info (includes DEX pairs)
-const info = await money.tokenInfo({ token: "USDC", chain: "ethereum" });
-// info = { name, symbol, address, price, priceChange24h, volume24h, liquidity, marketCap, pairs: [{ dex, pairAddress, quoteToken, price }], note }
-
-// Use a custom price provider (must be registered first via registerPriceProvider)
-const p = await money.price({ token: "BTC", provider: "my-oracle" });
-```
-
-The `note` field in price/tokenInfo responses includes a `money.registerToken()` hint so you can easily use the discovered token in balance/send calls.
-
----
-
-## Sign
-
-Sign a message with your wallet's private key. Useful for authentication (Sign-In with Ethereum), proving ownership, or off-chain attestations.
-
-```js
-// Sign on EVM (returns 0x-prefixed hex)
-const sig = await money.sign({ chain: "base", message: "Sign in to MyApp" });
-// sig = { signature: "0x...", address: "0x...", chain: "base", network: "testnet", note }
-
-// Sign on Fast (returns hex)
-const sig = await money.sign({ chain: "fast", message: "Hello world" });
-// sig = { signature: "a1b2c3...", address: "set1...", chain: "fast", network: "testnet", note }
-
-// Sign on Solana (returns base58)
-const sig = await money.sign({ chain: "solana", message: "Verify me" });
-// sig = { signature: "3xYz...", address: "7abc...", chain: "solana", network: "testnet", note }
-
-// Sign raw bytes
-const sig = await money.sign({ chain: "base", message: new Uint8Array([1, 2, 3]) });
-```
-
-### Verify
-
-Verify a signature without needing the private key. Works on all chains.
-
-```js
-// Verify on EVM
-const v = await money.verifySign({
-  chain: "base",
-  message: "Sign in to MyApp",
-  signature: "0x...",
-  address: "0x1234...abcd",
-});
-// v = { valid: true, address: "0x1234...abcd", chain: "base", network: "testnet", note: "" }
-
-// Verify on Fast
-const v = await money.verifySign({
-  chain: "fast",
-  message: "Hello world",
-  signature: "a1b2c3...",
-  address: "set1...",
-});
-
-// Verify on Solana
-const v = await money.verifySign({
-  chain: "solana",
-  message: "Verify me",
-  signature: "3xYz...",
-  address: "7abc...",
-});
-```
-
----
-
-## Export Keys
-
-Export the wallet's private key and address. **Only use when the user explicitly asks to export or back up their keys.** The private key controls all funds on that wallet.
-
-```js
-// Export EVM key (same key for all EVM chains)
-const k = await money.exportKeys({ chain: "base" });
-// k = { address: "0x...", privateKey: "0x...", keyfile: "/home/user/.money/keys/evm.json", chain: "base", chainType: "evm", note: "WARNING: ..." }
-
-// Export Solana key
-const k = await money.exportKeys({ chain: "solana" });
-// k = { address: "7abc...", privateKey: "a1b2c3...", keyfile: "/home/user/.money/keys/solana.json", chain: "solana", chainType: "solana", note: "WARNING: ..." }
-
-// Export Fast key
-const k = await money.exportKeys({ chain: "fast" });
-// k = { address: "set1...", privateKey: "d4e5f6...", keyfile: "/home/user/.money/keys/fast.json", chain: "fast", chainType: "fast", note: "WARNING: ..." }
-```
-
-EVM private keys are returned with `0x` prefix (ready for import into MetaMask, etc.). Solana and Fast keys are hex-encoded.
-
-All EVM chains share the same key — exporting from any EVM chain returns the same private key.
-
----
-
-## Tokens
-
-Native token works immediately after `setup()` — no configuration needed.
-
-| Chain | Native token |
-|---|---|
-| Fast | SET |
-| Base, Ethereum, Arbitrum, Optimism, zkSync, Linea, Scroll | ETH |
-| Polygon | POL |
-| BSC | BNB |
-| Avalanche | AVAX |
-| Fantom | FTM |
-| Solana | SOL |
-
-Built-in tokens (USDC, USDT, WETH, WBTC, DAI) are hardcoded — no registration needed.
-
-### Discover tokens you hold
-
-`money.tokens()` does a live on-chain fetch of all tokens in your wallet. After calling it, discovered tokens are auto-cached and usable by name in `balance()`, `send()`, etc.
-
-```js
-const t = await money.tokens({ chain: "fast" });
-// t = { chain: "fast", network: "testnet", owned: [
-//   { symbol: "SET", address: "0xfa575e70...", balance: "2287.5", rawBalance: "2287500000000000000000", decimals: 18 },
-//   { symbol: "testMONEY", address: "0x5d5387...", balance: "7500000000", rawBalance: "7500000000000000000000000000", decimals: 18 },
-// ], note: "" }
-
-// Now use discovered tokens by name
-const bal = await money.balance({ chain: "fast", token: "testMONEY" });
-```
-
-Token discovery works on all chain types:
-- **Fast** — via `proxy_getAccountInfo` + `proxy_getTokenInfo` RPC
-- **Solana** — via `getParsedTokenAccountsByOwner` RPC
-- **EVM** — via Blockscout API (no API key). Works on: Ethereum, Base, Arbitrum, Optimism, zkSync, Scroll. Returns empty for BSC, Avalanche, Fantom, Linea, Polygon.
-
-### Register tokens you don't own yet
-
-For tokens not yet in your wallet (e.g., want to send to, or use in swaps), register them once — persists to disk:
-
-```js
-// Register a named token — separate registration per network (different contract addresses)
 await money.registerToken({ chain: "base", name: "USDC", address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", decimals: 6 });
-await money.registerToken({ chain: "base", network: "mainnet", name: "USDC", address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 });
-
-// Use by name — network selects the right contract address
-await money.send({ to: "0x1234...abcd", amount: 25, chain: "base", token: "USDC" });
-await money.send({ to: "0x1234...abcd", amount: 25, chain: "base", network: "mainnet", token: "USDC" });
-
-// Look up a registered token
-const info = await money.getToken({ chain: "base", name: "USDC" });
 ```
 
-**Known USDC addresses:**
+Built-in tokens (USDC, USDT, WETH, WBTC, DAI) are hardcoded on mainnet — no registration needed.
 
-| Chain | Network | Address / Mint |
+### Known USDC addresses
+
+| Chain | Network | Address |
 |---|---|---|
 | Base | testnet | `0x036CbD53842c5426634e7929541eC2318f3dCF7e` |
 | Base | mainnet | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
@@ -545,199 +177,18 @@ const info = await money.getToken({ chain: "base", name: "USDC" });
 | Solana | testnet | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` |
 | Solana | mainnet | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` |
 
----
+### Custom EVM chains
 
-## Custom Chains
-
-Register any EVM-compatible chain not already built in, and use it like a built-in chain.
-
+Register any EVM chain at runtime:
 ```js
-// Register a custom EVM chain (persistent — call once)
-await money.registerEvmChain({
-  chain: "celo",
-  chainId: 42220,
-  rpc: "https://forno.celo.org",
-  explorer: "https://explorer.celo.org/mainnet/tx/",
-  defaultToken: "CELO",
-  network: "mainnet",
-});
-
-// Then use it exactly like a built-in chain
+await money.registerEvmChain({ chain: "celo", chainId: 42220, rpc: "https://forno.celo.org", defaultToken: "CELO", network: "mainnet" });
 await money.setup({ chain: "celo", network: "mainnet" });
-await money.balance({ chain: "celo", network: "mainnet" });
-await money.send({ to: "0x1234...abcd", amount: 1, chain: "celo", network: "mainnet" });
 ```
 
-All custom EVM chains share the same wallet key (`~/.money/keys/evm.json`) — same address across all EVM chains and networks.
-
-Only `chainId` and `rpc` are required. `explorer`, `defaultToken` (defaults to `"ETH"`), and `network` (defaults to `"testnet"`) are optional.
-
-Built-in chains (`fast`, `base`, `ethereum`, `arbitrum`, `polygon`, `optimism`, `bsc`, `avalanche`, `fantom`, `zksync`, `linea`, `scroll`, `solana`) cannot be overridden — use `money.setup()` for those.
+All EVM chains share the same wallet key — same address everywhere.
 
 ---
 
-## Unit Conversion
+## NOT for this skill
 
-Convert between human-readable amounts and raw blockchain units (wei, lamports, smallest denomination). Useful for contract call args and interpreting contract return values.
-
-```js
-// Human → raw (bigint)
-const raw = await money.toRawUnits({ amount: 25, token: "USDC", chain: "base" });
-// raw = 25000000n (USDC = 6 decimals)
-
-const raw = await money.toRawUnits({ amount: 1.5, chain: "base" });
-// raw = 1500000000000000000n (ETH = 18 decimals)
-
-const raw = await money.toRawUnits({ amount: 100, decimals: 8 });
-// raw = 10000000000n (explicit decimals, no chain lookup)
-
-// Raw → human (string)
-const human = await money.toHumanUnits({ amount: 25000000n, token: "USDC", chain: "base" });
-// human = "25"
-
-const human = await money.toHumanUnits({ amount: 1500000000000000000n, chain: "base" });
-// human = "1.5"
-
-const human = await money.toHumanUnits({ amount: 10000000000n, decimals: 8 });
-// human = "100"
-```
-
-Two modes: **token lookup** (pass `chain` + optional `token` — decimals resolved from registered tokens or native token defaults) or **explicit decimals** (pass `decimals` directly — no chain needed).
-
----
-
-## History
-
-```js
-const { entries } = await money.history();                          // all chains
-const { entries } = await money.history({ chain: "fast" });         // one chain
-const { entries } = await money.history({ limit: 5 });              // last 5
-const { entries } = await money.history({ chain: "base", network: "mainnet" }); // mainnet only
-
-// Each entry: { ts, chain, network, to, amount, token, txHash }
-```
-
----
-
-## Custom Providers
-
-Register custom swap, bridge, or price providers at runtime. Built-in providers (Jupiter, Paraswap, DeBridge, DexScreener) are registered automatically.
-
-```js
-// Register a custom swap provider
-money.registerSwapProvider({
-  name: "my-dex",
-  chains: ["ethereum", "base"],
-  async quote(params) { /* return SwapQuote */ },
-  async swap(params) { /* return { txHash } */ },
-});
-
-// Register a custom bridge provider
-money.registerBridgeProvider({
-  name: "my-bridge",
-  chains: ["ethereum", "base"],
-  async bridge(params) { /* return { txHash, orderId?, estimatedTime? } */ },
-});
-
-// Register a custom price provider
-money.registerPriceProvider({
-  name: "my-oracle",
-  async getPrice(params) { /* return { price, symbol, name, ... } */ },
-  async getTokenInfo(params) { /* return { name, symbol, address, price, pairs, ... } */ },
-});
-```
-
-Custom providers are used alongside built-ins. The SDK selects the first provider that supports the requested chain.
-
----
-
-## Discovery
-
-The SDK has built-in auto-discovery. Instead of reading this entire document, agents can call two methods to learn what's available.
-
-### List all methods
-
-```js
-const methods = money.help();
-// Returns array of { name, params, description } for every SDK method
-// Example entry: { name: "bridge", params: "{ from, to, amount, network, provider?, receiver? }", description: "Bridge tokens between chains." }
-```
-
-### Get detailed info on a method
-
-```js
-const info = money.describe("bridge");
-// Returns: {
-//   name: "bridge",
-//   description: "Bridge tokens between chains.",
-//   params: "{ from: { chain, token }, to: { chain, token? }, amount, network, provider?, receiver? }",
-//   paramDetails: { from: "{ chain: string, token: string } — source chain and token", ... },
-//   result: "{ txHash, explorerUrl, fromChain, toChain, fromAmount, toAmount, orderId, estimatedTime, note }",
-//   examples: [...],
-//   notes: "DeBridge for mainnet EVM/Solana. OmniSet for testnet Fast<->EVM..."
-// }
-
-// Returns null if method not found
-money.describe("nonexistent"); // null
-```
-
-Both methods are **synchronous** — no `await` needed. Start with `money.help()` to see what's available, then drill into any method with `money.describe(name)`.
-
----
-
-## Reference
-
-| Method | Returns |
-|--------|---------|
-| `money.setup({ chain, network?, rpc? })` | `{ chain, address, network, note }` |
-| `money.registerEvmChain({ chain, chainId, rpc, explorer?, defaultToken?, network? })` | `void` |
-| `money.setApiKey({ provider, apiKey })` | `void` |
-| `money.status()` | `{ entries: [...], note }` |
-| `money.balance({ chain, network?, token? })` | `{ amount, token, chain, network, address, note }` |
-| `money.send({ to, amount, chain, network?, token? })` | `{ txHash, explorerUrl, fee, chain, network, note }` |
-| `money.faucet({ chain, network? })` | `{ amount, token, txHash, chain, network, note }` |
-| `money.identifyChains({ address })` | `{ chains: string[], note }` |
-| `money.exportKeys({ chain, network? })` | `{ address, privateKey, keyfile, chain, chainType, note }` |
-| `money.sign({ chain, message, network? })` | `{ signature, address, chain, network, note }` |
-| `money.verifySign({ chain, message, signature, address, network? })` | `{ valid, address, chain, network, note }` |
-| `money.quote({ chain, from, to, amount, network, slippageBps?, provider? })` | `{ fromToken, toToken, fromAmount, toAmount, rate, priceImpact, provider, chain, network, note }` |
-| `money.swap({ chain, from, to, amount, network, slippageBps?, provider? })` | `{ txHash, explorerUrl, fromToken, toToken, fromAmount, toAmount, provider, chain, network, note }` |
-| `money.price({ token, chain?, provider? })` | `{ price, symbol, name, priceChange24h?, volume24h?, liquidity?, marketCap?, chain?, note }` |
-| `money.tokenInfo({ token, chain?, provider? })` | `{ name, symbol, address, price, pairs: [...], note }` |
-| `money.bridge({ from: { chain, token }, to: { chain, token? }, amount, network, receiver?, provider? })` | `{ txHash, explorerUrl, fromChain, toChain, fromAmount, toAmount, orderId?, estimatedTime?, note }` |
-| `money.getToken({ chain, network?, name })` | `TokenInfo` or `null` |
-| `money.registerToken({ chain, network?, name, address?, mint?, decimals? })` | `void` |
-| `money.tokens({ chain, network? })` | `{ chain, network, owned: OwnedToken[], note }` where `OwnedToken = { symbol, address, balance, rawBalance, decimals }`. `balance` is human-readable, `rawBalance` is raw units. |
-| `money.toRawUnits({ amount, chain?, network?, token?, decimals? })` | `bigint` |
-| `money.toHumanUnits({ amount, chain?, network?, token?, decimals? })` | `string` |
-| `money.history({ chain?, network?, limit? })` | `{ entries: [...], note }` |
-| `money.registerSwapProvider(provider)` | `void` |
-| `money.registerBridgeProvider(provider)` | `void` |
-| `money.registerPriceProvider(provider)` | `void` |
-| `money.help()` | `HelpEntry[]` |
-| `money.describe(methodName)` | `DescribeResult \| null` |
-
-
-All errors: `{ code, message, note }`. The `note` field contains a code example showing how to fix the error.
-
-`token` is optional on send/balance. When omitted, the chain's native token is used: SET (Fast), ETH (Base/Ethereum/Arbitrum/Optimism/zkSync/Linea/Scroll), POL (Polygon), BNB (BSC), AVAX (Avalanche), FTM (Fantom), SOL (Solana).
-
-Swap and quote **require `network: "mainnet"` explicitly**. Bridge requires mainnet (DeBridge) or testnet (OmniSet) depending on the provider. Price and tokenInfo are read-only and work regardless of network.
-
-Solana swaps require a Jupiter API key (free at portal.jup.ag). Run `money.setApiKey({ provider: "jupiter", apiKey: "..." })` once before your first Solana swap.
-
----
-
-## Bundled Dependencies
-
-The SDK bundle includes all dependencies — no additional installs needed.
-
-| Package | Purpose |
-|---------|---------|
-| [viem](https://viem.sh) | EVM chain interactions (transactions, balances, contract calls) |
-| [@solana/web3.js](https://solana-labs.github.io/solana-web3.js) | Solana RPC and transaction handling |
-| [@solana/spl-token](https://spl.solana.com) | SPL token operations (transfers, account lookup) |
-| [@mysten/bcs](https://github.com/MystenLabs/sui/tree/main/sdk/bcs) | Binary Canonical Serialization for Fast chain transactions |
-| [@noble/ed25519](https://github.com/paulmillr/noble-ed25519) | Ed25519 signing (Fast chain, Solana) |
-| [@noble/hashes](https://github.com/paulmillr/noble-hashes) | Keccak-256 hashing (Fast chain transaction IDs) |
-| [bech32](https://github.com/bitcoinjs/bech32) | Bech32m address encoding (Fast chain `set1...` addresses) |
+Stop. Tell the user this skill cannot help with: yield farming, lending, staking, or detecting incoming payments from external senders.
