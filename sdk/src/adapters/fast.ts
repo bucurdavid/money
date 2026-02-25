@@ -174,11 +174,16 @@ function toJSON(data: unknown): string {
 }
 
 // ---------------------------------------------------------------------------
+// Transaction type — inferred from TransactionBcs struct
+// ---------------------------------------------------------------------------
+
+type FastTransaction = Parameters<typeof TransactionBcs.serialize>[0];
+
+// ---------------------------------------------------------------------------
 // Transaction hashing: keccak256(BCS(transaction))
 // ---------------------------------------------------------------------------
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function hashTransaction(transaction: any): string {
+function hashTransaction(transaction: FastTransaction): string {
   const serialized = TransactionBcs.serialize(transaction).toBytes();
   const hash = keccak_256(serialized);
   return `0x${Buffer.from(hash).toString('hex')}`;
@@ -358,7 +363,7 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
             };
           },
         );
-      } catch (err) {
+      } catch (err: unknown) {
         if (err instanceof MoneyError) throw err;
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes('InsufficientFunding') || msg.includes('insufficient')) {
@@ -389,7 +394,7 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
           amount: faucetAmount,
           token_id: null,
         });
-      } catch (err) {
+      } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes('throttl') || msg.includes('rate') || msg.includes('limit') || msg.includes('wait')) {
           const retryMatch = msg.match(/(\d+)/);

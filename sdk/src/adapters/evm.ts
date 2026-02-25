@@ -222,7 +222,7 @@ export function createEvmAdapter(
         explorerUrl: `${explorerBaseUrl}/tx/${txHash}`,
         fee,
       };
-    } catch (err) {
+    } catch (err: unknown) {
       if (err instanceof MoneyError) throw err;
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('insufficient funds') || msg.includes('exceeds balance')) {

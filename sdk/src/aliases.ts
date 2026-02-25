@@ -34,7 +34,7 @@ async function saveAliases(data: Record<string, Record<string, TokenConfig>>): P
   try {
     await fs.writeFile(tmpPath, JSON.stringify(data, null, 2), { encoding: 'utf-8', mode: 0o600 });
     await fs.rename(tmpPath, aliasesPath);
-  } catch (err) {
+  } catch (err: unknown) {
     try { await fs.unlink(tmpPath); } catch { /* ignore */ }
     throw err;
   }

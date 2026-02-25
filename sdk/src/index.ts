@@ -159,7 +159,7 @@ export const money = {
     try {
       const result = await adapter.setupWallet(keyfilePath);
       address = result.address;
-    } catch (err) {
+    } catch (err: unknown) {
       throw err;
     }
 
@@ -195,7 +195,7 @@ export const money = {
         const adapter = await getAdapter(key);
         const result = await adapter.setupWallet(keyfilePath);
         address = result.address;
-      } catch (err) {
+      } catch (err: unknown) {
         status = (err instanceof MoneyError && err.code === 'CHAIN_NOT_CONFIGURED')
           ? 'no-rpc'
           : 'error';
@@ -306,14 +306,14 @@ export const money = {
           note: insufficientNote,
         });
       }
-    } catch (err) {
+    } catch (err: unknown) {
       if (err instanceof MoneyError) throw err;
     }
 
     let result: { txHash: string; explorerUrl: string; fee: string };
     try {
       result = await adapter.send({ from, to, amount: amountStr, token, keyfile: keyfilePath });
-    } catch (err) {
+    } catch (err: unknown) {
       if (err instanceof MoneyError) throw err;
       const msg = err instanceof Error ? err.message : String(err);
       throw new MoneyError('TX_FAILED', msg, { chain, note: `Wait 5 seconds, then retry:\n  await money.send({ to: "${to}", amount: "${amountStr}", chain: "${chain}" })` });

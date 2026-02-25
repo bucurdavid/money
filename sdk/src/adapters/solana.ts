@@ -256,7 +256,7 @@ export function createSolanaAdapter(
 
         return { txHash, explorerUrl: explorerUrl(txHash), fee };
       });
-    } catch (err) {
+    } catch (err: unknown) {
       if (err instanceof MoneyError) throw err;
       const msg = err instanceof Error ? err.message : String(err);
       if (msg.includes('debit an account') || msg.includes('insufficient') || msg.includes('0x1')) {
