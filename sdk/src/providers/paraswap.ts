@@ -105,7 +105,6 @@ export const paraswapProvider: SwapProvider = {
         srcToken: params.fromToken,
         destToken: params.toToken,
         srcAmount: params.amount,
-        destAmount: (params.route as { destAmount: string }).destAmount,
         priceRoute: params.route,
         userAddress: params.userAddress,
         slippage: params.slippageBps,

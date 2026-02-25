@@ -68466,7 +68466,7 @@ var DEFAULT_CHAIN_CONFIGS = {
       defaultToken: "ETH"
     },
     mainnet: {
-      rpc: "https://eth.llamarpc.com",
+      rpc: "https://ethereum-rpc.publicnode.com",
       keyfile: "~/.money/keys/evm.json",
       network: "mainnet",
       defaultToken: "ETH"
@@ -71418,7 +71418,6 @@ var paraswapProvider = {
         srcToken: params.fromToken,
         destToken: params.toToken,
         srcAmount: params.amount,
-        destAmount: params.route.destAmount,
         priceRoute: params.route,
         userAddress: params.userAddress,
         slippage: params.slippageBps
@@ -71549,7 +71548,7 @@ async function searchPairs(token, chain2) {
 }
 
 // dist/src/providers/debridge.js
-var BASE_URL4 = "https://api.dln.trade/v1.0";
+var BASE_URL4 = "https://dln.debridge.finance/v1.0";
 var DEBRIDGE_CHAIN_IDS = {
   ethereum: 1,
   optimism: 10,
@@ -71586,6 +71585,10 @@ var debridgeProvider = {
     url.searchParams.set("dstChainTokenOutRecipient", params.receiverAddress);
     url.searchParams.set("senderAddress", params.senderAddress);
     url.searchParams.set("prependOperatingExpenses", "true");
+    url.searchParams.set("dstChainTokenOutAmount", "auto");
+    url.searchParams.set("srcChainOrderAuthorityAddress", params.senderAddress);
+    url.searchParams.set("srcChainRefundAddress", params.senderAddress);
+    url.searchParams.set("dstChainOrderAuthorityAddress", params.receiverAddress);
     const res = await fetch(url.toString());
     if (!res.ok) {
       const text = await res.text();
@@ -71608,14 +71611,17 @@ var debridgeProvider = {
       if (!params.evmExecutor) {
         throw new Error("DeBridge EVM bridge requires evmExecutor");
       }
-      if (data.tx.allowanceTarget && data.tx.allowanceValue) {
-        const currentAllowance = await params.evmExecutor.checkAllowance(params.fromToken, data.tx.allowanceTarget, params.senderAddress);
-        if (currentAllowance < BigInt(data.tx.allowanceValue)) {
-          await params.evmExecutor.approveErc20(params.fromToken, data.tx.allowanceTarget, data.tx.allowanceValue);
-        }
-      }
       if (!data.tx.to) {
-        throw new Error("DeBridge returned empty transaction target");
+        throw new Error("DeBridge returned empty transaction target. The API response may be incomplete.");
+      }
+      const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+      const isNativeToken = params.fromToken.toLowerCase() === NATIVE.toLowerCase() || params.fromToken === "0x0000000000000000000000000000000000000000";
+      if (!isNativeToken) {
+        const requiredAmount = BigInt(data.estimation.srcChainTokenIn.amount);
+        const currentAllowance = await params.evmExecutor.checkAllowance(params.fromToken, data.tx.to, params.senderAddress);
+        if (currentAllowance < requiredAmount) {
+          await params.evmExecutor.approveErc20(params.fromToken, data.tx.to, data.estimation.srcChainTokenIn.amount);
+        }
       }
       const receipt = await params.evmExecutor.sendTx({
         to: data.tx.to,

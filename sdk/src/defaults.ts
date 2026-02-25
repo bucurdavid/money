@@ -44,7 +44,7 @@ export const DEFAULT_CHAIN_CONFIGS: Record<string, Record<NetworkType, ChainConf
       defaultToken: 'ETH',
     },
     mainnet: {
-      rpc: 'https://eth.llamarpc.com',
+      rpc: 'https://ethereum-rpc.publicnode.com',
       keyfile: '~/.money/keys/evm.json',
       network: 'mainnet',
       defaultToken: 'ETH',

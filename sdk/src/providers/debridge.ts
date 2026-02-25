@@ -7,7 +7,7 @@
 
 import type { BridgeProvider } from './types.js';
 
-const BASE_URL = 'https://api.dln.trade/v1.0';
+const BASE_URL = 'https://dln.debridge.finance/v1.0';
 
 /** DeBridge chain IDs */
 const DEBRIDGE_CHAIN_IDS: Record<string, number> = {
@@ -52,6 +52,10 @@ export const debridgeProvider: BridgeProvider = {
     url.searchParams.set('dstChainTokenOutRecipient', params.receiverAddress);
     url.searchParams.set('senderAddress', params.senderAddress);
     url.searchParams.set('prependOperatingExpenses', 'true');
+    url.searchParams.set('dstChainTokenOutAmount', 'auto');
+    url.searchParams.set('srcChainOrderAuthorityAddress', params.senderAddress);
+    url.searchParams.set('srcChainRefundAddress', params.senderAddress);
+    url.searchParams.set('dstChainOrderAuthorityAddress', params.receiverAddress);
 
     const res = await fetch(url.toString());
     if (!res.ok) {
@@ -69,8 +73,6 @@ export const debridgeProvider: BridgeProvider = {
         to: string;
         data: string;
         value: string;
-        allowanceTarget?: string;
-        allowanceValue?: string;
       };
       fixFee?: string;
     };
@@ -97,21 +99,25 @@ export const debridgeProvider: BridgeProvider = {
         throw new Error('DeBridge EVM bridge requires evmExecutor');
       }
 
-      // ERC-20 approval if needed
-      if (data.tx.allowanceTarget && data.tx.allowanceValue) {
-        const currentAllowance = await params.evmExecutor.checkAllowance(
-          params.fromToken, data.tx.allowanceTarget, params.senderAddress
-        );
-        if (currentAllowance < BigInt(data.tx.allowanceValue)) {
-          await params.evmExecutor.approveErc20(
-            params.fromToken, data.tx.allowanceTarget, data.tx.allowanceValue
-          );
-        }
-      }
-
       // Validate tx target
       if (!data.tx.to) {
-        throw new Error('DeBridge returned empty transaction target');
+        throw new Error('DeBridge returned empty transaction target. The API response may be incomplete.');
+      }
+
+      // ERC-20 approval if needed — the spender is tx.to (the DLN contract)
+      const NATIVE = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+      const isNativeToken = params.fromToken.toLowerCase() === NATIVE.toLowerCase()
+        || params.fromToken === '0x0000000000000000000000000000000000000000';
+      if (!isNativeToken) {
+        const requiredAmount = BigInt(data.estimation.srcChainTokenIn.amount);
+        const currentAllowance = await params.evmExecutor.checkAllowance(
+          params.fromToken, data.tx.to, params.senderAddress
+        );
+        if (currentAllowance < requiredAmount) {
+          await params.evmExecutor.approveErc20(
+            params.fromToken, data.tx.to, data.estimation.srcChainTokenIn.amount
+          );
+        }
       }
 
       const receipt = await params.evmExecutor.sendTx({
