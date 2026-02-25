@@ -264,7 +264,7 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
         certificate_by_nonce: null,
       })) as {
         balance?: string;
-        token_balance?: Array<{ token_id: number[]; balance: string }>;
+        token_balance?: Array<[number[], string]>;
       } | null;
 
       if (!result) return { amount: '0', token: tok };
@@ -280,12 +280,13 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
       const isHex = /^(0x)?[0-9a-fA-F]+$/.test(tok);
       if (isHex) {
         const tokenIdBytes = hexToTokenId(tok);
-        const entry = result.token_balance?.find(tb => tokenIdEquals(tb.token_id, tokenIdBytes));
+        const entry = result.token_balance?.find(([tid]) => tokenIdEquals(tid, tokenIdBytes));
         if (!entry) return { amount: '0', token: tok };
-        // entry.balance may include a '0x' prefix
-        const rawBalance = entry.balance.startsWith('0x') || entry.balance.startsWith('0X')
-          ? entry.balance.slice(2)
-          : entry.balance;
+        const [, bal] = entry;
+        // bal may include a '0x' prefix
+        const rawBalance = bal.startsWith('0x') || bal.startsWith('0X')
+          ? bal.slice(2)
+          : bal;
         const amount = fromHex(rawBalance, FAST_DECIMALS);
         return { amount, token: tok };
       }
@@ -452,6 +453,105 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
           txHash: 'faucet',
         };
       }
+    },
+
+    // -----------------------------------------------------------------------
+    // ownedTokens: discover all tokens held by this account
+    // -----------------------------------------------------------------------
+    async ownedTokens(address: string): Promise<Array<{
+      symbol: string;
+      address: string;
+      balance: string;
+      decimals: number;
+    }>> {
+      let pubkey: Uint8Array;
+      try {
+        pubkey = addressToPubkey(address);
+      } catch {
+        return [];
+      }
+
+      // Fetch account with ALL token balances (empty array = all tokens)
+      const result = (await rpcCall(rpcUrl, 'proxy_getAccountInfo', {
+        address: pubkey,
+        token_balances_filter: [],
+        state_key_filter: null,
+        certificate_by_nonce: null,
+      })) as {
+        balance?: string;
+        token_balance?: Array<[number[], string]>;
+      } | null;
+
+      if (!result) return [];
+
+      const tokens: Array<{ symbol: string; address: string; balance: string; decimals: number }> = [];
+
+      // Always include native SET
+      const nativeHex = result.balance ?? '0';
+      const nativeAmount = fromHex(nativeHex, FAST_DECIMALS);
+      tokens.push({
+        symbol: 'SET',
+        address: `0x${Buffer.from(SET_TOKEN_ID).toString('hex')}`,
+        balance: nativeAmount,
+        decimals: FAST_DECIMALS,
+      });
+
+      // Collect custom token IDs from token_balance tuples
+      const customTokenIds: Uint8Array[] = [];
+      const balanceMap = new Map<string, string>();
+      if (result.token_balance && result.token_balance.length > 0) {
+        for (const [tid, bal] of result.token_balance) {
+          const tidBytes = new Uint8Array(tid);
+          const tidHex = `0x${Buffer.from(tidBytes).toString('hex')}`;
+          const rawBal = bal.startsWith('0x') || bal.startsWith('0X') ? bal.slice(2) : bal;
+          balanceMap.set(tidHex, rawBal);
+          customTokenIds.push(tidBytes);
+        }
+      }
+
+      // If there are custom tokens, fetch their metadata in one RPC call
+      if (customTokenIds.length > 0) {
+        try {
+          const metaResult = (await rpcCall(rpcUrl, 'proxy_getTokenInfo', {
+            token_ids: customTokenIds,
+          })) as {
+            requested_token_metadata?: Array<[number[], {
+              token_name: string;
+              decimals: number;
+              total_supply: string;
+              admin: number[];
+              mints: number[][];
+              update_id: number;
+            } | null]>;
+          } | null;
+
+          if (metaResult?.requested_token_metadata) {
+            for (const [tid, meta] of metaResult.requested_token_metadata) {
+              const tidHex = `0x${Buffer.from(new Uint8Array(tid)).toString('hex')}`;
+              const rawBal = balanceMap.get(tidHex) ?? '0';
+              const decimals = meta?.decimals ?? FAST_DECIMALS;
+              tokens.push({
+                symbol: meta?.token_name ?? tidHex,
+                address: tidHex,
+                balance: fromHex(rawBal, decimals),
+                decimals,
+              });
+            }
+          }
+        } catch {
+          // If metadata fetch fails, still return tokens with hex addresses
+          for (const [tidHex, rawBal] of balanceMap) {
+            tokens.push({
+              symbol: tidHex,
+              address: tidHex,
+              balance: fromHex(rawBal, FAST_DECIMALS),
+              decimals: FAST_DECIMALS,
+            });
+          }
+        }
+      }
+
+      return tokens;
     },
   };
   return adapter;

@@ -151,7 +151,7 @@ describe('createFastAdapter', () => {
       const { fetch } = capturingFetch({
         balance: 'de0b6b3a7640000', // native SET (unused in this test)
         token_balance: [
-          { token_id: tokenId, balance: '0xDE0B6B3A7640000' },
+          [tokenId, '0xDE0B6B3A7640000'],
         ],
         next_nonce: 0,
       });

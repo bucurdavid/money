@@ -24,6 +24,7 @@ import { jupiterProvider } from './providers/jupiter.js';
 import { paraswapProvider } from './providers/paraswap.js';
 import { dexscreenerProvider } from './providers/dexscreener.js';
 import { debridgeProvider } from './providers/debridge.js';
+import { fastTokenProvider } from './providers/fasttoken.js';
 import type {
   NetworkType,
   SetupParams,
@@ -45,6 +46,7 @@ import type {
   FaucetResult,
   IdentifyChainsResult,
   TokensResult,
+  OwnedToken,
   HistoryResult,
   HistoryEntry,
   ChainConfig,
@@ -72,31 +74,6 @@ import { parseUnits, formatUnits } from 'viem';
 import { createWalletClient, createPublicClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { EvmTxExecutor, SolanaTxExecutor } from './providers/types.js';
-import { createFiatClient } from './fiat.js';
-import type {
-  ConfigureFiatParams,
-  WaitForParams,
-  WaitForResult,
-  FiatCreateAccountParams,
-  FiatCreateAccountResult,
-  FiatGetKycLinkParams,
-  FiatGetKycLinkResult,
-  FiatLinkWalletParams,
-  FiatLinkWalletResult,
-  FiatCreateRecipientParams,
-  FiatCreateRecipientResult,
-  FiatQuoteParams,
-  FiatQuoteResult,
-  FiatOnRampParams,
-  FiatOnRampResult,
-  FiatOffRampParams,
-  FiatOffRampResult,
-  FiatGetFundingAddressParams,
-  FiatGetFundingAddressResult,
-  FiatStatusParams,
-  FiatStatusResult,
-  FiatRail,
-} from './types.js';
 
 // ─── Register built-in providers ──────────────────────────────────────────────
 
@@ -104,6 +81,7 @@ registerSwapProvider(jupiterProvider);
 registerSwapProvider(paraswapProvider);
 registerBridgeProvider(debridgeProvider);
 registerPriceProvider(dexscreenerProvider);
+registerPriceProvider(fastTokenProvider);
 
 // ─── Re-exports ───────────────────────────────────────────────────────────────
 
@@ -127,6 +105,7 @@ export type {
   FaucetResult,
   IdentifyChainsResult,
   TokensResult,
+  OwnedToken,
   HistoryResult,
   HistoryEntry,
   ChainConfig,
@@ -145,28 +124,6 @@ export type {
   ChainName,
   TokenConfig,
   SetApiKeyParams,
-  ConfigureFiatParams,
-  WaitForParams,
-  WaitForResult,
-  FiatCreateAccountParams,
-  FiatCreateAccountResult,
-  FiatGetKycLinkParams,
-  FiatGetKycLinkResult,
-  FiatLinkWalletParams,
-  FiatLinkWalletResult,
-  FiatCreateRecipientParams,
-  FiatCreateRecipientResult,
-  FiatQuoteParams,
-  FiatQuoteResult,
-  FiatOnRampParams,
-  FiatOnRampResult,
-  FiatOffRampParams,
-  FiatOffRampResult,
-  FiatGetFundingAddressParams,
-  FiatGetFundingAddressResult,
-  FiatStatusParams,
-  FiatStatusResult,
-  FiatRail,
 } from './types.js';
 
 export type {
@@ -737,11 +694,51 @@ export const money = {
 
   async tokens(params: TokensParams): Promise<TokensResult> {
     const { chain, network } = params;
+    if (!chain) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: chain', {
+        note: 'Provide a chain name:\n  await money.tokens({ chain: "fast" })',
+      });
+    }
     const config = await loadConfig();
     const resolved = resolveChainKey(chain, config.chains, network);
-    if (!resolved) return { tokens: [], note: '' };
-    const aliasResults = await getAliases(resolved.key);
-    return { tokens: aliasResults, note: '' };
+    if (!resolved) {
+      return {
+        chain,
+        network: network ?? 'testnet',
+        aliases: [],
+        owned: [],
+        note: `Chain "${chain}" is not configured. Run setup first:\n  await money.setup({ chain: "${chain}" })`,
+      };
+    }
+
+    const { key, chainConfig } = resolved;
+    const { chain: resolvedChain, network: resolvedNetwork } = parseConfigKey(key);
+
+    // Get aliases (always available)
+    const aliasResults = await getAliases(key);
+
+    // Attempt on-chain token discovery
+    let owned: OwnedToken[] = [];
+    try {
+      const adapter = await getAdapter(key);
+      if (adapter.ownedTokens) {
+        const keyfilePath = expandHome(chainConfig.keyfile);
+        const { address } = await adapter.setupWallet(keyfilePath);
+        owned = await adapter.ownedTokens(address);
+      }
+    } catch {
+      // On-chain discovery failed — return aliases only
+    }
+
+    return {
+      chain: resolvedChain,
+      network: resolvedNetwork as NetworkType,
+      aliases: aliasResults,
+      owned,
+      note: owned.length > 0
+        ? ''
+        : 'On-chain token discovery is not available for this chain. Register tokens with money.registerToken() and they will appear in aliases.',
+    };
   },
 
   async history(params?: HistoryParams): Promise<HistoryResult> {
@@ -825,89 +822,6 @@ export const money = {
     config.apiKeys = config.apiKeys ?? {};
     config.apiKeys[params.provider] = params.apiKey;
     await saveConfig(config);
-  },
-
-  // ─── configureFiat ─────────────────────────────────────────────────────────
-
-  async configureFiat(params: ConfigureFiatParams): Promise<void> {
-    if (!params.host) {
-      throw new MoneyError('INVALID_PARAMS', 'Missing required param: host', {
-        note: 'await money.configureFiat({ host: "https://your-app.vercel.app" })',
-      });
-    }
-    // Strip trailing slash
-    const host = params.host.replace(/\/+$/, '');
-    const config = await loadConfig();
-    config.fiatHost = host;
-    await saveConfig(config);
-  },
-
-  // ─── fiat ──────────────────────────────────────────────────────────────────
-
-  fiat: createFiatClient(),
-
-  // ─── waitFor ───────────────────────────────────────────────────────────────
-
-  async waitFor(params: WaitForParams): Promise<WaitForResult> {
-    if (!params.type || !params.id) {
-      throw new MoneyError('INVALID_PARAMS', 'Missing required params: type, id', {
-        note: 'await money.waitFor({ type: "fiat", id: "tf_xxx" })\nawait money.waitFor({ type: "bridge", id: "order-id" })',
-      });
-    }
-
-    const timeout = params.timeout ?? 600_000;
-    const interval = params.interval ?? (params.type === 'bridge' ? 15_000 : 10_000);
-    const start = Date.now();
-
-    while (Date.now() - start < timeout) {
-      let status: string;
-      let details: Record<string, unknown> = {};
-
-      if (params.type === 'fiat') {
-        const result = await money.fiat.status({ transferId: params.id });
-        status = result.status;
-        details = {
-          source: result.source as unknown as Record<string, unknown> | undefined,
-          destination: result.destination as unknown as Record<string, unknown> | undefined,
-        };
-      } else if (params.type === 'bridge') {
-        // Poll DeBridge order status directly
-        const res = await fetch(`https://dln.debridge.finance/v1.0/dln/order/${params.id}/status`);
-        if (!res.ok) {
-          throw new MoneyError('TX_FAILED', `Bridge status check failed: ${res.status}`, {});
-        }
-        const data = await res.json() as Record<string, unknown>;
-        status = (data.status as string) ?? 'unknown';
-        details = data;
-      } else {
-        throw new MoneyError('INVALID_PARAMS', `Unknown wait type: "${params.type as string}"`, {
-          note: 'Supported types: "fiat", "bridge"',
-        });
-      }
-
-      const terminal = ['completed', 'failed', 'cancelled', 'ClaimedUnlock', 'OrderCancelled'];
-      // DeBridge uses 'ClaimedUnlock' for completed, 'OrderCancelled' for cancelled
-      const normalizedStatus = status === 'ClaimedUnlock' ? 'completed' :
-                               status === 'OrderCancelled' ? 'cancelled' : status;
-
-      if (terminal.includes(status) || terminal.includes(normalizedStatus)) {
-        return {
-          status: normalizedStatus,
-          type: params.type,
-          id: params.id,
-          details,
-          note: normalizedStatus === 'completed' ? 'Operation completed successfully.' :
-                normalizedStatus === 'failed' ? 'Operation failed.' :
-                normalizedStatus === 'cancelled' ? 'Operation was cancelled.' : '',
-        };
-      }
-
-      await new Promise<void>(r => setTimeout(r, interval));
-    }
-
-    throw new MoneyError('TX_FAILED', `Timed out waiting for ${params.type} operation "${params.id}" after ${timeout}ms`, {
-      note: `The operation is still in progress. Check status manually:\n  await money.${params.type === 'fiat' ? `fiat.status({ transferId: "${params.id}" })` : `waitFor({ type: "bridge", id: "${params.id}" })`}`,
-    });
   },
 
   // ─── exportKeys ────────────────────────────────────────────────────────────
@@ -1162,6 +1076,19 @@ export const money = {
       txHash: result.txHash,
     });
 
+    // Auto-register token alias for the destination token after swap
+    try {
+      const existingAlias = await getAlias(key, to.toUpperCase());
+      if (!existingAlias) {
+        await setAlias(key, to.toUpperCase(), {
+          address: toResolved.address,
+          decimals: toResolved.decimals,
+        });
+      }
+    } catch {
+      // Non-critical — don't fail the swap if alias registration fails
+    }
+
     return {
       txHash: result.txHash,
       explorerUrl,
@@ -1187,7 +1114,7 @@ export const money = {
       });
     }
 
-    const provider = getPriceProvider(providerName);
+    const provider = getPriceProvider(providerName, chain);
     if (!provider) {
       throw new MoneyError('UNSUPPORTED_OPERATION', `No price provider available${providerName ? ` with name "${providerName}"` : ''}.`, {
         note: providerName
@@ -1226,7 +1153,7 @@ export const money = {
       });
     }
 
-    const provider = getPriceProvider(providerName);
+    const provider = getPriceProvider(providerName, chain);
     if (!provider || !provider.getTokenInfo) {
       throw new MoneyError('UNSUPPORTED_OPERATION', `No token info provider available${providerName ? ` with name "${providerName}"` : ''}.`, {
         note: providerName

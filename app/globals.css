@@ -307,6 +307,37 @@ code { font-family: var(--font-mono), 'SF Mono', 'Consolas', monospace; }
   white-space: nowrap;
 }
 
+/* ── Features ──────────────────────────────────────────────────── */
+.features {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.feature {
+  background: var(--surface);
+  padding: 1.5rem 1.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.feature-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.feature-desc {
+  font-size: 0.8rem;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
 /* ── Chain Table ───────────────────────────────────────────────── */
 .table-wrap { overflow-x: auto; }
 
@@ -435,4 +466,8 @@ code { font-family: var(--font-mono), 'SF Mono', 'Consolas', monospace; }
 
   .nav-links { gap: 1.25rem; }
   .nav-links a { font-size: 0.72rem; }
+
+  .features {
+    grid-template-columns: 1fr;
+  }
 }

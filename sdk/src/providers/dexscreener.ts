@@ -62,6 +62,10 @@ interface DexScreenerPair {
 
 export const dexscreenerProvider: PriceProvider = {
   name: 'dexscreener',
+  chains: [
+    'ethereum', 'base', 'arbitrum', 'polygon', 'optimism',
+    'bsc', 'avalanche', 'fantom', 'zksync', 'linea', 'scroll', 'solana',
+  ],
 
   async getPrice(params) {
     const pairs = await searchPairs(params.token, params.chain);

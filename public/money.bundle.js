@@ -28460,8 +28460,8 @@ var require_utils = __commonJS({
     exports.rotl = rotl2;
     exports.byteSwap = byteSwap2;
     exports.byteSwap32 = byteSwap322;
-    exports.bytesToHex = bytesToHex4;
-    exports.hexToBytes = hexToBytes4;
+    exports.bytesToHex = bytesToHex5;
+    exports.hexToBytes = hexToBytes5;
     exports.asyncLoop = asyncLoop;
     exports.utf8ToBytes = utf8ToBytes3;
     exports.bytesToUtf8 = bytesToUtf8;
@@ -28544,7 +28544,7 @@ var require_utils = __commonJS({
       typeof Uint8Array.from([]).toHex === "function" && typeof Uint8Array.fromHex === "function"
     ))();
     var hexes4 = /* @__PURE__ */ Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, "0"));
-    function bytesToHex4(bytes) {
+    function bytesToHex5(bytes) {
       abytes4(bytes);
       if (hasHexBuiltin2)
         return bytes.toHex();
@@ -28564,7 +28564,7 @@ var require_utils = __commonJS({
         return ch - (asciis2.a - 10);
       return;
     }
-    function hexToBytes4(hex) {
+    function hexToBytes5(hex) {
       if (typeof hex !== "string")
         throw new Error("hex string expected, got " + typeof hex);
       if (hasHexBuiltin2)
@@ -29437,8 +29437,8 @@ var require_utils2 = __commonJS({
     exports.abool = abool2;
     exports.numberToHexUnpadded = numberToHexUnpadded2;
     exports.hexToNumber = hexToNumber3;
-    exports.bytesToHex = bytesToHex4;
-    exports.hexToBytes = hexToBytes4;
+    exports.bytesToHex = bytesToHex5;
+    exports.hexToBytes = hexToBytes5;
     exports.bytesToNumberBE = bytesToNumberBE2;
     exports.bytesToNumberLE = bytesToNumberLE2;
     exports.numberToBytesBE = numberToBytesBE2;
@@ -29483,7 +29483,7 @@ var require_utils2 = __commonJS({
       typeof Uint8Array.from([]).toHex === "function" && typeof Uint8Array.fromHex === "function"
     );
     var hexes4 = /* @__PURE__ */ Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, "0"));
-    function bytesToHex4(bytes) {
+    function bytesToHex5(bytes) {
       abytes4(bytes);
       if (hasHexBuiltin2)
         return bytes.toHex();
@@ -29503,7 +29503,7 @@ var require_utils2 = __commonJS({
         return ch - (asciis2.a - 10);
       return;
     }
-    function hexToBytes4(hex) {
+    function hexToBytes5(hex) {
       if (typeof hex !== "string")
         throw new Error("hex string expected, got " + typeof hex);
       if (hasHexBuiltin2)
@@ -29525,26 +29525,26 @@ var require_utils2 = __commonJS({
       return array;
     }
     function bytesToNumberBE2(bytes) {
-      return hexToNumber3(bytesToHex4(bytes));
+      return hexToNumber3(bytesToHex5(bytes));
     }
     function bytesToNumberLE2(bytes) {
       abytes4(bytes);
-      return hexToNumber3(bytesToHex4(Uint8Array.from(bytes).reverse()));
+      return hexToNumber3(bytesToHex5(Uint8Array.from(bytes).reverse()));
     }
     function numberToBytesBE2(n, len) {
-      return hexToBytes4(n.toString(16).padStart(len * 2, "0"));
+      return hexToBytes5(n.toString(16).padStart(len * 2, "0"));
     }
     function numberToBytesLE2(n, len) {
       return numberToBytesBE2(n, len).reverse();
     }
     function numberToVarBytesBE(n) {
-      return hexToBytes4(numberToHexUnpadded2(n));
+      return hexToBytes5(numberToHexUnpadded2(n));
     }
     function ensureBytes2(title, hex, expectedLength) {
       let res;
       if (typeof hex === "string") {
         try {
-          res = hexToBytes4(hex);
+          res = hexToBytes5(hex);
         } catch (e2) {
           throw new Error(title + " must be hex string or Uint8Array, cause: " + e2);
         }
@@ -31880,7 +31880,7 @@ var require_bn = __commonJS({
         }
         return this.negative !== 0 ? -ret : ret;
       };
-      BN.prototype.toJSON = function toJSON2() {
+      BN.prototype.toJSON = function toJSON3() {
         return this.toString(16, 2);
       };
       if (Buffer2) {
@@ -41442,7 +41442,7 @@ var require_URL = __commonJS({
       }
       module.exports.setup(this, args);
     }
-    URL3.prototype.toJSON = function toJSON2() {
+    URL3.prototype.toJSON = function toJSON3() {
       if (!this || !module.exports.is(this)) {
         throw new TypeError("Illegal invocation");
       }
@@ -69883,10 +69883,11 @@ function createFastAdapter(rpcUrl, network = "testnet") {
       const isHex2 = /^(0x)?[0-9a-fA-F]+$/.test(tok);
       if (isHex2) {
         const tokenIdBytes = hexToTokenId(tok);
-        const entry = result.token_balance?.find((tb) => tokenIdEquals(tb.token_id, tokenIdBytes));
+        const entry = result.token_balance?.find(([tid]) => tokenIdEquals(tid, tokenIdBytes));
         if (!entry)
           return { amount: "0", token: tok };
-        const rawBalance = entry.balance.startsWith("0x") || entry.balance.startsWith("0X") ? entry.balance.slice(2) : entry.balance;
+        const [, bal] = entry;
+        const rawBalance = bal.startsWith("0x") || bal.startsWith("0X") ? bal.slice(2) : bal;
         const amount = fromHex(rawBalance, FAST_DECIMALS);
         return { amount, token: tok };
       }
@@ -70005,6 +70006,75 @@ function createFastAdapter(rpcUrl, network = "testnet") {
           txHash: "faucet"
         };
       }
+    },
+    // -----------------------------------------------------------------------
+    // ownedTokens: discover all tokens held by this account
+    // -----------------------------------------------------------------------
+    async ownedTokens(address) {
+      let pubkey;
+      try {
+        pubkey = addressToPubkey(address);
+      } catch {
+        return [];
+      }
+      const result = await rpcCall(rpcUrl, "proxy_getAccountInfo", {
+        address: pubkey,
+        token_balances_filter: [],
+        state_key_filter: null,
+        certificate_by_nonce: null
+      });
+      if (!result)
+        return [];
+      const tokens = [];
+      const nativeHex = result.balance ?? "0";
+      const nativeAmount = fromHex(nativeHex, FAST_DECIMALS);
+      tokens.push({
+        symbol: "SET",
+        address: `0x${Buffer.from(SET_TOKEN_ID).toString("hex")}`,
+        balance: nativeAmount,
+        decimals: FAST_DECIMALS
+      });
+      const customTokenIds = [];
+      const balanceMap = /* @__PURE__ */ new Map();
+      if (result.token_balance && result.token_balance.length > 0) {
+        for (const [tid, bal] of result.token_balance) {
+          const tidBytes = new Uint8Array(tid);
+          const tidHex = `0x${Buffer.from(tidBytes).toString("hex")}`;
+          const rawBal = bal.startsWith("0x") || bal.startsWith("0X") ? bal.slice(2) : bal;
+          balanceMap.set(tidHex, rawBal);
+          customTokenIds.push(tidBytes);
+        }
+      }
+      if (customTokenIds.length > 0) {
+        try {
+          const metaResult = await rpcCall(rpcUrl, "proxy_getTokenInfo", {
+            token_ids: customTokenIds
+          });
+          if (metaResult?.requested_token_metadata) {
+            for (const [tid, meta] of metaResult.requested_token_metadata) {
+              const tidHex = `0x${Buffer.from(new Uint8Array(tid)).toString("hex")}`;
+              const rawBal = balanceMap.get(tidHex) ?? "0";
+              const decimals = meta?.decimals ?? FAST_DECIMALS;
+              tokens.push({
+                symbol: meta?.token_name ?? tidHex,
+                address: tidHex,
+                balance: fromHex(rawBal, decimals),
+                decimals
+              });
+            }
+          }
+        } catch {
+          for (const [tidHex, rawBal] of balanceMap) {
+            tokens.push({
+              symbol: tidHex,
+              address: tidHex,
+              balance: fromHex(rawBal, FAST_DECIMALS),
+              decimals: FAST_DECIMALS
+            });
+          }
+        }
+      }
+      return tokens;
     }
   };
   return adapter;
@@ -70506,6 +70576,50 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
     });
     return { amount: "1", token: DEFAULT_TOKEN2, txHash: sig };
   }
+  async function ownedTokens(address) {
+    const { PublicKey: PublicKey23 } = await getWeb3();
+    const { TOKEN_PROGRAM_ID: TOKEN_PROGRAM_ID2 } = await getSpl();
+    const connection = await getConnection();
+    const pubkey = new PublicKey23(address);
+    const tokens = [];
+    try {
+      const lamports = await connection.getBalance(pubkey);
+      tokens.push({
+        symbol: "SOL",
+        address: "11111111111111111111111111111111",
+        balance: toHuman(lamports, SOL_DECIMALS),
+        decimals: SOL_DECIMALS
+      });
+    } catch {
+      tokens.push({
+        symbol: "SOL",
+        address: "11111111111111111111111111111111",
+        balance: "0",
+        decimals: SOL_DECIMALS
+      });
+    }
+    try {
+      const tokenAccounts = await connection.getParsedTokenAccountsByOwner(pubkey, {
+        programId: TOKEN_PROGRAM_ID2
+      });
+      for (const { account } of tokenAccounts.value) {
+        const parsed = account.data;
+        const info = parsed.parsed?.info;
+        if (!info?.mint)
+          continue;
+        const balance = info.tokenAmount?.uiAmountString ?? "0";
+        const decimals = info.tokenAmount?.decimals ?? 0;
+        tokens.push({
+          symbol: info.mint,
+          address: info.mint,
+          balance,
+          decimals
+        });
+      }
+    } catch {
+    }
+    return tokens;
+  }
   return {
     chain: "solana",
     addressPattern: ADDRESS_PATTERN3,
@@ -70513,7 +70627,8 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
     getBalance: getBalance2,
     send,
     faucet,
-    sign: sign2
+    sign: sign2,
+    ownedTokens
   };
 }
 
@@ -71111,11 +71226,16 @@ function getBridgeProvider(providerName) {
   }
   return bridgeProviders[0] ?? null;
 }
-function getPriceProvider(providerName) {
+function getPriceProvider(providerName, chain2) {
   if (providerName) {
     return priceProviders.find((p) => p.name === providerName) ?? null;
   }
-  return priceProviders[0] ?? null;
+  if (chain2) {
+    const byChain = priceProviders.find((p) => p.chains?.includes(chain2));
+    if (byChain)
+      return byChain;
+  }
+  return priceProviders.find((p) => !p.chains) ?? priceProviders[0] ?? null;
 }
 
 // dist/src/providers/tokens.js
@@ -71490,6 +71610,20 @@ var CHAIN_MAP = {
 };
 var dexscreenerProvider = {
   name: "dexscreener",
+  chains: [
+    "ethereum",
+    "base",
+    "arbitrum",
+    "polygon",
+    "optimism",
+    "bsc",
+    "avalanche",
+    "fantom",
+    "zksync",
+    "linea",
+    "scroll",
+    "solana"
+  ],
   async getPrice(params) {
     const pairs = await searchPairs(params.token, params.chain);
     if (pairs.length === 0) {
@@ -71651,234 +71785,134 @@ var debridgeProvider = {
   }
 };
 
-// dist/src/index.js
-init_esm2();
-init_esm2();
-
-// dist/src/fiat.js
-async function getAuthHeaders() {
-  const config = await loadConfig();
-  let evmKeyfile = null;
-  for (const [, cc] of Object.entries(config.chains)) {
-    if (cc.keyfile && cc.keyfile.includes("evm")) {
-      evmKeyfile = cc.keyfile;
-      break;
-    }
-  }
-  if (!evmKeyfile) {
-    throw new MoneyError("CHAIN_NOT_CONFIGURED", "No EVM chain configured. Set up an EVM chain first for fiat auth.", {
-      note: 'Set up any EVM chain first:\n  await money.setup({ chain: "base" })'
-    });
-  }
-  const kp = await loadKeyfile(expandHome(evmKeyfile));
-  const account = privateKeyToAccount(`0x${kp.privateKey}`);
-  const timestamp = Math.floor(Date.now() / 1e3).toString();
-  const message = `money-fiat:${timestamp}`;
-  const signature = await account.signMessage({ message });
-  return {
-    "X-Wallet-Address": account.address,
-    "X-Wallet-Signature": signature,
-    "X-Wallet-Timestamp": timestamp
-  };
-}
-async function fiatFetch(path5, options = {}) {
-  const config = await loadConfig();
-  const host = config.fiatHost;
-  if (!host) {
-    throw new MoneyError("INVALID_PARAMS", "Fiat host not configured.", {
-      note: 'Configure the fiat middleware host first:\n  await money.configureFiat({ host: "https://your-app.vercel.app" })'
-    });
-  }
-  const auth = await getAuthHeaders();
-  const res = await fetch(`${host}${path5}`, {
-    method: options.method ?? "GET",
-    headers: {
-      ...auth,
-      ...options.body ? { "Content-Type": "application/json" } : {}
-    },
-    body: options.body ? JSON.stringify(options.body) : void 0
+// dist/src/providers/fasttoken.js
+var SET_TOKEN_HEX = "fa575e700000000000000000000000000000000000000000000000000000000000000000";
+function toJSON2(data) {
+  return JSON.stringify(data, (_k, v) => {
+    if (v instanceof Uint8Array)
+      return Array.from(v);
+    if (typeof v === "bigint")
+      return v.toString();
+    return v;
   });
-  if (!res.ok) {
-    const err2 = await res.json().catch(() => ({ message: res.statusText }));
-    throw new MoneyError("TX_FAILED", err2.message ?? `Fiat API error: ${res.status}`, {
-      details: err2
-    });
-  }
-  return res.json();
 }
-async function getAccountId(params) {
-  if (params.accountId)
-    return params.accountId;
-  const config = await loadConfig();
-  if (!config.fiatAccountId) {
-    throw new MoneyError("INVALID_PARAMS", "No Due account ID found. Create an account first.", {
-      note: 'Create a Due account first:\n  await money.fiat.createAccount({ email: "user@example.com", firstName: "John", lastName: "Doe" })'
+async function rpcCall2(url, method, params, timeoutMs = 15e3) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: toJSON2({ jsonrpc: "2.0", id: 1, method, params }),
+      signal: controller.signal
     });
+    const json = await res.json();
+    if (json.error)
+      throw new Error(`RPC error: ${JSON.stringify(json.error)}`);
+    return json.result;
+  } finally {
+    clearTimeout(timer);
   }
-  return config.fiatAccountId;
 }
-function createFiatClient() {
-  return {
-    async createAccount(params) {
-      if (!params.email || !params.firstName || !params.lastName) {
-        throw new MoneyError("INVALID_PARAMS", "Missing required params: email, firstName, lastName", {
-          note: 'await money.fiat.createAccount({ email: "user@example.com", firstName: "John", lastName: "Doe" })'
-        });
-      }
-      const data = await fiatFetch("/api/fiat/accounts", {
-        method: "POST",
-        body: {
-          type: "individual",
-          email: params.email,
-          details: { firstName: params.firstName, lastName: params.lastName }
-        }
-      });
-      const config = await loadConfig();
-      config.fiatAccountId = data.id;
-      await saveConfig(config);
+function hexToBytes4(hex) {
+  const clean2 = hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex;
+  const padded = clean2.padEnd(64, "0").slice(0, 64);
+  const bytes = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) {
+    bytes[i] = parseInt(padded.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+function bytesToHex4(bytes) {
+  return `0x${Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
+function isNativeSetToken(hex) {
+  const clean2 = hex.startsWith("0x") || hex.startsWith("0X") ? hex.slice(2) : hex;
+  return clean2.toLowerCase().padEnd(64, "0") === SET_TOKEN_HEX;
+}
+async function getFastRpcUrl() {
+  try {
+    const config = await loadConfig();
+    const fastTestnet = config.chains["fast:testnet"] ?? config.chains["fast"];
+    const fastMainnet = config.chains["fast:mainnet"];
+    const chainConfig2 = fastMainnet ?? fastTestnet;
+    if (chainConfig2?.rpc)
+      return chainConfig2.rpc;
+  } catch {
+  }
+  return DEFAULT_CHAIN_CONFIGS.fast.testnet.rpc;
+}
+var fastTokenProvider = {
+  name: "fast",
+  chains: ["fast"],
+  async getPrice({ token }) {
+    if (isNativeSetToken(token) || token.toUpperCase() === "SET") {
+      return { price: "0", symbol: "SET", name: "SET" };
+    }
+    const rpcUrl = await getFastRpcUrl();
+    const tokenIdBytes = hexToBytes4(token);
+    const result = await rpcCall2(rpcUrl, "proxy_getTokenInfo", {
+      token_ids: [tokenIdBytes]
+    });
+    const meta = result?.requested_token_metadata?.[0]?.[1];
+    if (!meta) {
+      throw new Error(`Token not found on Fast chain: "${token}"`);
+    }
+    return {
+      price: "0",
+      symbol: meta.token_name,
+      name: meta.token_name
+    };
+  },
+  async getTokenInfo({ token }) {
+    if (isNativeSetToken(token) || token.toUpperCase() === "SET") {
       return {
-        accountId: data.id,
-        kycUrl: data.kycUrl ?? "",
-        note: data.kycUrl ? "User must complete KYC at the URL before transfers are enabled." : ""
-      };
-    },
-    async getKycLink(params = {}) {
-      const accountId = await getAccountId(params);
-      const data = await fiatFetch(`/api/fiat/accounts/${accountId}/kyc`);
-      return {
-        url: data.url,
-        note: "Share this URL with the user to complete identity verification."
-      };
-    },
-    async linkWallet(params) {
-      const accountId = await getAccountId(params);
-      const config = await loadConfig();
-      const ck = params.network ? configKey(params.chain, params.network) : params.chain;
-      const chainConfig2 = config.chains[ck];
-      if (!chainConfig2) {
-        throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${params.chain}" is not configured.`, {
-          chain: params.chain,
-          note: `Set up the chain first:
-  await money.setup({ chain: "${params.chain}" })`
-        });
-      }
-      const keyfilePath = expandHome(chainConfig2.keyfile);
-      const kp = await loadKeyfile(keyfilePath);
-      let address;
-      if (chainConfig2.keyfile.includes("evm")) {
-        const account = privateKeyToAccount(`0x${kp.privateKey}`);
-        address = account.address;
-      } else if (chainConfig2.keyfile.includes("solana")) {
-        const { PublicKey: PublicKey23 } = await Promise.resolve().then(() => __toESM(require_index_cjs(), 1));
-        const pubKeyBytes = Buffer.from(kp.publicKey, "hex");
-        address = new PublicKey23(pubKeyBytes).toBase58();
-      } else {
-        const { bech32m: bech32m2 } = await Promise.resolve().then(() => __toESM(require_dist(), 1));
-        const pubKeyBytes = Buffer.from(kp.publicKey, "hex");
-        const words = bech32m2.toWords(pubKeyBytes);
-        address = bech32m2.encode("set", words);
-      }
-      const data = await fiatFetch("/api/fiat/wallets", {
-        method: "POST",
-        body: { address, accountId }
-      });
-      config.fiatWalletId = data.id;
-      await saveConfig(config);
-      return {
-        walletId: data.id,
-        address: data.address ?? address,
-        note: ""
-      };
-    },
-    async createRecipient(params) {
-      const accountId = await getAccountId(params);
-      if (!params.name || !params.details) {
-        throw new MoneyError("INVALID_PARAMS", "Missing required params: name, details", {
-          note: 'await money.fiat.createRecipient({ name: "Alice", details: { accountNumber: "...", routingNumber: "..." } })'
-        });
-      }
-      const data = await fiatFetch("/api/fiat/recipients", {
-        method: "POST",
-        body: { name: params.name, details: params.details, accountId }
-      });
-      return { recipientId: data.id, note: "" };
-    },
-    async quote(params) {
-      const accountId = await getAccountId(params);
-      const data = await fiatFetch("/api/fiat/quotes", {
-        method: "POST",
-        body: { source: params.source, destination: params.destination, accountId }
-      });
-      return {
-        quoteToken: data.token,
-        source: data.source,
-        destination: data.destination,
-        fxRate: data.fxRate,
-        expiresAt: data.expiresAt,
-        note: "Quote expires in 2 minutes. Use quoteToken to create a transfer."
-      };
-    },
-    async onRamp(params) {
-      const accountId = await getAccountId(params);
-      const config = await loadConfig();
-      const walletId = params.walletId ?? config.fiatWalletId;
-      if (!walletId) {
-        throw new MoneyError("INVALID_PARAMS", "No wallet linked. Link a wallet first.", {
-          note: 'Link your wallet first:\n  await money.fiat.linkWallet({ chain: "base" })'
-        });
-      }
-      const data = await fiatFetch("/api/fiat/transfers", {
-        method: "POST",
-        body: { quote: params.quoteToken, recipient: walletId, accountId }
-      });
-      return {
-        transferId: data.id,
-        bankingDetails: data.bankingDetails ?? {},
-        note: "Give the banking details to the user so they can send fiat from their bank."
-      };
-    },
-    async offRamp(params) {
-      const accountId = await getAccountId(params);
-      const data = await fiatFetch("/api/fiat/transfers", {
-        method: "POST",
-        body: { quote: params.quoteToken, recipient: params.recipientId, accountId }
-      });
-      return {
-        transferId: data.id,
-        note: 'Transfer created. Get a funding address next:\n  await money.fiat.getFundingAddress({ transferId: "..." })'
-      };
-    },
-    async getFundingAddress(params) {
-      const accountId = await getAccountId(params);
-      const data = await fiatFetch(`/api/fiat/transfers/${params.transferId}/funding`, {
-        method: "POST",
-        body: { accountId }
-      });
-      return {
-        address: data.address,
-        chain: data.chain ?? "",
-        amount: data.amount ?? "",
-        note: 'Send the exact amount to this address using money.send():\n  await money.send({ to: "...", amount: "...", chain: "...", token: "USDC", network: "mainnet" })'
-      };
-    },
-    async status(params) {
-      const accountId = await getAccountId(params);
-      const data = await fiatFetch(`/api/fiat/transfers/${params.transferId}?accountId=${accountId}`);
-      return {
-        status: data.status,
-        source: data.source,
-        destination: data.destination,
-        note: ""
+        name: "SET",
+        symbol: "SET",
+        address: `0x${SET_TOKEN_HEX}`,
+        decimals: 18,
+        price: "0",
+        pairs: [],
+        totalSupply: void 0,
+        admin: void 0,
+        minters: void 0
       };
     }
-  };
-}
+    const rpcUrl = await getFastRpcUrl();
+    const tokenIdBytes = hexToBytes4(token);
+    const result = await rpcCall2(rpcUrl, "proxy_getTokenInfo", {
+      token_ids: [tokenIdBytes]
+    });
+    const entry = result?.requested_token_metadata?.[0];
+    if (!entry) {
+      throw new Error(`Token not found on Fast chain: "${token}"`);
+    }
+    const [tokenIdRaw, meta] = entry;
+    if (!meta) {
+      throw new Error(`Token not found on Fast chain: "${token}"`);
+    }
+    return {
+      name: meta.token_name,
+      symbol: meta.token_name,
+      address: bytesToHex4(tokenIdRaw),
+      decimals: meta.decimals,
+      price: "0",
+      pairs: [],
+      admin: bytesToHex4(meta.admin),
+      minters: meta.mints.map((m) => bytesToHex4(m)),
+      totalSupply: meta.total_supply
+    };
+  }
+};
 
 // dist/src/index.js
+init_esm2();
+init_esm2();
 registerSwapProvider(jupiterProvider);
 registerSwapProvider(paraswapProvider);
 registerBridgeProvider(debridgeProvider);
 registerPriceProvider(dexscreenerProvider);
+registerPriceProvider(fastTokenProvider);
 function resolveChainKey(chain2, chains, network) {
   const key = network ? configKey(chain2, network) : chain2;
   if (chains[key])
@@ -72323,12 +72357,43 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
   },
   async tokens(params) {
     const { chain: chain2, network } = params;
+    if (!chain2) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
+        note: 'Provide a chain name:\n  await money.tokens({ chain: "fast" })'
+      });
+    }
     const config = await loadConfig();
     const resolved = resolveChainKey(chain2, config.chains, network);
-    if (!resolved)
-      return { tokens: [], note: "" };
-    const aliasResults = await getAliases(resolved.key);
-    return { tokens: aliasResults, note: "" };
+    if (!resolved) {
+      return {
+        chain: chain2,
+        network: network ?? "testnet",
+        aliases: [],
+        owned: [],
+        note: `Chain "${chain2}" is not configured. Run setup first:
+  await money.setup({ chain: "${chain2}" })`
+      };
+    }
+    const { key, chainConfig: chainConfig2 } = resolved;
+    const { chain: resolvedChain, network: resolvedNetwork } = parseConfigKey(key);
+    const aliasResults = await getAliases(key);
+    let owned = [];
+    try {
+      const adapter = await getAdapter(key);
+      if (adapter.ownedTokens) {
+        const keyfilePath = expandHome(chainConfig2.keyfile);
+        const { address } = await adapter.setupWallet(keyfilePath);
+        owned = await adapter.ownedTokens(address);
+      }
+    } catch {
+    }
+    return {
+      chain: resolvedChain,
+      network: resolvedNetwork,
+      aliases: aliasResults,
+      owned,
+      note: owned.length > 0 ? "" : "On-chain token discovery is not available for this chain. Register tokens with money.registerToken() and they will appear in aliases."
+    };
   },
   async history(params) {
     const results = await readHistory(params);
@@ -72397,71 +72462,6 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     config.apiKeys = config.apiKeys ?? {};
     config.apiKeys[params.provider] = params.apiKey;
     await saveConfig(config);
-  },
-  // ─── configureFiat ─────────────────────────────────────────────────────────
-  async configureFiat(params) {
-    if (!params.host) {
-      throw new MoneyError("INVALID_PARAMS", "Missing required param: host", {
-        note: 'await money.configureFiat({ host: "https://your-app.vercel.app" })'
-      });
-    }
-    const host = params.host.replace(/\/+$/, "");
-    const config = await loadConfig();
-    config.fiatHost = host;
-    await saveConfig(config);
-  },
-  // ─── fiat ──────────────────────────────────────────────────────────────────
-  fiat: createFiatClient(),
-  // ─── waitFor ───────────────────────────────────────────────────────────────
-  async waitFor(params) {
-    if (!params.type || !params.id) {
-      throw new MoneyError("INVALID_PARAMS", "Missing required params: type, id", {
-        note: 'await money.waitFor({ type: "fiat", id: "tf_xxx" })\nawait money.waitFor({ type: "bridge", id: "order-id" })'
-      });
-    }
-    const timeout = params.timeout ?? 6e5;
-    const interval = params.interval ?? (params.type === "bridge" ? 15e3 : 1e4);
-    const start = Date.now();
-    while (Date.now() - start < timeout) {
-      let status;
-      let details = {};
-      if (params.type === "fiat") {
-        const result = await money.fiat.status({ transferId: params.id });
-        status = result.status;
-        details = {
-          source: result.source,
-          destination: result.destination
-        };
-      } else if (params.type === "bridge") {
-        const res = await fetch(`https://dln.debridge.finance/v1.0/dln/order/${params.id}/status`);
-        if (!res.ok) {
-          throw new MoneyError("TX_FAILED", `Bridge status check failed: ${res.status}`, {});
-        }
-        const data = await res.json();
-        status = data.status ?? "unknown";
-        details = data;
-      } else {
-        throw new MoneyError("INVALID_PARAMS", `Unknown wait type: "${params.type}"`, {
-          note: 'Supported types: "fiat", "bridge"'
-        });
-      }
-      const terminal = ["completed", "failed", "cancelled", "ClaimedUnlock", "OrderCancelled"];
-      const normalizedStatus = status === "ClaimedUnlock" ? "completed" : status === "OrderCancelled" ? "cancelled" : status;
-      if (terminal.includes(status) || terminal.includes(normalizedStatus)) {
-        return {
-          status: normalizedStatus,
-          type: params.type,
-          id: params.id,
-          details,
-          note: normalizedStatus === "completed" ? "Operation completed successfully." : normalizedStatus === "failed" ? "Operation failed." : normalizedStatus === "cancelled" ? "Operation was cancelled." : ""
-        };
-      }
-      await new Promise((r) => setTimeout(r, interval));
-    }
-    throw new MoneyError("TX_FAILED", `Timed out waiting for ${params.type} operation "${params.id}" after ${timeout}ms`, {
-      note: `The operation is still in progress. Check status manually:
-  await money.${params.type === "fiat" ? `fiat.status({ transferId: "${params.id}" })` : `waitFor({ type: "bridge", id: "${params.id}" })`}`
-    });
   },
   // ─── exportKeys ────────────────────────────────────────────────────────────
   async exportKeys(params) {
@@ -72682,6 +72682,16 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       token: from14,
       txHash: result.txHash
     });
+    try {
+      const existingAlias = await getAlias(key, to.toUpperCase());
+      if (!existingAlias) {
+        await setAlias(key, to.toUpperCase(), {
+          address: toResolved.address,
+          decimals: toResolved.decimals
+        });
+      }
+    } catch {
+    }
     return {
       txHash: result.txHash,
       explorerUrl,
@@ -72703,7 +72713,7 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
         note: 'Provide a token symbol or address:\n  await money.price({ token: "ETH" })'
       });
     }
-    const provider = getPriceProvider(providerName);
+    const provider = getPriceProvider(providerName, chain2);
     if (!provider) {
       throw new MoneyError("UNSUPPORTED_OPERATION", `No price provider available${providerName ? ` with name "${providerName}"` : ""}.`, {
         note: providerName ? `Provider "${providerName}" is not registered. Check the name or omit provider to use the default.` : "A price provider should be registered automatically."
@@ -72736,7 +72746,7 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
         note: 'Provide a token symbol or address:\n  await money.tokenInfo({ token: "USDC", chain: "ethereum" })'
       });
     }
-    const provider = getPriceProvider(providerName);
+    const provider = getPriceProvider(providerName, chain2);
     if (!provider || !provider.getTokenInfo) {
       throw new MoneyError("UNSUPPORTED_OPERATION", `No token info provider available${providerName ? ` with name "${providerName}"` : ""}.`, {
         note: providerName ? `Provider "${providerName}" is not registered or does not support getTokenInfo.` : "A price provider with getTokenInfo should be registered automatically."

@@ -325,6 +325,64 @@ export function createSolanaAdapter(
     return { amount: '1', token: DEFAULT_TOKEN, txHash: sig };
   }
 
+  // ─── ownedTokens ──────────────────────────────────────────────────────────
+
+  async function ownedTokens(
+    address: string,
+  ): Promise<Array<{ symbol: string; address: string; balance: string; decimals: number }>> {
+    const { PublicKey } = await getWeb3();
+    const { TOKEN_PROGRAM_ID } = await getSpl();
+    const connection = await getConnection();
+    const pubkey = new PublicKey(address);
+
+    const tokens: Array<{ symbol: string; address: string; balance: string; decimals: number }> = [];
+
+    // Always include native SOL
+    try {
+      const lamports = await connection.getBalance(pubkey);
+      tokens.push({
+        symbol: 'SOL',
+        address: '11111111111111111111111111111111',
+        balance: toHuman(lamports, SOL_DECIMALS),
+        decimals: SOL_DECIMALS,
+      });
+    } catch {
+      tokens.push({
+        symbol: 'SOL',
+        address: '11111111111111111111111111111111',
+        balance: '0',
+        decimals: SOL_DECIMALS,
+      });
+    }
+
+    // Discover all SPL token accounts
+    try {
+      const tokenAccounts = await connection.getParsedTokenAccountsByOwner(pubkey, {
+        programId: TOKEN_PROGRAM_ID,
+      });
+
+      for (const { account } of tokenAccounts.value) {
+        const parsed = account.data as { parsed?: { info?: { mint?: string; tokenAmount?: { uiAmountString?: string; decimals?: number } } } };
+        const info = parsed.parsed?.info;
+        if (!info?.mint) continue;
+
+        const balance = info.tokenAmount?.uiAmountString ?? '0';
+        const decimals = info.tokenAmount?.decimals ?? 0;
+
+        tokens.push({
+          symbol: info.mint,
+          address: info.mint,
+          balance,
+          decimals,
+        });
+      }
+    } catch {
+      // If token account fetch fails, just return SOL balance
+    }
+
+    return tokens;
+  }
+
   // ─── Assemble adapter ─────────────────────────────────────────────────────
 
   return {
@@ -335,5 +393,6 @@ export function createSolanaAdapter(
     send,
     faucet,
     sign,
+    ownedTokens,
   };
 }

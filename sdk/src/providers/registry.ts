@@ -51,11 +51,16 @@ export function getBridgeProvider(providerName?: string): BridgeProvider | null 
   return bridgeProviders[0] ?? null;
 }
 
-export function getPriceProvider(providerName?: string): PriceProvider | null {
+export function getPriceProvider(providerName?: string, chain?: string): PriceProvider | null {
   if (providerName) {
     return priceProviders.find((p) => p.name === providerName) ?? null;
   }
-  return priceProviders[0] ?? null;
+  if (chain) {
+    const byChain = priceProviders.find((p) => p.chains?.includes(chain));
+    if (byChain) return byChain;
+  }
+  // Fallback: first provider without a chains restriction, or first provider overall
+  return priceProviders.find((p) => !p.chains) ?? priceProviders[0] ?? null;
 }
 
 // ─── Listing ──────────────────────────────────────────────────────────────────
@@ -68,8 +73,8 @@ export function listBridgeProviders(): Array<{ name: string; chains: string[] }>
   return bridgeProviders.map((p) => ({ name: p.name, chains: [...p.chains] }));
 }
 
-export function listPriceProviders(): Array<{ name: string }> {
-  return priceProviders.map((p) => ({ name: p.name }));
+export function listPriceProviders(): Array<{ name: string; chains?: string[] }> {
+  return priceProviders.map((p) => ({ name: p.name, chains: p.chains ? [...p.chains] : undefined }));
 }
 
 // ─── Reset (for testing) ─────────────────────────────────────────────────────

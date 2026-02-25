@@ -215,10 +215,10 @@ describe('money.price provider routing', () => {
       },
     });
 
-    // Without provider param — should use built-in DexScreener (mocked)
+    // Without provider param + chain hint — should use DexScreener (mocked) via chain routing
     globalThis.fetch = makeDexScreenerMock();
-    const defaultResult = await money.price({ token: 'ETH' });
-    assert.equal(defaultResult.price, '2500.00', 'default should use DexScreener');
+    const defaultResult = await money.price({ token: 'ETH', chain: 'ethereum' });
+    assert.equal(defaultResult.price, '2500.00', 'default should use DexScreener for ethereum');
     assert.equal(defaultResult.symbol, 'ETH');
 
     // With provider param — should use custom provider

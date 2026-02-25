@@ -20,4 +20,12 @@ export interface ChainAdapter {
     message: string | Uint8Array;
     keyfile: string;
   }): Promise<{ signature: string; address: string }>;
+
+  /** Discover all tokens owned by an address (optional — not all chains support this) */
+  ownedTokens?(address: string): Promise<Array<{
+    symbol: string;
+    address: string;
+    balance: string;
+    decimals: number;
+  }>>;
 }

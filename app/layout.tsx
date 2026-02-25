@@ -23,7 +23,7 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   title: 'money — Payment Skill for AI Agents',
   description:
-    'Send tokens on Fast, Base, Ethereum, Arbitrum, or Solana. RPCs, token addresses, and explorer URLs built in. Three lines of code.',
+    'Send, swap, bridge, and look up prices across 13 chains. RPCs, token addresses, and explorer URLs built in.',
 };
 
 export default function RootLayout({

@@ -8,6 +8,14 @@ const chains = [
   { name: 'Base', token: 'ETH', format: '0x...' },
   { name: 'Ethereum', token: 'ETH', format: '0x...' },
   { name: 'Arbitrum', token: 'ETH', format: '0x...' },
+  { name: 'Polygon', token: 'POL', format: '0x...' },
+  { name: 'Optimism', token: 'ETH', format: '0x...' },
+  { name: 'BSC', token: 'BNB', format: '0x...' },
+  { name: 'Avalanche', token: 'AVAX', format: '0x...' },
+  { name: 'Fantom', token: 'FTM', format: '0x...' },
+  { name: 'zkSync', token: 'ETH', format: '0x...' },
+  { name: 'Linea', token: 'ETH', format: '0x...' },
+  { name: 'Scroll', token: 'ETH', format: '0x...' },
   { name: 'Solana', token: 'SOL', format: 'base58' },
 ];
 
@@ -36,7 +44,7 @@ export default async function Home() {
             <p className="hero-label">Payment Skill for AI Agents</p>
             <h1 className="hero-title">money</h1>
             <p className="hero-desc">
-              Send tokens on five chains with three lines of code.
+              Send, swap, bridge, and look up prices across 13 chains.
               <br />
               RPCs, addresses, explorer URLs&thinsp;&mdash;&thinsp;all built in.
             </p>
@@ -106,6 +114,42 @@ export default async function Home() {
             <p className="section-note">
               Same pattern on every chain. Only the name changes.
             </p>
+          </div>
+        </section>
+
+        <div className="divider">
+          <span />
+        </div>
+
+        <section className="section">
+          <div className="container">
+            <h2 className="section-label">Features</h2>
+            <div className="features">
+              <div className="feature">
+                <span className="feature-title">Swap</span>
+                <span className="feature-desc">Token swaps via Jupiter (Solana) and Paraswap (EVM)</span>
+              </div>
+              <div className="feature">
+                <span className="feature-title">Bridge</span>
+                <span className="feature-desc">Cross-chain bridging via DeBridge</span>
+              </div>
+              <div className="feature">
+                <span className="feature-title">Price</span>
+                <span className="feature-desc">Live token prices and pair data via DexScreener</span>
+              </div>
+              <div className="feature">
+                <span className="feature-title">Sign</span>
+                <span className="feature-desc">Message signing on any chain</span>
+              </div>
+              <div className="feature">
+                <span className="feature-title">Export</span>
+                <span className="feature-desc">Export private keys for wallet backup</span>
+              </div>
+              <div className="feature">
+                <span className="feature-title">Custom Chains</span>
+                <span className="feature-desc">Register any EVM chain at runtime</span>
+              </div>
+            </div>
           </div>
         </section>
 

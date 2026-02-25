@@ -95,6 +95,7 @@ export interface BridgeProvider {
 /** Price provider interface */
 export interface PriceProvider {
   name: string;
+  chains?: string[];         // which chains this provider supports; omit for "all"
   getPrice(params: {
     token: string;           // symbol or address
     chain?: string;
@@ -123,5 +124,9 @@ export interface PriceProvider {
     liquidity?: string;
     marketCap?: string;
     pairs: Array<{ dex: string; pairAddress: string; quoteToken: string; price: string }>;
+    // Fast chain on-chain metadata (only populated for Fast tokens)
+    admin?: string;
+    minters?: string[];
+    totalSupply?: string;
   }>;
 }
