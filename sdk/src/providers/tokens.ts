@@ -16,10 +16,10 @@ export interface WellKnownToken {
  * Keys are uppercase symbols. Addresses are per-chain.
  *
  * Native tokens (ETH, SOL, etc.) use special sentinel addresses:
- * - EVM native: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE"
+ * - EVM native: "0x0000000000000000000000000000000000000000" (zero address — the universal standard)
  * - Solana native: "So11111111111111111111111111111111111111112" (wrapped SOL mint)
  */
-const EVM_NATIVE = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+const EVM_NATIVE = '0x0000000000000000000000000000000000000000';
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 
 export const WELL_KNOWN_TOKENS: WellKnownToken[] = [

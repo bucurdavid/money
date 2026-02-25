@@ -71119,7 +71119,7 @@ function getPriceProvider(providerName) {
 }
 
 // dist/src/providers/tokens.js
-var EVM_NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+var EVM_NATIVE = "0x0000000000000000000000000000000000000000";
 var WSOL_MINT = "So11111111111111111111111111111111111111112";
 var WELL_KNOWN_TOKENS = [
   {
@@ -71348,6 +71348,14 @@ function formatAmount(raw, decimals) {
 
 // dist/src/providers/paraswap.js
 var BASE_URL2 = "https://api.paraswap.io";
+var PARASWAP_NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+var ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+function toParaswapToken(address) {
+  if (address.toLowerCase() === ZERO_ADDRESS.toLowerCase()) {
+    return PARASWAP_NATIVE;
+  }
+  return address;
+}
 var CHAIN_IDS = {
   ethereum: 1,
   optimism: 10,
@@ -71370,10 +71378,12 @@ var paraswapProvider = {
     if (!chainId) {
       throw new Error(`Paraswap does not support chain "${params.chain}"`);
     }
+    const srcToken = toParaswapToken(params.fromToken);
+    const destToken = toParaswapToken(params.toToken);
     const url = new URL(`${BASE_URL2}/prices`);
-    url.searchParams.set("srcToken", params.fromToken);
+    url.searchParams.set("srcToken", srcToken);
     url.searchParams.set("srcDecimals", String(params.fromDecimals));
-    url.searchParams.set("destToken", params.toToken);
+    url.searchParams.set("destToken", destToken);
     url.searchParams.set("destDecimals", String(params.toDecimals));
     url.searchParams.set("amount", params.amount);
     url.searchParams.set("network", String(chainId));
@@ -71411,12 +71421,14 @@ var paraswapProvider = {
       throw new Error(`Paraswap does not support chain "${params.chain}"`);
     if (!params.evmExecutor)
       throw new Error("Paraswap swap requires evmExecutor");
+    const srcToken = toParaswapToken(params.fromToken);
+    const destToken = toParaswapToken(params.toToken);
     const buildRes = await fetch(`${BASE_URL2}/transactions/${chainId}?ignoreChecks=true`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        srcToken: params.fromToken,
-        destToken: params.toToken,
+        srcToken,
+        destToken,
         srcAmount: params.amount,
         priceRoute: params.route,
         userAddress: params.userAddress,
@@ -71428,8 +71440,7 @@ var paraswapProvider = {
       throw new Error(`Paraswap build tx failed (${buildRes.status}): ${text}`);
     }
     const txData = await buildRes.json();
-    const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
-    if (params.fromToken.toLowerCase() !== NATIVE.toLowerCase()) {
+    if (srcToken.toLowerCase() !== PARASWAP_NATIVE.toLowerCase()) {
       const spender = txData.to;
       const currentAllowance = await params.evmExecutor.checkAllowance(params.fromToken, spender, params.userAddress);
       if (currentAllowance < BigInt(params.amount)) {
@@ -71614,8 +71625,7 @@ var debridgeProvider = {
       if (!data.tx.to) {
         throw new Error("DeBridge returned empty transaction target. The API response may be incomplete.");
       }
-      const NATIVE = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
-      const isNativeToken = params.fromToken.toLowerCase() === NATIVE.toLowerCase() || params.fromToken === "0x0000000000000000000000000000000000000000";
+      const isNativeToken = params.fromToken === "0x0000000000000000000000000000000000000000";
       if (!isNativeToken) {
         const requiredAmount = BigInt(data.estimation.srcChainTokenIn.amount);
         const currentAllowance = await params.evmExecutor.checkAllowance(params.fromToken, data.tx.to, params.senderAddress);

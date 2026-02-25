@@ -16,7 +16,7 @@ describe('resolveTokenAddress', () => {
   it('resolves native ETH on ethereum', () => {
     const result = resolveTokenAddress('ETH', 'ethereum');
     assert.ok(result);
-    assert.equal(result!.address, '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE');
+    assert.equal(result!.address, '0x0000000000000000000000000000000000000000');
     assert.equal(result!.decimals, 18);
   });
 
@@ -131,7 +131,7 @@ describe('NATIVE_TOKEN maps', () => {
 
   it('all EVM chains use the same native address sentinel', () => {
     const evmChains = ['ethereum', 'base', 'arbitrum', 'polygon', 'optimism', 'bsc', 'avalanche', 'fantom', 'zksync', 'linea', 'scroll'];
-    const sentinel = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+    const sentinel = '0x0000000000000000000000000000000000000000';
     for (const chain of evmChains) {
       assert.equal(NATIVE_TOKEN_ADDRESS[chain], sentinel, `${chain} should use EVM native sentinel`);
     }

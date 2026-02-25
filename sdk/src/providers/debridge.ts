@@ -105,9 +105,7 @@ export const debridgeProvider: BridgeProvider = {
       }
 
       // ERC-20 approval if needed — the spender is tx.to (the DLN contract)
-      const NATIVE = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
-      const isNativeToken = params.fromToken.toLowerCase() === NATIVE.toLowerCase()
-        || params.fromToken === '0x0000000000000000000000000000000000000000';
+      const isNativeToken = params.fromToken === '0x0000000000000000000000000000000000000000';
       if (!isNativeToken) {
         const requiredAmount = BigInt(data.estimation.srcChainTokenIn.amount);
         const currentAllowance = await params.evmExecutor.checkAllowance(

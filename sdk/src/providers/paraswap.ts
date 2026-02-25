@@ -9,6 +9,17 @@ import type { SwapProvider, SwapQuote } from './types.js';
 
 const BASE_URL = 'https://api.paraswap.io';
 
+/** Paraswap uses 0xEeee...eee for native tokens (not the standard zero address) */
+const PARASWAP_NATIVE = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+function toParaswapToken(address: string): string {
+  if (address.toLowerCase() === ZERO_ADDRESS.toLowerCase()) {
+    return PARASWAP_NATIVE;
+  }
+  return address;
+}
+
 /** Paraswap chain IDs — maps our chain names to numeric IDs */
 const CHAIN_IDS: Record<string, number> = {
   ethereum: 1,
@@ -36,10 +47,13 @@ export const paraswapProvider: SwapProvider = {
       throw new Error(`Paraswap does not support chain "${params.chain}"`);
     }
 
+    const srcToken = toParaswapToken(params.fromToken);
+    const destToken = toParaswapToken(params.toToken);
+
     const url = new URL(`${BASE_URL}/prices`);
-    url.searchParams.set('srcToken', params.fromToken);
+    url.searchParams.set('srcToken', srcToken);
     url.searchParams.set('srcDecimals', String(params.fromDecimals));
-    url.searchParams.set('destToken', params.toToken);
+    url.searchParams.set('destToken', destToken);
     url.searchParams.set('destDecimals', String(params.toDecimals));
     url.searchParams.set('amount', params.amount);
     url.searchParams.set('network', String(chainId));
@@ -98,12 +112,15 @@ export const paraswapProvider: SwapProvider = {
     if (!params.evmExecutor) throw new Error('Paraswap swap requires evmExecutor');
 
     // Step 1: Build the transaction using the priceRoute from quote
+    const srcToken = toParaswapToken(params.fromToken);
+    const destToken = toParaswapToken(params.toToken);
+
     const buildRes = await fetch(`${BASE_URL}/transactions/${chainId}?ignoreChecks=true`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        srcToken: params.fromToken,
-        destToken: params.toToken,
+        srcToken,
+        destToken,
         srcAmount: params.amount,
         priceRoute: params.route,
         userAddress: params.userAddress,
@@ -127,8 +144,7 @@ export const paraswapProvider: SwapProvider = {
     };
 
     // Step 2: ERC-20 approval if not native token
-    const NATIVE = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
-    if (params.fromToken.toLowerCase() !== NATIVE.toLowerCase()) {
+    if (srcToken.toLowerCase() !== PARASWAP_NATIVE.toLowerCase()) {
       const spender = txData.to; // Paraswap's TokenTransferProxy
       const currentAllowance = await params.evmExecutor.checkAllowance(params.fromToken, spender, params.userAddress);
       if (currentAllowance < BigInt(params.amount)) {
