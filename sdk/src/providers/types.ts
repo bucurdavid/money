@@ -87,7 +87,7 @@ export interface BridgeProvider {
     apiKey?: string;           // for providers that need an API key
   }): Promise<{
     txHash: string;
-    orderId?: string;        // for tracking bridge status
+    orderId: string;         // for tracking bridge status
     estimatedTime?: string;  // e.g. "2-5 minutes"
   }>;
 }

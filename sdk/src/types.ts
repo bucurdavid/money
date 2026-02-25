@@ -29,6 +29,9 @@ export interface MoneyConfig {
   chains: Record<string, ChainConfig>;
   customChains?: Record<string, CustomChainDef>;
   apiKeys?: Record<string, string>;
+  fiatHost?: string;
+  fiatAccountId?: string;
+  fiatWalletId?: string;
 }
 
 /** Params for money.setApiKey() */
@@ -339,7 +342,7 @@ export interface BridgeResult {
   toChain: string;
   fromAmount: string;
   toAmount: string;
-  orderId?: string;
+  orderId: string;
   estimatedTime?: string;
   note: string;
 }
@@ -364,4 +367,140 @@ export interface FormatUnitsParams {
   decimals?: number;
 }
 
+// ─── Fiat configuration types ────────────────────────────────────────────────
+
+export interface ConfigureFiatParams {
+  host: string;
+}
+
+// ─── Fiat on/off-ramp types ──────────────────────────────────────────────────
+
+export interface FiatCreateAccountParams {
+  email: string;
+  firstName: string;
+  lastName: string;
+}
+
+export interface FiatCreateAccountResult {
+  accountId: string;
+  kycUrl: string;
+  note: string;
+}
+
+export interface FiatGetKycLinkParams {
+  accountId?: string;
+}
+
+export interface FiatGetKycLinkResult {
+  url: string;
+  note: string;
+}
+
+export interface FiatLinkWalletParams {
+  chain: string;
+  network?: NetworkType;
+  accountId?: string;
+}
+
+export interface FiatLinkWalletResult {
+  walletId: string;
+  address: string;
+  note: string;
+}
+
+export interface FiatCreateRecipientParams {
+  name: string;
+  details: Record<string, string>;
+  accountId?: string;
+}
+
+export interface FiatCreateRecipientResult {
+  recipientId: string;
+  note: string;
+}
+
+export interface FiatRail {
+  rail: string;
+  currency: string;
+  amount?: string;
+}
+
+export interface FiatQuoteParams {
+  source: FiatRail;
+  destination: FiatRail;
+  accountId?: string;
+}
+
+export interface FiatQuoteResult {
+  quoteToken: string;
+  source: { rail: string; currency: string; amount: string; fee: string };
+  destination: { rail: string; currency: string; amount: string; fee: string };
+  fxRate: number;
+  expiresAt: string;
+  note: string;
+}
+
+export interface FiatOnRampParams {
+  quoteToken: string;
+  walletId?: string;
+  accountId?: string;
+}
+
+export interface FiatOnRampResult {
+  transferId: string;
+  bankingDetails: Record<string, unknown>;
+  note: string;
+}
+
+export interface FiatOffRampParams {
+  quoteToken: string;
+  recipientId: string;
+  accountId?: string;
+}
+
+export interface FiatOffRampResult {
+  transferId: string;
+  note: string;
+}
+
+export interface FiatGetFundingAddressParams {
+  transferId: string;
+  accountId?: string;
+}
+
+export interface FiatGetFundingAddressResult {
+  address: string;
+  chain: string;
+  amount: string;
+  note: string;
+}
+
+export interface FiatStatusParams {
+  transferId: string;
+  accountId?: string;
+}
+
+export interface FiatStatusResult {
+  status: string;
+  source?: { rail: string; currency: string; amount: string };
+  destination?: { rail: string; currency: string; amount: string };
+  note: string;
+}
+
+// ─── WaitFor types ───────────────────────────────────────────────────────────
+
+export interface WaitForParams {
+  type: 'fiat' | 'bridge';
+  id: string;
+  timeout?: number;   // ms, default 600_000 (10 min)
+  interval?: number;  // ms, default 10_000 (10s)
+}
+
+export interface WaitForResult {
+  status: string;
+  type: string;
+  id: string;
+  details?: Record<string, unknown>;
+  note: string;
+}
 

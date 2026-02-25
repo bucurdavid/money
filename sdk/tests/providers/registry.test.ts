@@ -48,7 +48,7 @@ function makeBridgeProvider(name: string, chains: string[]): BridgeProvider {
   return {
     name,
     chains,
-    async bridge(): Promise<{ txHash: string; orderId?: string; estimatedTime?: string }> {
+    async bridge(): Promise<{ txHash: string; orderId: string; estimatedTime?: string }> {
       return { txHash: '0xdef', orderId: 'order1', estimatedTime: '2 min' };
     },
   };

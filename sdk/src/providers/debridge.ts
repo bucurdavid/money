@@ -29,7 +29,7 @@ export const debridgeProvider: BridgeProvider = {
   name: 'debridge',
   chains: SUPPORTED_CHAINS,
 
-  async bridge(params): Promise<{ txHash: string; orderId?: string; estimatedTime?: string }> {
+  async bridge(params): Promise<{ txHash: string; orderId: string; estimatedTime?: string }> {
     const srcChainId = params.fromChainId ?? DEBRIDGE_CHAIN_IDS[params.fromChain];
     const dstChainId = params.toChainId ?? DEBRIDGE_CHAIN_IDS[params.toChain];
 
@@ -133,7 +133,7 @@ export const debridgeProvider: BridgeProvider = {
 
     return {
       txHash,
-      orderId: data.orderId,
+      orderId: data.orderId ?? txHash,
       estimatedTime: '1-5 minutes',
     };
   },
