@@ -63961,15 +63961,15 @@ var FAUCET_URLS = {
 function publicKeyToEvmAddress(uncompressedPubKeyHex) {
   return publicKeyToAddress(`0x${uncompressedPubKeyHex}`);
 }
-function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain) {
+function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain, nativeSymbol = "ETH") {
   const publicClient = createPublicClient({
     chain: viemChain,
     transport: http(rpcUrl)
   });
   const decimalsCache = /* @__PURE__ */ new Map();
   async function resolveToken(token) {
-    const t = token ?? "ETH";
-    if (t === "ETH")
+    const t = token ?? nativeSymbol;
+    if (t === nativeSymbol)
       return { type: "native" };
     if (/^0x[0-9a-fA-F]{40}$/.test(t)) {
       let decimals = decimalsCache.get(t);
@@ -64009,7 +64009,7 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain
     const resolved = await resolveToken(token);
     if (resolved.type === "native") {
       const raw2 = await publicClient.getBalance({ address });
-      return { amount: formatUnits(raw2, NATIVE_DECIMALS), token: "ETH" };
+      return { amount: formatUnits(raw2, NATIVE_DECIMALS), token: nativeSymbol };
     }
     const raw = await publicClient.readContract({
       address: resolved.address,
@@ -64658,7 +64658,7 @@ async function getAdapter(cacheKey2) {
       throw new MoneyError("CHAIN_NOT_CONFIGURED", `Unsupported chain/network combination: "${chain2}" on "${chainConfig2.network}". No viem chain configuration found.`, { chain: chain2, note: `Run setup first:
   await money.setup({ chain: "${chain2}" })` });
     }
-    adapter = createEvmAdapter(chain2, chainConfig2.rpc, explorerUrl, aliases, viemChain);
+    adapter = createEvmAdapter(chain2, chainConfig2.rpc, explorerUrl, aliases, viemChain, chainConfig2.defaultToken);
   } else if (chain2 === "solana") {
     const aliases = await getSolanaAliases(cacheKey2);
     adapter = createSolanaAdapter(chainConfig2.rpc, aliases, network);
@@ -64673,7 +64673,7 @@ async function getAdapter(cacheKey2) {
       });
       const explorerBase = customDef.explorer ?? "";
       const aliases = await getEvmAliases(cacheKey2);
-      adapter = createEvmAdapter(chain2, chainConfig2.rpc, explorerBase, aliases, viemChain);
+      adapter = createEvmAdapter(chain2, chainConfig2.rpc, explorerBase, aliases, viemChain, chainConfig2.defaultToken);
     } else {
       throw new MoneyError("CHAIN_NOT_CONFIGURED", `Unknown chain "${chain2}".`, {
         chain: chain2,

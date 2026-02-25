@@ -82,7 +82,7 @@ export async function getAdapter(cacheKey: string): Promise<ChainAdapter> {
         { chain, note: `Run setup first:\n  await money.setup({ chain: "${chain}" })` },
       );
     }
-    adapter = createEvmAdapter(chain, chainConfig.rpc, explorerUrl, aliases, viemChain);
+    adapter = createEvmAdapter(chain, chainConfig.rpc, explorerUrl, aliases, viemChain, chainConfig.defaultToken);
   } else if (chain === 'solana') {
     const aliases = await getSolanaAliases(cacheKey);
     adapter = createSolanaAdapter(chainConfig.rpc, aliases, network);
@@ -98,7 +98,7 @@ export async function getAdapter(cacheKey: string): Promise<ChainAdapter> {
       });
       const explorerBase = customDef.explorer ?? '';
       const aliases = await getEvmAliases(cacheKey);
-      adapter = createEvmAdapter(chain, chainConfig.rpc, explorerBase, aliases, viemChain);
+      adapter = createEvmAdapter(chain, chainConfig.rpc, explorerBase, aliases, viemChain, chainConfig.defaultToken);
     } else {
       throw new MoneyError('CHAIN_NOT_CONFIGURED', `Unknown chain "${chain}".`, {
         chain,

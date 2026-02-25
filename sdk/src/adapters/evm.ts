@@ -82,6 +82,7 @@ export function createEvmAdapter(
   explorerBaseUrl: string,
   aliases: Record<string, { address: string; decimals: number }>,
   viemChain: Chain,
+  nativeSymbol: string = 'ETH',
 ): ChainAdapter {
   // Create the publicClient once per adapter instance
   const publicClient: PublicClient = createPublicClient({
@@ -98,8 +99,8 @@ export function createEvmAdapter(
     | { type: 'erc20'; address: string; decimals: number };
 
   async function resolveToken(token?: string): Promise<ResolvedToken> {
-    const t = token ?? 'ETH';
-    if (t === 'ETH') return { type: 'native' };
+    const t = token ?? nativeSymbol;
+    if (t === nativeSymbol) return { type: 'native' };
 
     // Raw ERC-20 address
     if (/^0x[0-9a-fA-F]{40}$/.test(t)) {
@@ -155,7 +156,7 @@ export function createEvmAdapter(
 
     if (resolved.type === 'native') {
       const raw = await publicClient.getBalance({ address: address as `0x${string}` });
-      return { amount: formatUnits(raw, NATIVE_DECIMALS), token: 'ETH' };
+      return { amount: formatUnits(raw, NATIVE_DECIMALS), token: nativeSymbol };
     }
 
     const raw = await publicClient.readContract({
