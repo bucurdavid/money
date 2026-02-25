@@ -22,17 +22,18 @@ import {
 } from '../keys.js';
 import { MoneyError } from '../errors.js';
 import { toHex, fromHex } from '../utils.js';
+import type { FastTxExecutor, FastTransferResult } from '../providers/types.js';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const FAST_DECIMALS = 18;
+export const FAST_DECIMALS = 18;
 const DEFAULT_TOKEN = 'SET';
 const ADDRESS_PATTERN = /^set1[a-z0-9]{38,}$/;
 const EXPLORER_BASE = 'https://explorer.fastset.xyz/txs';
 /** Native SET token ID: [0xfa, 0x57, 0x5e, 0x70, 0, 0, ..., 0] */
-const SET_TOKEN_ID = new Uint8Array(32);
+export const SET_TOKEN_ID = new Uint8Array(32);
 SET_TOKEN_ID.set([0xfa, 0x57, 0x5e, 0x70], 0);
 
 // ---------------------------------------------------------------------------
@@ -75,6 +76,17 @@ const MintBcs = bcs.struct('Mint', {
   amount: AmountBcs,
 });
 
+const ExternalClaimBodyBcs = bcs.struct('ExternalClaimBody', {
+  verifier_committee: bcs.vector(bcs.bytes(32)),
+  verifier_quorum: bcs.u64(),
+  claim_data: bcs.vector(bcs.u8()),
+});
+
+const ExternalClaimFullBcs = bcs.struct('ExternalClaimFull', {
+  claim: ExternalClaimBodyBcs,
+  signatures: bcs.vector(bcs.tuple([bcs.bytes(32), bcs.bytes(64)])),
+});
+
 const ClaimTypeBcs = bcs.enum('ClaimType', {
   TokenTransfer: TokenTransferBcs,
   TokenCreation: TokenCreationBcs,
@@ -82,7 +94,7 @@ const ClaimTypeBcs = bcs.enum('ClaimType', {
   Mint: MintBcs,
   StateInitialization: bcs.struct('StateInitialization', { dummy: bcs.u8() }),
   StateUpdate: bcs.struct('StateUpdate', { dummy: bcs.u8() }),
-  ExternalClaim: bcs.struct('ExternalClaim', { data: bcs.bytes(32) }),
+  ExternalClaim: ExternalClaimFullBcs,
   StateReset: bcs.struct('StateReset', { dummy: bcs.u8() }),
   JoinCommittee: bcs.struct('JoinCommittee', { dummy: bcs.u8() }),
   LeaveCommittee: bcs.struct('LeaveCommittee', { dummy: bcs.u8() }),
@@ -106,7 +118,7 @@ const ClaimTypeBcs = bcs.enum('ClaimType', {
   ),
 });
 
-const TransactionBcs = bcs.struct('Transaction', {
+export const TransactionBcs = bcs.struct('Transaction', {
   sender: bcs.bytes(32),
   recipient: bcs.bytes(32),
   nonce: bcs.u64(),
@@ -157,7 +169,7 @@ function pubkeyToAddress(publicKeyHex: string): string {
   return bech32m.encode('set', words, 90);
 }
 
-function addressToPubkey(address: string): Uint8Array {
+export function addressToPubkey(address: string): Uint8Array {
   const { words } = bech32m.decode(address, 90);
   return new Uint8Array(bech32m.fromWords(words));
 }
@@ -166,7 +178,7 @@ function addressToPubkey(address: string): Uint8Array {
 // JSON helper for Uint8Array serialization
 // ---------------------------------------------------------------------------
 
-function toJSON(data: unknown): string {
+export function toJSON(data: unknown): string {
   return JSON.stringify(data, (_k, v) => {
     if (v instanceof Uint8Array) return Array.from(v);
     if (typeof v === 'bigint') return v.toString();
@@ -184,7 +196,7 @@ type FastTransaction = Parameters<typeof TransactionBcs.serialize>[0];
 // Transaction hashing: keccak256(BCS(transaction))
 // ---------------------------------------------------------------------------
 
-function hashTransaction(transaction: FastTransaction): string {
+export function hashTransaction(transaction: FastTransaction): string {
   const serialized = TransactionBcs.serialize(transaction).toBytes();
   const hash = keccak_256(serialized);
   return `0x${Buffer.from(hash).toString('hex')}`;
@@ -194,7 +206,7 @@ function hashTransaction(transaction: FastTransaction): string {
 // RPC helper
 // ---------------------------------------------------------------------------
 
-async function rpcCall(
+export async function rpcCall(
   url: string,
   method: string,
   params: Record<string, unknown>,
@@ -593,4 +605,179 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
     },
   };
   return adapter;
+}
+
+// ---------------------------------------------------------------------------
+// FastTxExecutor factory — for bridge providers that need to submit Fast txs
+// ---------------------------------------------------------------------------
+
+export function createFastTxExecutor(
+  keyfilePath: string,
+  rpcUrl: string,
+  senderAddress: string,
+): FastTxExecutor {
+  return {
+    getAddress(): string {
+      return senderAddress;
+    },
+
+    async sendTokenTransfer(to: string, amount: string, tokenId: Uint8Array): Promise<FastTransferResult> {
+      const senderPubkey = addressToPubkey(senderAddress);
+      const recipientPubkey = addressToPubkey(to);
+      // amount is in raw units (decimal string like "1000000000000000000")
+      // Convert to hex for BCS
+      const hexAmount = BigInt(amount).toString(16);
+
+      return await withKey<FastTransferResult>(keyfilePath, async (keypair) => {
+        const accountInfo = (await rpcCall(rpcUrl, 'proxy_getAccountInfo', {
+          address: senderPubkey,
+          token_balances_filter: null,
+          state_key_filter: null,
+          certificate_by_nonce: null,
+        })) as { next_nonce: number } | null;
+
+        const nonce = accountInfo?.next_nonce ?? 0;
+
+        const transaction = {
+          sender: senderPubkey,
+          recipient: recipientPubkey,
+          nonce,
+          timestamp_nanos: BigInt(Date.now()) * 1_000_000n,
+          claim: {
+            TokenTransfer: {
+              token_id: tokenId,
+              amount: hexAmount,
+              user_data: null,
+            },
+          },
+          archival: false,
+        };
+
+        // Sign: ed25519("Transaction::" + BCS(transaction))
+        const msgHead = new TextEncoder().encode('Transaction::');
+        const msgBody = TransactionBcs.serialize(transaction).toBytes();
+        const msg = new Uint8Array(msgHead.length + msgBody.length);
+        msg.set(msgHead, 0);
+        msg.set(msgBody, msgHead.length);
+        const signature = await signEd25519(msg, keypair.privateKey);
+
+        const txHash = hashTransaction(transaction);
+
+        await rpcCall(rpcUrl, 'proxy_submitTransaction', {
+          transaction,
+          signature: { Signature: signature },
+        });
+
+        // Poll for certificate (may not be immediately available)
+        let certificate: unknown = null;
+        for (let attempt = 0; attempt < 10; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          try {
+            certificate = await rpcCall(rpcUrl, 'proxy_getCertificateByNonce', {
+              sender: senderPubkey,
+              nonce,
+            });
+            if (certificate) break;
+          } catch {
+            // Certificate not ready yet, retry
+          }
+        }
+
+        if (!certificate) {
+          throw new MoneyError('TX_FAILED', 'Failed to retrieve transaction certificate from FastSet after submission', {
+            chain: 'fast',
+            note: 'The transaction was submitted but the certificate could not be fetched. Try again.',
+          });
+        }
+
+        return { txHash, nonce, certificate };
+      });
+    },
+
+    async submitExternalClaim(recipient: string, claimData: Uint8Array): Promise<FastTransferResult> {
+      const senderPubkey = addressToPubkey(senderAddress);
+      const recipientPubkey = addressToPubkey(recipient);
+
+      return await withKey<FastTransferResult>(keyfilePath, async (keypair) => {
+        const accountInfo = (await rpcCall(rpcUrl, 'proxy_getAccountInfo', {
+          address: senderPubkey,
+          token_balances_filter: null,
+          state_key_filter: null,
+          certificate_by_nonce: null,
+        })) as { next_nonce: number } | null;
+
+        const nonce = accountInfo?.next_nonce ?? 0;
+
+        const transaction = {
+          sender: senderPubkey,
+          recipient: recipientPubkey,
+          nonce,
+          timestamp_nanos: BigInt(Date.now()) * 1_000_000n,
+          claim: {
+            ExternalClaim: {
+              claim: {
+                verifier_committee: [] as Uint8Array[],
+                verifier_quorum: 0,
+                claim_data: Array.from(claimData),
+              },
+              signatures: [] as Array<[Uint8Array, Uint8Array]>,
+            },
+          },
+          archival: false,
+        };
+
+        const msgHead = new TextEncoder().encode('Transaction::');
+        const msgBody = TransactionBcs.serialize(transaction).toBytes();
+        const msg = new Uint8Array(msgHead.length + msgBody.length);
+        msg.set(msgHead, 0);
+        msg.set(msgBody, msgHead.length);
+        const signature = await signEd25519(msg, keypair.privateKey);
+
+        const txHash = hashTransaction(transaction);
+
+        await rpcCall(rpcUrl, 'proxy_submitTransaction', {
+          transaction,
+          signature: { Signature: signature },
+        });
+
+        // Poll for certificate
+        let certificate: unknown = null;
+        for (let attempt = 0; attempt < 10; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 2000));
+          try {
+            certificate = await rpcCall(rpcUrl, 'proxy_getCertificateByNonce', {
+              sender: senderPubkey,
+              nonce,
+            });
+            if (certificate) break;
+          } catch {
+            // Certificate not ready yet, retry
+          }
+        }
+
+        if (!certificate) {
+          throw new MoneyError('TX_FAILED', 'Failed to retrieve ExternalClaim certificate from FastSet', {
+            chain: 'fast',
+            note: 'The ExternalClaim was submitted but the certificate could not be fetched. Try again.',
+          });
+        }
+
+        return { txHash, nonce, certificate };
+      });
+    },
+
+    async evmSignCertificate(certificate: unknown): Promise<{ transaction: number[]; signature: string }> {
+      const result = await rpcCall(rpcUrl, 'proxy_evmSignCertificate', {
+        certificate,
+      });
+      const typed = result as { transaction?: number[]; signature?: string; format?: string } | null;
+      if (!typed?.transaction || !typed?.signature) {
+        throw new MoneyError('TX_FAILED', 'proxy_evmSignCertificate returned invalid response', {
+          chain: 'fast',
+          note: 'The FastSet proxy failed to cross-sign the certificate.',
+        });
+      }
+      return { transaction: typed.transaction, signature: typed.signature };
+    },
+  };
 }

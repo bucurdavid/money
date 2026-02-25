@@ -71,6 +71,7 @@ export interface SwapProvider {
 export interface BridgeProvider {
   name: string;
   chains: string[];         // supported chains
+  networks?: Array<'testnet' | 'mainnet'>;  // which networks this provider supports; omit for "mainnet only" (default)
   bridge(params: {
     fromChain: string;
     fromChainId?: number;
@@ -84,6 +85,7 @@ export interface BridgeProvider {
     receiverAddress: string;
     evmExecutor?: EvmTxExecutor;
     solanaExecutor?: SolanaTxExecutor;
+    fastExecutor?: FastTxExecutor;
     apiKey?: string;           // for providers that need an API key
   }): Promise<{
     txHash: string;
@@ -129,4 +131,23 @@ export interface PriceProvider {
     minters?: string[];
     totalSupply?: string;
   }>;
+}
+
+/** Transaction executor for Fast chain — handles signing, sending, and certificate management */
+export interface FastTxExecutor {
+  /** Submit a TokenTransfer transaction to FastSet bridge address */
+  sendTokenTransfer(to: string, amount: string, tokenId: Uint8Array): Promise<FastTransferResult>;
+  /** Submit an ExternalClaim transaction with intent data */
+  submitExternalClaim(recipient: string, claimData: Uint8Array): Promise<FastTransferResult>;
+  /** Get EVM-compatible cross-signature for a FastSet transaction certificate */
+  evmSignCertificate(certificate: unknown): Promise<{ transaction: number[]; signature: string }>;
+  /** Get the sender's bech32m address */
+  getAddress(): string;
+}
+
+/** Result from a FastSet transaction submission */
+export interface FastTransferResult {
+  txHash: string;
+  nonce: number;
+  certificate: unknown;
 }

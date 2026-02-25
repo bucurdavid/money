@@ -114,7 +114,7 @@ describe('money.bridge', () => {
       (err: unknown) => {
         assert.ok(err instanceof MoneyError);
         assert.equal((err as MoneyError).code, 'UNSUPPORTED_OPERATION');
-        assert.ok((err as MoneyError).message.includes('mainnet'));
+        assert.ok((err as MoneyError).message.includes('does not support network'));
         return true;
       },
     );

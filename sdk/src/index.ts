@@ -25,6 +25,8 @@ import { paraswapProvider } from './providers/paraswap.js';
 import { dexscreenerProvider } from './providers/dexscreener.js';
 import { debridgeProvider } from './providers/debridge.js';
 import { fastTokenProvider } from './providers/fasttoken.js';
+import { omnisetProvider } from './providers/omniset.js';
+import { createFastTxExecutor } from './adapters/fast.js';
 import type {
   NetworkType,
   SetupParams,
@@ -75,13 +77,14 @@ import type {
 import { parseUnits, formatUnits } from 'viem';
 import { createWalletClient, createPublicClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import type { EvmTxExecutor, SolanaTxExecutor } from './providers/types.js';
+import type { EvmTxExecutor, SolanaTxExecutor, FastTxExecutor } from './providers/types.js';
 
 // ─── Register built-in providers ──────────────────────────────────────────────
 
 registerSwapProvider(jupiterProvider);
 registerSwapProvider(paraswapProvider);
 registerBridgeProvider(debridgeProvider);
+registerBridgeProvider(omnisetProvider);
 registerPriceProvider(dexscreenerProvider);
 registerPriceProvider(fastTokenProvider);
 
@@ -1272,12 +1275,8 @@ export const money = {
     if (amount === undefined || amount === null) throw new MoneyError('INVALID_PARAMS', 'Missing required param: amount', { note: 'await money.bridge({ from: { chain: "ethereum", token: "USDC" }, to: { chain: "base" }, amount: 100, network: "mainnet" })' });
 
     const resolvedNetwork = network ?? 'testnet';
-    if (resolvedNetwork !== 'mainnet') {
-      throw new MoneyError('UNSUPPORTED_OPERATION', 'Bridge requires mainnet.', {
-        note: `Pass network: "mainnet" explicitly:\n  await money.bridge({ from: { chain: "${from.chain}", token: "${from.token}" }, to: { chain: "${to.chain}" }, amount: ${String(amount)}, network: "mainnet" })`,
-      });
-    }
 
+    // Get provider early to check network support
     const provider = getBridgeProvider(providerName);
     if (!provider) {
       throw new MoneyError('UNSUPPORTED_OPERATION', 'No bridge provider available.', {
@@ -1285,13 +1284,26 @@ export const money = {
       });
     }
 
+    // Check network compatibility: providers with `networks` field declare supported networks.
+    // Providers without `networks` field default to mainnet-only.
+    const providerNetworks = (provider as { networks?: string[] }).networks;
+    const supportsNetwork = providerNetworks
+      ? providerNetworks.includes(resolvedNetwork)
+      : resolvedNetwork === 'mainnet';
+    if (!supportsNetwork) {
+      const supportedStr = providerNetworks ? providerNetworks.join(', ') : 'mainnet';
+      throw new MoneyError('UNSUPPORTED_OPERATION', `Bridge provider "${provider.name}" does not support network "${resolvedNetwork}".`, {
+        note: `This provider supports: ${supportedStr}.\n  await money.bridge({ from: { chain: "${from.chain}", token: "${from.token}" }, to: { chain: "${to.chain}" }, amount: ${String(amount)}, network: "${providerNetworks?.[0] ?? 'mainnet'}" })`,
+      });
+    }
+
     // Resolve source chain config
     const config = await loadConfig();
     const srcResolved = resolveChainKey(from.chain, config.chains, network);
     if (!srcResolved) {
-      throw new MoneyError('CHAIN_NOT_CONFIGURED', `Source chain "${from.chain}" is not configured for mainnet.`, {
+      throw new MoneyError('CHAIN_NOT_CONFIGURED', `Source chain "${from.chain}" is not configured for ${resolvedNetwork}.`, {
         chain: from.chain,
-        note: `Run setup first:\n  await money.setup({ chain: "${from.chain}", network: "mainnet" })`,
+        note: `Run setup first:\n  await money.setup({ chain: "${from.chain}", network: "${resolvedNetwork}" })`,
       });
     }
 
@@ -1305,7 +1317,7 @@ export const money = {
       if (!dstResolved) {
         throw new MoneyError('CHAIN_NOT_CONFIGURED', `Destination chain "${to.chain}" is not configured. Provide a receiver address or setup the destination chain.`, {
           chain: to.chain,
-          note: `Either:\n  await money.setup({ chain: "${to.chain}", network: "mainnet" })\nOr pass receiver address:\n  await money.bridge({ ..., receiver: "0x..." })`,
+          note: `Either:\n  await money.setup({ chain: "${to.chain}", network: "${resolvedNetwork}" })\nOr pass receiver address:\n  await money.bridge({ ..., receiver: "0x..." })`,
         });
       }
       receiverAddress = await getAddressForChain(dstResolved.chainConfig);
@@ -1313,13 +1325,22 @@ export const money = {
 
     const fromTokenResolved = resolveSwapToken(from.token, from.chain);
     const toToken = to.token ?? from.token;
-    const toTokenResolved = resolveSwapToken(toToken, to.chain);
+    let toTokenResolved: { address: string; decimals: number };
+    try {
+      toTokenResolved = resolveSwapToken(toToken, to.chain);
+    } catch {
+      // Destination token resolution may fail for cross-chain bridges (e.g., WETH on Fast chain).
+      // Pass the raw token name — the bridge provider handles its own token resolution.
+      toTokenResolved = { address: toToken, decimals: fromTokenResolved.decimals };
+    }
     const fromRaw = toRawAmount(String(amount), fromTokenResolved.decimals);
 
     // Build executors based on source chain type
+    const isFastSource = from.chain === 'fast';
     const isSolanaSource = from.chain === 'solana';
-    const evmExecutor = isSolanaSource ? undefined : createEvmExecutor(keyfilePath, srcResolved.chainConfig, from.chain);
+    const evmExecutor = (isSolanaSource || isFastSource) ? undefined : createEvmExecutor(keyfilePath, srcResolved.chainConfig, from.chain);
     const solanaExecutor = isSolanaSource ? createSolanaExecutor(keyfilePath, srcResolved.chainConfig.rpc) : undefined;
+    const fastExecutor = isFastSource ? createFastTxExecutor(keyfilePath, srcResolved.chainConfig.rpc, senderAddress) : undefined;
 
     const apiKey = config.apiKeys?.[provider.name];
 
@@ -1336,6 +1357,7 @@ export const money = {
       receiverAddress,
       evmExecutor,
       solanaExecutor,
+      fastExecutor,
       apiKey,
     });
 
