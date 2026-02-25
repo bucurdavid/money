@@ -15,4 +15,20 @@ export interface ChainAdapter {
   faucet(address: string): Promise<{ amount: string; token: string; txHash: string }>;
 
   setupWallet(keyfilePath: string): Promise<{ address: string }>;
+
+  readContract?(params: {
+    address: string;
+    abi: unknown[];
+    functionName: string;
+    args?: unknown[];
+  }): Promise<unknown>;
+
+  writeContract?(params: {
+    address: string;
+    abi: unknown[];
+    functionName: string;
+    args?: unknown[];
+    value?: bigint;
+    keyfile: string;
+  }): Promise<{ txHash: string; explorerUrl: string; fee: string }>;
 }

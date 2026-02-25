@@ -243,6 +243,76 @@ export function createEvmAdapter(
     );
   }
 
+  // ─── readContract ───────────────────────────────────────────────────────────
+
+  async function readContract(params: {
+    address: string;
+    abi: unknown[];
+    functionName: string;
+    args?: unknown[];
+  }): Promise<unknown> {
+    const result = await publicClient.readContract({
+      address: params.address as `0x${string}`,
+      abi: params.abi as readonly Record<string, unknown>[],
+      functionName: params.functionName,
+      args: params.args as readonly unknown[] | undefined,
+    });
+    return result;
+  }
+
+  // ─── writeContract ──────────────────────────────────────────────────────────
+
+  async function writeContract(params: {
+    address: string;
+    abi: unknown[];
+    functionName: string;
+    args?: unknown[];
+    value?: bigint;
+    keyfile: string;
+  }): Promise<{ txHash: string; explorerUrl: string; fee: string }> {
+    try {
+      const txHash = await withKey(params.keyfile, async (kp) => {
+        const account = privateKeyToAccount(`0x${kp.privateKey}` as `0x${string}`);
+        const walletClient = createWalletClient({
+          account,
+          chain: viemChain,
+          transport: http(rpcUrl),
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return walletClient.writeContract({
+          address: params.address as `0x${string}`,
+          abi: params.abi as readonly Record<string, unknown>[],
+          functionName: params.functionName,
+          args: params.args as readonly unknown[] | undefined,
+          value: params.value,
+          chain: viemChain,
+        } as Parameters<typeof walletClient.writeContract>[0]);
+      });
+
+      let fee = '0';
+      try {
+        const receipt = await publicClient.getTransactionReceipt({ hash: txHash as `0x${string}` });
+        fee = formatUnits(receipt.gasUsed * receipt.effectiveGasPrice, 18);
+      } catch {
+        // Fall back to '0' if receipt fetch fails
+      }
+
+      return {
+        txHash,
+        explorerUrl: `${explorerBaseUrl}/tx/${txHash}`,
+        fee,
+      };
+    } catch (err: unknown) {
+      if (err instanceof MoneyError) throw err;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('insufficient funds') || msg.includes('exceeds balance')) {
+        throw new MoneyError('INSUFFICIENT_BALANCE', msg, { chain: chainName, note: `Get tokens:\n  await money.faucet({ chain: "${chainName}" })` });
+      }
+      throw new MoneyError('TX_FAILED', msg, { chain: chainName, note: `Wait 5 seconds, then retry the call.` });
+    }
+  }
+
   // ─── Assemble adapter ────────────────────────────────────────────────────────
 
   return {
@@ -252,5 +322,7 @@ export function createEvmAdapter(
     getBalance,
     send,
     faucet,
+    readContract,
+    writeContract,
   };
 }

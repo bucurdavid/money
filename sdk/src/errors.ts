@@ -13,7 +13,8 @@ export type MoneyErrorCode =
   | 'FAUCET_THROTTLED'
   | 'INVALID_ADDRESS'
   | 'TOKEN_NOT_FOUND'
-  | 'INVALID_PARAMS';
+  | 'INVALID_PARAMS'
+  | 'UNSUPPORTED_OPERATION';
 
 export class MoneyError extends Error {
   readonly code: MoneyErrorCode;

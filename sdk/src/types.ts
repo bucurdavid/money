@@ -190,3 +190,44 @@ export interface TokenInfo {
   mint?: string;       // Solana SPL mint address
   decimals: number;
 }
+
+// ─── Contract call types (EVM-only) ─────────────────────────────────────────
+
+/** Params for money.readContract() */
+export interface ReadContractParams {
+  chain: string;
+  network?: NetworkType;
+  address: string;           // Contract address (0x...)
+  abi: unknown[];            // ABI array — standard JSON ABI format
+  functionName: string;
+  args?: unknown[];
+}
+
+/** Params for money.writeContract() */
+export interface WriteContractParams {
+  chain: string;
+  network?: NetworkType;
+  address: string;           // Contract address (0x...)
+  abi: unknown[];            // ABI array — standard JSON ABI format
+  functionName: string;
+  args?: unknown[];
+  value?: string;            // Native token to send with call (human units, for payable fns)
+}
+
+/** Result of money.readContract() */
+export interface ReadContractResult {
+  chain: string;
+  network: NetworkType;
+  result: unknown;           // Return value — type depends on ABI
+  note: string;
+}
+
+/** Result of money.writeContract() */
+export interface WriteContractResult {
+  txHash: string;
+  explorerUrl: string;
+  fee: string;
+  chain: string;
+  network: NetworkType;
+  note: string;
+}

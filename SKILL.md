@@ -66,6 +66,7 @@ Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"solana"`
 | Avoid sending twice | Idempotency |
 | Check if you received tokens | Receiving |
 | Use USDC or a custom token | Tokens |
+| Call a smart contract | Contract Calls |
 | View past sends | History |
 | See all methods | Reference |
 
@@ -183,6 +184,7 @@ All errors have `{ code, message, note }`. The `note` field contains a working c
 | `FAUCET_THROTTLED` | Faucet rate limited | Wait and retry later. |
 | `INVALID_ADDRESS` | Bad address | Do not retry. Confirm address with user. |
 | `TOKEN_NOT_FOUND` | Token not registered | `money.registerToken({ chain, name, address, decimals })`, retry. |
+| `UNSUPPORTED_OPERATION` | Method not available for chain | Use an EVM chain for contract calls. |
 
 ```js
 try {
@@ -310,6 +312,57 @@ Built-in chains (`fast`, `base`, `ethereum`, `arbitrum`, `solana`) cannot be ove
 
 ---
 
+## Contract Calls
+
+Read or write any smart contract on EVM chains (Base, Ethereum, Arbitrum, and custom EVM chains). Not available on Fast or Solana.
+
+```js
+// Read a view function (no gas, no wallet needed)
+const r = await money.readContract({
+  chain: "base",
+  address: "0xContractAddress...",
+  abi: [{ name: "totalSupply", type: "function", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] }],
+  functionName: "totalSupply",
+});
+// r = { result: 1000000000000000000n, chain: "base", network: "testnet", note: "" }
+
+// Read with arguments
+const r = await money.readContract({
+  chain: "base",
+  address: "0xTokenAddress...",
+  abi: [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }],
+  functionName: "balanceOf",
+  args: ["0xWalletAddress..."],
+});
+
+// Write a state-changing function (costs gas, uses wallet)
+const tx = await money.writeContract({
+  chain: "base",
+  address: "0xContractAddress...",
+  abi: [{ name: "mint", type: "function", stateMutability: "nonpayable", inputs: [{ name: "amount", type: "uint256" }], outputs: [] }],
+  functionName: "mint",
+  args: [100],
+});
+// tx = { txHash, explorerUrl, fee, chain: "base", network: "testnet", note: "" }
+
+// Payable function — send native ETH with the call
+const tx = await money.writeContract({
+  chain: "base",
+  address: "0xContractAddress...",
+  abi: [{ name: "deposit", type: "function", stateMutability: "payable", inputs: [], outputs: [] }],
+  functionName: "deposit",
+  value: "0.5",  // 0.5 ETH in human units
+});
+```
+
+`abi` is a standard JSON ABI array. Only include the function(s) you need — you don't need the full contract ABI.
+
+`result` type depends on the contract: could be `bigint`, `string`, `boolean`, a tuple, etc.
+
+`value` is in human units (like `send()`). `"0.5"` means 0.5 ETH, not 0.5 wei. Only needed for payable functions.
+
+---
+
 ## History
 
 ```js
@@ -337,6 +390,8 @@ const { entries } = await money.history({ chain: "base", network: "mainnet" }); 
 | `money.getToken({ chain, network?, name })` | `TokenInfo` or `null` |
 | `money.registerToken({ chain, network?, name, address?, mint?, decimals? })` | `void` |
 | `money.tokens({ chain, network? })` | `{ tokens: TokenInfo[], note }` |
+| `money.readContract({ chain, network?, address, abi, functionName, args? })` | `{ result, chain, network, note }` |
+| `money.writeContract({ chain, network?, address, abi, functionName, args?, value? })` | `{ txHash, explorerUrl, fee, chain, network, note }` |
 | `money.history({ chain?, network?, limit? })` | `{ entries: [...], note }` |
 
 All errors: `{ code, message, note }`. The `note` field contains a code example showing how to fix the error.

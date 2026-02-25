@@ -64074,13 +64074,64 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain
     throw new MoneyError("TX_FAILED", `No programmatic faucet for ${chainName}. Fund manually: ${faucetUrl}`, { chain: chainName, details: { faucetUrl }, note: `Open ${faucetUrl} to get testnet tokens, then check:
   await money.balance({ chain: "${chainName}" })` });
   }
+  async function readContract2(params) {
+    const result = await publicClient.readContract({
+      address: params.address,
+      abi: params.abi,
+      functionName: params.functionName,
+      args: params.args
+    });
+    return result;
+  }
+  async function writeContract2(params) {
+    try {
+      const txHash = await withKey(params.keyfile, async (kp) => {
+        const account = privateKeyToAccount(`0x${kp.privateKey}`);
+        const walletClient = createWalletClient({
+          account,
+          chain: viemChain,
+          transport: http(rpcUrl)
+        });
+        return walletClient.writeContract({
+          address: params.address,
+          abi: params.abi,
+          functionName: params.functionName,
+          args: params.args,
+          value: params.value,
+          chain: viemChain
+        });
+      });
+      let fee = "0";
+      try {
+        const receipt = await publicClient.getTransactionReceipt({ hash: txHash });
+        fee = formatUnits(receipt.gasUsed * receipt.effectiveGasPrice, 18);
+      } catch {
+      }
+      return {
+        txHash,
+        explorerUrl: `${explorerBaseUrl}/tx/${txHash}`,
+        fee
+      };
+    } catch (err2) {
+      if (err2 instanceof MoneyError)
+        throw err2;
+      const msg = err2 instanceof Error ? err2.message : String(err2);
+      if (msg.includes("insufficient funds") || msg.includes("exceeds balance")) {
+        throw new MoneyError("INSUFFICIENT_BALANCE", msg, { chain: chainName, note: `Get tokens:
+  await money.faucet({ chain: "${chainName}" })` });
+      }
+      throw new MoneyError("TX_FAILED", msg, { chain: chainName, note: `Wait 5 seconds, then retry the call.` });
+    }
+  }
   return {
     chain: chainName,
     addressPattern: ADDRESS_PATTERN2,
     setupWallet,
     getBalance: getBalance2,
     send,
-    faucet
+    faucet,
+    readContract: readContract2,
+    writeContract: writeContract2
   };
 }
 
@@ -65137,6 +65188,124 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       defaultToken: defaultToken ?? "ETH"
     };
     await setChainConfig(key, chainConfig2);
+  },
+  async readContract(params) {
+    const { chain: chain2, network, address, abi: abi2, functionName, args } = params;
+    if (!chain2) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
+        note: 'Provide a chain name:\n  await money.readContract({ chain: "base", address: "0x...", abi: [...], functionName: "totalSupply" })'
+      });
+    }
+    if (!address) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: address", {
+        note: 'Provide the contract address:\n  await money.readContract({ chain: "base", address: "0x...", abi: [...], functionName: "totalSupply" })'
+      });
+    }
+    if (!abi2 || !Array.isArray(abi2)) {
+      throw new MoneyError("INVALID_PARAMS", "Missing or invalid param: abi (must be an array)", {
+        note: 'Provide the contract ABI as an array:\n  await money.readContract({ chain: "base", address: "0x...", abi: [{ name: "totalSupply", type: "function", ... }], functionName: "totalSupply" })'
+      });
+    }
+    if (!functionName) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: functionName", {
+        note: 'Provide the function to call:\n  await money.readContract({ chain: "base", address: "0x...", abi: [...], functionName: "totalSupply" })'
+      });
+    }
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain2, config.chains, network);
+    if (!resolved) {
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
+        chain: chain2,
+        note: `Run setup first:
+  await money.setup({ chain: "${chain2}" })`
+      });
+    }
+    const { key } = resolved;
+    const adapter = await getAdapter(key);
+    if (!adapter.readContract) {
+      throw new MoneyError("UNSUPPORTED_OPERATION", `readContract is only supported on EVM chains. "${chain2}" does not support contract calls.`, {
+        chain: chain2,
+        note: `Use an EVM chain (base, ethereum, arbitrum) or a registered custom EVM chain.`
+      });
+    }
+    const result = await adapter.readContract({ address, abi: abi2, functionName, args });
+    const { chain: resolvedChain, network: resolvedNetwork } = parseConfigKey(key);
+    return {
+      chain: resolvedChain,
+      network: resolvedNetwork,
+      result,
+      note: ""
+    };
+  },
+  async writeContract(params) {
+    const { chain: chain2, network, address, abi: abi2, functionName, args, value } = params;
+    if (!chain2) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
+        note: 'Provide a chain name:\n  await money.writeContract({ chain: "base", address: "0x...", abi: [...], functionName: "mint", args: [100] })'
+      });
+    }
+    if (!address) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: address", {
+        note: 'Provide the contract address:\n  await money.writeContract({ chain: "base", address: "0x...", abi: [...], functionName: "mint", args: [100] })'
+      });
+    }
+    if (!abi2 || !Array.isArray(abi2)) {
+      throw new MoneyError("INVALID_PARAMS", "Missing or invalid param: abi (must be an array)", {
+        note: 'Provide the contract ABI as an array:\n  await money.writeContract({ chain: "base", address: "0x...", abi: [...], functionName: "mint", args: [100] })'
+      });
+    }
+    if (!functionName) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: functionName", {
+        note: 'Provide the function to call:\n  await money.writeContract({ chain: "base", address: "0x...", abi: [...], functionName: "mint", args: [100] })'
+      });
+    }
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain2, config.chains, network);
+    if (!resolved) {
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
+        chain: chain2,
+        note: `Run setup first:
+  await money.setup({ chain: "${chain2}" })`
+      });
+    }
+    const { key, chainConfig: chainConfig2 } = resolved;
+    const adapter = await getAdapter(key);
+    if (!adapter.writeContract) {
+      throw new MoneyError("UNSUPPORTED_OPERATION", `writeContract is only supported on EVM chains. "${chain2}" does not support contract calls.`, {
+        chain: chain2,
+        note: `Use an EVM chain (base, ethereum, arbitrum) or a registered custom EVM chain.`
+      });
+    }
+    const keyfilePath = expandHome(chainConfig2.keyfile);
+    const valueBigInt = value ? parseUnits(value, 18) : void 0;
+    let result;
+    try {
+      result = await adapter.writeContract({
+        address,
+        abi: abi2,
+        functionName,
+        args,
+        value: valueBigInt,
+        keyfile: keyfilePath
+      });
+    } catch (err2) {
+      if (err2 instanceof MoneyError)
+        throw err2;
+      const msg = err2 instanceof Error ? err2.message : String(err2);
+      throw new MoneyError("TX_FAILED", msg, { chain: chain2, note: `Wait 5 seconds, then retry:
+  await money.writeContract({ chain: "${chain2}", address: "${address}", abi: [...], functionName: "${functionName}" })` });
+    }
+    const { chain: sentChain, network: sentNetwork } = parseConfigKey(key);
+    await appendHistory({
+      ts: (/* @__PURE__ */ new Date()).toISOString(),
+      chain: sentChain,
+      network: sentNetwork,
+      to: address,
+      amount: value ?? "0",
+      token: `contract:${functionName}`,
+      txHash: result.txHash
+    });
+    return { ...result, chain: sentChain, network: sentNetwork, note: "" };
   }
 };
 export {
