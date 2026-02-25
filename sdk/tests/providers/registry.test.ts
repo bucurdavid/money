@@ -44,14 +44,16 @@ function makeSwapProvider(name: string, chains: string[]): SwapProvider {
   };
 }
 
-function makeBridgeProvider(name: string, chains: string[]): BridgeProvider {
-  return {
+function makeBridgeProvider(name: string, chains: string[], networks?: Array<'testnet' | 'mainnet'>): BridgeProvider {
+  const provider: BridgeProvider = {
     name,
     chains,
     async bridge(): Promise<{ txHash: string; orderId: string; estimatedTime?: string }> {
       return { txHash: '0xdef', orderId: 'order1', estimatedTime: '2 min' };
     },
   };
+  if (networks) provider.networks = networks;
+  return provider;
 }
 
 function makePriceProvider(name: string): PriceProvider {
@@ -158,6 +160,44 @@ describe('BridgeProvider registry', () => {
     const list = listBridgeProviders();
     assert.equal(list.length, 1);
     assert.equal(list[0]!.name, 'debridge');
+  });
+
+  it('selects bridge provider by chain match', () => {
+    registerBridgeProvider(makeBridgeProvider('debridge', ['ethereum', 'base']));
+    registerBridgeProvider(makeBridgeProvider('omniset', ['fast', 'ethereum', 'arbitrum']));
+
+    const found = getBridgeProvider(undefined, 'fast', 'ethereum');
+    assert.ok(found);
+    assert.equal(found!.name, 'omniset');
+  });
+
+  it('selects bridge provider by network match', () => {
+    registerBridgeProvider(makeBridgeProvider('debridge', ['ethereum', 'arbitrum']));
+    registerBridgeProvider(makeBridgeProvider('omniset', ['fast', 'ethereum', 'arbitrum'], ['testnet']));
+
+    // DeBridge defaults to mainnet-only; OmniSet declares testnet
+    const found = getBridgeProvider(undefined, 'ethereum', 'arbitrum', 'testnet');
+    assert.ok(found);
+    assert.equal(found!.name, 'omniset');
+  });
+
+  it('selects bridge provider matching both chains and network', () => {
+    registerBridgeProvider(makeBridgeProvider('debridge', ['ethereum', 'base', 'arbitrum']));
+    registerBridgeProvider(makeBridgeProvider('omniset', ['fast', 'ethereum', 'arbitrum'], ['testnet']));
+
+    // fast→ethereum on testnet: only omniset supports 'fast' chain
+    const found = getBridgeProvider(undefined, 'fast', 'ethereum', 'testnet');
+    assert.ok(found);
+    assert.equal(found!.name, 'omniset');
+  });
+
+  it('falls back to first provider when no chain/network filter', () => {
+    registerBridgeProvider(makeBridgeProvider('debridge', ['ethereum']));
+    registerBridgeProvider(makeBridgeProvider('omniset', ['fast', 'ethereum'], ['testnet']));
+
+    const found = getBridgeProvider();
+    assert.ok(found);
+    assert.equal(found!.name, 'debridge');
   });
 });
 

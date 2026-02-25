@@ -150,4 +150,24 @@ describe('money.bridge', () => {
       },
     );
   });
+
+  it('resolves SET token on fast chain (fails at chain config, not token resolution)', async () => {
+    // This verifies that "SET" on "fast" no longer throws TOKEN_NOT_FOUND.
+    // It should get past token resolution and fail at CHAIN_NOT_CONFIGURED instead.
+    await assert.rejects(
+      () => money.bridge({
+        from: { chain: 'fast', token: 'SET' },
+        to: { chain: 'ethereum' },
+        amount: 20,
+        network: 'testnet',
+      }),
+      (err: unknown) => {
+        assert.ok(err instanceof MoneyError);
+        // Must NOT be TOKEN_NOT_FOUND — that was the bug
+        assert.notEqual((err as MoneyError).code, 'TOKEN_NOT_FOUND');
+        assert.equal((err as MoneyError).code, 'CHAIN_NOT_CONFIGURED');
+        return true;
+      },
+    );
+  });
 });

@@ -1678,7 +1678,7 @@ export const money = {
     const resolvedNetwork = network ?? 'testnet';
 
     // Get provider early to check network support
-    const provider = getBridgeProvider(providerName);
+    const provider = getBridgeProvider(providerName, from.chain, to.chain, resolvedNetwork);
     if (!provider) {
       throw new MoneyError('UNSUPPORTED_OPERATION', 'No bridge provider available.', {
         note: 'A bridge provider should be registered automatically.',

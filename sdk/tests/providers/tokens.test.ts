@@ -111,6 +111,20 @@ describe('resolveTokenAddress', () => {
     const result = resolveTokenAddress('WETH', 'solana');
     assert.equal(result, null);
   });
+
+  it('resolves native SET on fast chain', () => {
+    const result = resolveTokenAddress('SET', 'fast');
+    assert.ok(result);
+    assert.equal(result!.address, 'fa575e7000000000000000000000000000000000000000000000000000000000');
+    assert.equal(result!.decimals, 18);
+  });
+
+  it('resolves native SET case-insensitively on fast chain', () => {
+    const result = resolveTokenAddress('set', 'fast');
+    assert.ok(result);
+    assert.equal(result!.address, 'fa575e7000000000000000000000000000000000000000000000000000000000');
+    assert.equal(result!.decimals, 18);
+  });
 });
 
 describe('NATIVE_TOKEN maps', () => {
@@ -122,9 +136,9 @@ describe('NATIVE_TOKEN maps', () => {
     }
   });
 
-  it('has NATIVE_TOKEN_ADDRESS for all chains except fast', () => {
-    const evmAndSolana = ['ethereum', 'base', 'arbitrum', 'polygon', 'optimism', 'bsc', 'avalanche', 'fantom', 'zksync', 'linea', 'scroll', 'solana'];
-    for (const chain of evmAndSolana) {
+  it('has NATIVE_TOKEN_ADDRESS for all 13 chains', () => {
+    const chains = ['ethereum', 'base', 'arbitrum', 'polygon', 'optimism', 'bsc', 'avalanche', 'fantom', 'zksync', 'linea', 'scroll', 'solana', 'fast'];
+    for (const chain of chains) {
       assert.ok(NATIVE_TOKEN_ADDRESS[chain], `NATIVE_TOKEN_ADDRESS missing for ${chain}`);
     }
   });
@@ -139,5 +153,9 @@ describe('NATIVE_TOKEN maps', () => {
 
   it('solana uses WSOL mint as native address', () => {
     assert.equal(NATIVE_TOKEN_ADDRESS['solana'], 'So11111111111111111111111111111111111111112');
+  });
+
+  it('fast uses SET token ID hex as native address', () => {
+    assert.equal(NATIVE_TOKEN_ADDRESS['fast'], 'fa575e7000000000000000000000000000000000000000000000000000000000');
   });
 });

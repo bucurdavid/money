@@ -104,6 +104,7 @@ export const NATIVE_TOKEN_ADDRESS: Record<string, string> = {
   linea: EVM_NATIVE,
   scroll: EVM_NATIVE,
   solana: WSOL_MINT,
+  fast: 'fa575e7000000000000000000000000000000000000000000000000000000000',
 };
 
 /**

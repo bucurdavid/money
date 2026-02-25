@@ -44,10 +44,43 @@ export function getSwapProvider(chain: string, providerName?: string): SwapProvi
   return swapProviders.find((p) => p.chains.includes(chain)) ?? null;
 }
 
-export function getBridgeProvider(providerName?: string): BridgeProvider | null {
+/**
+ * Get bridge provider by name, or auto-select the best one for the given chains and network.
+ * Selection priority: matches both chains + network > matches chains > first available.
+ */
+export function getBridgeProvider(
+  providerName?: string,
+  fromChain?: string,
+  toChain?: string,
+  network?: string,
+): BridgeProvider | null {
   if (providerName) {
     return bridgeProviders.find((p) => p.name === providerName) ?? null;
   }
+
+  // Auto-select: prefer providers that support the requested chains and network
+  const candidates = bridgeProviders.filter((p) => {
+    const chainsMatch = (!fromChain || p.chains.includes(fromChain))
+      && (!toChain || p.chains.includes(toChain));
+    if (!chainsMatch) return false;
+    if (network) {
+      const nets = (p as { networks?: string[] }).networks;
+      if (nets && !nets.includes(network)) return false;
+      if (!nets && network !== 'mainnet') return false;
+    }
+    return true;
+  });
+  if (candidates.length > 0) return candidates[0]!;
+
+  // Fallback: first provider that supports the chains (ignore network)
+  if (fromChain || toChain) {
+    const byChain = bridgeProviders.find((p) =>
+      (!fromChain || p.chains.includes(fromChain))
+      && (!toChain || p.chains.includes(toChain)),
+    );
+    if (byChain) return byChain;
+  }
+
   return bridgeProviders[0] ?? null;
 }
 

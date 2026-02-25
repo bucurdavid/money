@@ -71594,9 +71594,29 @@ function getSwapProvider(chain2, providerName) {
   }
   return swapProviders.find((p) => p.chains.includes(chain2)) ?? null;
 }
-function getBridgeProvider(providerName) {
+function getBridgeProvider(providerName, fromChain, toChain, network) {
   if (providerName) {
     return bridgeProviders.find((p) => p.name === providerName) ?? null;
+  }
+  const candidates = bridgeProviders.filter((p) => {
+    const chainsMatch = (!fromChain || p.chains.includes(fromChain)) && (!toChain || p.chains.includes(toChain));
+    if (!chainsMatch)
+      return false;
+    if (network) {
+      const nets = p.networks;
+      if (nets && !nets.includes(network))
+        return false;
+      if (!nets && network !== "mainnet")
+        return false;
+    }
+    return true;
+  });
+  if (candidates.length > 0)
+    return candidates[0];
+  if (fromChain || toChain) {
+    const byChain = bridgeProviders.find((p) => (!fromChain || p.chains.includes(fromChain)) && (!toChain || p.chains.includes(toChain)));
+    if (byChain)
+      return byChain;
   }
   return bridgeProviders[0] ?? null;
 }
@@ -71691,7 +71711,8 @@ var NATIVE_TOKEN_ADDRESS = {
   zksync: EVM_NATIVE,
   linea: EVM_NATIVE,
   scroll: EVM_NATIVE,
-  solana: WSOL_MINT
+  solana: WSOL_MINT,
+  fast: "fa575e7000000000000000000000000000000000000000000000000000000000"
 };
 var NATIVE_TOKEN_SYMBOL = {
   ethereum: "ETH",
@@ -72288,6 +72309,8 @@ function base64ToBytes(b64) {
 }
 var WETH_FASTSET_TOKEN_ID = base64ToBytes("W6YWYjF5vVWnczFBJVAy+OEyh2ACG+lhZtO8FF8h5jo=");
 var SET_FASTSET_TOKEN_ID = base64ToBytes("+ldecAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=");
+var SET_FASTSET_TOKEN_HEX = "fa575e7000000000000000000000000000000000000000000000000000000000";
+var WETH_FASTSET_TOKEN_HEX = "5ba616623179bd55a7733141255032f8e1328760021be96166d3bc145f21e63a";
 var CHAIN_CONFIGS = {
   ethereum: {
     chainId: 11155111,
@@ -72332,6 +72355,11 @@ function resolveOmnisetToken(token, evmChain) {
     if (chainTokens[stripped])
       return chainTokens[stripped];
   }
+  const clean2 = token.startsWith("0x") ? token.slice(2).toLowerCase() : token.toLowerCase();
+  if (clean2 === SET_FASTSET_TOKEN_HEX)
+    return chainTokens["SET"] ?? null;
+  if (clean2 === WETH_FASTSET_TOKEN_HEX)
+    return chainTokens["WETH"] ?? null;
   for (const info of Object.values(chainTokens)) {
     if (info.evmAddress.toLowerCase() === token.toLowerCase())
       return info;
@@ -72477,8 +72505,8 @@ var omnisetProvider = {
       if (!tokenInfo) {
         throw new MoneyError("TOKEN_NOT_FOUND", `Cannot resolve token "${params.fromToken}" on OmniSet for destination chain "${params.toChain}".`, {
           chain: params.toChain,
-          note: `Supported tokens: setWETH (\u2192 ETH/WETH), setWSET (\u2192 WSET/SET).
-  Example: await money.bridge({ from: { chain: "fast", token: "setWETH" }, to: { chain: "ethereum" }, amount: 0.01, network: "testnet" })`
+          note: `Supported tokens: SET (\u2192 WSET), setWETH (\u2192 WETH), setWSET (\u2192 WSET).
+  Example: await money.bridge({ from: { chain: "fast", token: "SET" }, to: { chain: "ethereum" }, amount: 20, network: "testnet" })`
         });
       }
       const evmTokenAddress = tokenInfo.isNative ? chainConfig2.wethAddress : tokenInfo.evmAddress;
@@ -73891,7 +73919,7 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     if (amount === void 0 || amount === null)
       throw new MoneyError("INVALID_PARAMS", "Missing required param: amount", { note: 'await money.bridge({ from: { chain: "ethereum", token: "USDC" }, to: { chain: "base" }, amount: 100, network: "mainnet" })' });
     const resolvedNetwork = network ?? "testnet";
-    const provider = getBridgeProvider(providerName);
+    const provider = getBridgeProvider(providerName, from14.chain, to.chain, resolvedNetwork);
     if (!provider) {
       throw new MoneyError("UNSUPPORTED_OPERATION", "No bridge provider available.", {
         note: "A bridge provider should be registered automatically."

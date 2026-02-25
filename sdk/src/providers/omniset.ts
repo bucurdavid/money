@@ -26,6 +26,10 @@ function base64ToBytes(b64: string): Uint8Array {
 const WETH_FASTSET_TOKEN_ID = base64ToBytes('W6YWYjF5vVWnczFBJVAy+OEyh2ACG+lhZtO8FF8h5jo=');
 const SET_FASTSET_TOKEN_ID = base64ToBytes('+ldecAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=');
 
+/** Hex representations of FastSet token IDs (used for matching resolved addresses) */
+const SET_FASTSET_TOKEN_HEX = 'fa575e7000000000000000000000000000000000000000000000000000000000';
+const WETH_FASTSET_TOKEN_HEX = '5ba616623179bd55a7733141255032f8e1328760021be96166d3bc145f21e63a';
+
 // ─── Chain configuration ──────────────────────────────────────────────────────
 
 /** Per-chain bridge configuration */
@@ -87,8 +91,11 @@ const CHAIN_TOKENS: Record<string, Record<string, OmnisetTokenInfo>> = {
 
 /**
  * Resolve a token symbol or address to OmnisetTokenInfo for a given EVM chain.
- * Handles symbols (ETH, WETH, WSET, SET), setXXX prefixes (setWETH → WETH),
- * and raw EVM addresses.
+ * Handles:
+ *   - Symbols: ETH, WETH, WSET, SET (case-insensitive)
+ *   - Fast-side prefixed symbols: setWETH → WETH, setWSET → WSET
+ *   - FastSet token ID hex (from resolveSwapToken): fa575e70... → SET, 5ba61662... → WETH
+ *   - Raw EVM addresses
  */
 function resolveOmnisetToken(token: string, evmChain: string): OmnisetTokenInfo | null {
   const chainTokens = CHAIN_TOKENS[evmChain];
@@ -103,6 +110,11 @@ function resolveOmnisetToken(token: string, evmChain: string): OmnisetTokenInfo 
     const stripped = upper.slice(3);
     if (chainTokens[stripped]) return chainTokens[stripped]!;
   }
+
+  // Match by FastSet token ID hex (resolved by resolveSwapToken for Fast chain)
+  const clean = token.startsWith('0x') ? token.slice(2).toLowerCase() : token.toLowerCase();
+  if (clean === SET_FASTSET_TOKEN_HEX) return chainTokens['SET'] ?? null;
+  if (clean === WETH_FASTSET_TOKEN_HEX) return chainTokens['WETH'] ?? null;
 
   // Try by EVM address
   for (const info of Object.values(chainTokens)) {
@@ -335,7 +347,7 @@ export const omnisetProvider: BridgeProvider = {
           `Cannot resolve token "${params.fromToken}" on OmniSet for destination chain "${params.toChain}".`,
           {
             chain: params.toChain,
-            note: `Supported tokens: setWETH (→ ETH/WETH), setWSET (→ WSET/SET).\n  Example: await money.bridge({ from: { chain: "fast", token: "setWETH" }, to: { chain: "ethereum" }, amount: 0.01, network: "testnet" })`,
+            note: `Supported tokens: SET (→ WSET), setWETH (→ WETH), setWSET (→ WSET).\n  Example: await money.bridge({ from: { chain: "fast", token: "SET" }, to: { chain: "ethereum" }, amount: 20, network: "testnet" })`,
           },
         );
       }
