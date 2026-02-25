@@ -5,7 +5,7 @@
 import { loadConfig, setChainConfig, getChainConfig, getCustomChain, setCustomChain } from './config.js';
 import { expandHome, compareDecimalStrings } from './utils.js';
 import { loadKeyfile } from './keys.js';
-import { identifyChains, isValidAddress, addEvmChainName } from './detect.js';
+import { identifyChains, isValidAddress } from './detect.js';
 import { MoneyError } from './errors.js';
 import { getAdapter, evictAdapter, _resetAdapterCache } from './registry.js';
 import { DEFAULT_CHAIN_CONFIGS, configKey, parseConfigKey, supportedChains } from './defaults.js';
@@ -40,10 +40,12 @@ import type {
   ReadContractResult,
   WriteContractParams,
   WriteContractResult,
+  ParseUnitsParams,
+  FormatUnitsParams,
   CustomChainDef,
 } from './types.js';
 
-import { parseUnits } from 'viem';
+import { parseUnits, formatUnits } from 'viem';
 
 // ─── Re-exports ───────────────────────────────────────────────────────────────
 
@@ -74,6 +76,8 @@ export type {
   ReadContractResult,
   WriteContractParams,
   WriteContractResult,
+  ParseUnitsParams,
+  FormatUnitsParams,
   RegisterEvmChainParams,
 } from './types.js';
 
@@ -148,8 +152,6 @@ export const money = {
         );
       }
       defaults = existing;
-      // Ensure this chain is registered for address detection
-      addEvmChainName(chain);
     }
 
     const key = configKey(chain, network);
@@ -284,7 +286,7 @@ export const money = {
       throw new MoneyError('TX_FAILED', `Invalid amount: "${amountStr}". Must be a positive number.`, { chain, note: `Amount must be a positive number:\n  await money.send({ to, amount: "1", chain: "${chain}" })` });
     }
 
-    if (!isValidAddress(to, chain)) {
+    if (!await isValidAddress(to, chain)) {
       throw new MoneyError('INVALID_ADDRESS', `Address "${to}" is not valid for chain "${chain}".`, { chain, details: { address: to }, note: `Verify the address format. Use identifyChains to check:\n  money.identifyChains({ address: "${to}" })` });
     }
 
@@ -428,9 +430,9 @@ export const money = {
     return { entries: results, note: '' };
   },
 
-  identifyChains(params: IdentifyChainsParams): IdentifyChainsResult {
+  async identifyChains(params: IdentifyChainsParams): Promise<IdentifyChainsResult> {
     const { address } = params;
-    const chains = identifyChains(address);
+    const chains = await identifyChains(address);
 
     let note: string;
     if (chains.length > 1) {
@@ -480,9 +482,6 @@ export const money = {
       ...(explorer ? { explorer } : {}),
     };
     await setCustomChain(chain, def);
-
-    // Register for address detection
-    addEvmChainName(chain);
 
     // Build and persist the chain config so setup() can find it
     const key = configKey(chain, network);
@@ -623,4 +622,90 @@ export const money = {
 
     return { ...result, chain: sentChain, network: sentNetwork as NetworkType, note: '' };
   },
+
+  async toRawUnits(params: ParseUnitsParams): Promise<bigint> {
+    const { amount, chain, network, token, decimals: explicitDecimals } = params;
+
+    if (amount === undefined || amount === null) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: amount', {
+        note: 'Provide an amount:\n  await money.toRawUnits({ amount: 25, token: "USDC", chain: "base" })',
+      });
+    }
+
+    const dec = await resolveDecimals({ chain, network, token, decimals: explicitDecimals });
+    return parseUnits(String(amount), dec);
+  },
+
+  async toHumanUnits(params: FormatUnitsParams): Promise<string> {
+    const { amount, chain, network, token, decimals: explicitDecimals } = params;
+
+    if (amount === undefined || amount === null) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: amount', {
+        note: 'Provide an amount:\n  await money.toHumanUnits({ amount: 25000000n, token: "USDC", chain: "base" })',
+      });
+    }
+
+    const dec = await resolveDecimals({ chain, network, token, decimals: explicitDecimals });
+    return formatUnits(BigInt(amount), dec);
+  },
 };
+
+// ─── Decimals resolution helper ───────────────────────────────────────────────
+
+/** Known native token decimals */
+const NATIVE_DECIMALS: Record<string, number> = {
+  SET: 18,
+  ETH: 18,
+  SOL: 9,
+};
+
+/**
+ * Resolve decimals from explicit value, token alias lookup, or native token defaults.
+ */
+async function resolveDecimals(opts: {
+  chain?: string;
+  network?: NetworkType;
+  token?: string;
+  decimals?: number;
+}): Promise<number> {
+  // Explicit decimals always wins
+  if (opts.decimals !== undefined) return opts.decimals;
+
+  // Need chain to look up token
+  if (!opts.chain) {
+    throw new MoneyError('INVALID_PARAMS', 'Provide either "decimals" or "chain" (to look up token decimals)', {
+      note: 'Either pass decimals explicitly:\n  await money.toRawUnits({ amount: 25, decimals: 6 })\nOr pass chain + token:\n  await money.toRawUnits({ amount: 25, token: "USDC", chain: "base" })',
+    });
+  }
+
+  const config = await loadConfig();
+  const resolved = resolveChainKey(opts.chain, config.chains, opts.network);
+
+  if (!resolved) {
+    throw new MoneyError('CHAIN_NOT_CONFIGURED', `Chain "${opts.chain}" is not configured.`, {
+      chain: opts.chain,
+      note: `Run setup first:\n  await money.setup({ chain: "${opts.chain}" })`,
+    });
+  }
+
+  const { key, chainConfig } = resolved;
+  const tokenName = opts.token ?? chainConfig.defaultToken;
+
+  // Check native token defaults first
+  const nativeDec = NATIVE_DECIMALS[tokenName];
+  if (tokenName === chainConfig.defaultToken && nativeDec !== undefined) {
+    return nativeDec;
+  }
+
+  // Look up from aliases
+  const alias = await getAlias(key, tokenName);
+  if (alias) return alias.decimals;
+
+  // If it's the native token but not in our known list, default to 18
+  if (tokenName === chainConfig.defaultToken) return 18;
+
+  throw new MoneyError('TOKEN_NOT_FOUND', `Cannot resolve decimals for token "${tokenName}" on chain "${opts.chain}".`, {
+    chain: opts.chain,
+    note: `Register the token first:\n  await money.registerToken({ chain: "${opts.chain}", name: "${tokenName}", address: "0x...", decimals: 6 })`,
+  });
+}

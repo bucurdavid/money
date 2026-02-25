@@ -191,6 +191,26 @@ export interface TokenInfo {
   decimals: number;
 }
 
+// ─── Unit conversion types ──────────────────────────────────────────────────
+
+/** Params for money.parseUnits() — convert human amount to raw bigint */
+export interface ParseUnitsParams {
+  amount: number | string;
+  chain?: string;          // Look up decimals from token alias
+  network?: NetworkType;
+  token?: string;          // Token name to look up decimals (defaults to chain's native token)
+  decimals?: number;       // Explicit decimals — skip token lookup
+}
+
+/** Params for money.formatUnits() — convert raw bigint to human string */
+export interface FormatUnitsParams {
+  amount: bigint | number | string;
+  chain?: string;
+  network?: NetworkType;
+  token?: string;
+  decimals?: number;
+}
+
 // ─── Contract call types (EVM-only) ─────────────────────────────────────────
 
 /** Params for money.readContract() */

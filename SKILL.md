@@ -2,14 +2,22 @@
 name: money
 version: {{VERSION}}
 description: >
-  Send tokens on Fast, Base, Ethereum, Arbitrum, or Solana using the money skill.
-  Use when asked to pay, transfer tokens, fund a wallet, or check a balance.
+  Universal payment SDK for AI agents. Send tokens, check balances, call smart contracts,
+  and register custom EVM chains on Fast, Base, Ethereum, Arbitrum, Solana, or any EVM chain.
+  Use when asked to pay, transfer tokens, fund a wallet, check a balance, or interact with a contract.
   Do NOT use for trading, DeFi, yield farming, price advice, or detecting incoming payments.
+tags:
+  - payments
+  - blockchain
+  - evm
+  - solana
+  - smart-contracts
+  - wallet
 ---
 
 # MONEY SKILL
 
-Everything works out of the box. RPCs, token addresses, explorer URLs — all built in for 5 chains, testnet and mainnet. You do not need API keys, ABIs, or config files.
+Everything works out of the box. RPCs, token addresses, explorer URLs — all built in for 5 chains, testnet and mainnet. Register any EVM chain at runtime. Call any smart contract. You do not need API keys or config files.
 
 ## Install
 
@@ -67,6 +75,7 @@ Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"solana"`
 | Check if you received tokens | Receiving |
 | Use USDC or a custom token | Tokens |
 | Call a smart contract | Contract Calls |
+| Convert between human and raw units | Unit Conversion |
 | View past sends | History |
 | See all methods | Reference |
 
@@ -361,6 +370,51 @@ const tx = await money.writeContract({
 
 `value` is in human units (like `send()`). `"0.5"` means 0.5 ETH, not 0.5 wei. Only needed for payable functions.
 
+**Note:** `args` in contract calls use raw units (wei/smallest denomination), not human units. Use `toRawUnits` to convert:
+
+```js
+const raw = await money.toRawUnits({ amount: 25, token: "USDC", chain: "base" });
+// raw = 25000000n (USDC has 6 decimals)
+
+await money.writeContract({
+  chain: "base",
+  address: "0xUSDC...",
+  abi: [...],
+  functionName: "approve",
+  args: ["0xSpender...", raw],
+});
+```
+
+---
+
+## Unit Conversion
+
+Convert between human-readable amounts and raw blockchain units (wei, lamports, smallest denomination). Useful for contract call args and interpreting contract return values.
+
+```js
+// Human → raw (bigint)
+const raw = await money.toRawUnits({ amount: 25, token: "USDC", chain: "base" });
+// raw = 25000000n (USDC = 6 decimals)
+
+const raw = await money.toRawUnits({ amount: 1.5, chain: "base" });
+// raw = 1500000000000000000n (ETH = 18 decimals)
+
+const raw = await money.toRawUnits({ amount: 100, decimals: 8 });
+// raw = 10000000000n (explicit decimals, no chain lookup)
+
+// Raw → human (string)
+const human = await money.toHumanUnits({ amount: 25000000n, token: "USDC", chain: "base" });
+// human = "25"
+
+const human = await money.toHumanUnits({ amount: 1500000000000000000n, chain: "base" });
+// human = "1.5"
+
+const human = await money.toHumanUnits({ amount: 10000000000n, decimals: 8 });
+// human = "100"
+```
+
+Two modes: **token lookup** (pass `chain` + optional `token` — decimals resolved from aliases or native token defaults) or **explicit decimals** (pass `decimals` directly — no chain needed).
+
 ---
 
 ## History
@@ -392,6 +446,8 @@ const { entries } = await money.history({ chain: "base", network: "mainnet" }); 
 | `money.tokens({ chain, network? })` | `{ tokens: TokenInfo[], note }` |
 | `money.readContract({ chain, network?, address, abi, functionName, args? })` | `{ result, chain, network, note }` |
 | `money.writeContract({ chain, network?, address, abi, functionName, args?, value? })` | `{ txHash, explorerUrl, fee, chain, network, note }` |
+| `money.toRawUnits({ amount, chain?, network?, token?, decimals? })` | `bigint` |
+| `money.toHumanUnits({ amount, chain?, network?, token?, decimals? })` | `string` |
 | `money.history({ chain?, network?, limit? })` | `{ entries: [...], note }` |
 
 All errors: `{ code, message, note }`. The `note` field contains a code example showing how to fix the error.

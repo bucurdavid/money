@@ -53580,34 +53580,48 @@ var PATTERNS = {
   solana: /^[1-9A-HJ-NP-Za-km-z]{32,44}$/
   // base58
 };
-var evmChainNames = /* @__PURE__ */ new Set(["base", "ethereum", "arbitrum"]);
-function addEvmChainName(name) {
-  evmChainNames.add(name);
+var BUILT_IN_PROTOCOLS = {
+  base: "evm",
+  ethereum: "evm",
+  arbitrum: "evm",
+  fast: "fast",
+  solana: "solana"
+};
+var BUILT_IN_EVM_CHAINS = ["base", "ethereum", "arbitrum"];
+async function getChainProtocol(chain2) {
+  const bare = chain2.includes(":") ? chain2.split(":")[0] : chain2;
+  const builtIn = BUILT_IN_PROTOCOLS[bare];
+  if (builtIn)
+    return builtIn;
+  const config = await loadConfig();
+  const customDef = config.customChains?.[bare];
+  return customDef?.type ?? null;
 }
-function identifyChains(address) {
+async function identifyChains(address) {
   if (PATTERNS.fast.test(address)) {
     return ["fast"];
   }
   if (PATTERNS.evm.test(address)) {
-    return [...evmChainNames];
+    const config = await loadConfig();
+    const customEvmChains = Object.entries(config.customChains ?? {}).filter(([, def]) => def.type === "evm").map(([name]) => name);
+    return [...BUILT_IN_EVM_CHAINS, ...customEvmChains];
   }
   if (PATTERNS.solana.test(address)) {
     return ["solana"];
   }
   return [];
 }
-function isValidAddress(address, chain2) {
-  const pattern = getAddressPattern(chain2);
+async function isValidAddress(address, chain2) {
+  const pattern = await getAddressPattern(chain2);
   if (pattern === null)
     return false;
   return pattern.test(address);
 }
-function getAddressPattern(chain2) {
-  const bare = chain2.includes(":") ? chain2.split(":")[0] : chain2;
-  if (evmChainNames.has(bare)) {
-    return PATTERNS.evm;
-  }
-  return PATTERNS[bare] ?? null;
+async function getAddressPattern(chain2) {
+  const protocol = await getChainProtocol(chain2);
+  if (!protocol)
+    return null;
+  return PATTERNS[protocol] ?? null;
 }
 
 // dist/src/errors.js
@@ -64889,7 +64903,6 @@ var money = {
   await money.registerEvmChain({ chain: "${chain2}", chainId: ${customDef.chainId}, rpc: "...", network: "${network}" })` });
       }
       defaults = existing2;
-      addEvmChainName(chain2);
     }
     const key = configKey(chain2, network);
     const existing = await getChainConfig(key);
@@ -64998,7 +65011,7 @@ var money = {
       throw new MoneyError("TX_FAILED", `Invalid amount: "${amountStr}". Must be a positive number.`, { chain: chain2, note: `Amount must be a positive number:
   await money.send({ to, amount: "1", chain: "${chain2}" })` });
     }
-    if (!isValidAddress(to, chain2)) {
+    if (!await isValidAddress(to, chain2)) {
       throw new MoneyError("INVALID_ADDRESS", `Address "${to}" is not valid for chain "${chain2}".`, { chain: chain2, details: { address: to }, note: `Verify the address format. Use identifyChains to check:
   money.identifyChains({ address: "${to}" })` });
     }
@@ -65136,9 +65149,9 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     const results = await readHistory(params);
     return { entries: results, note: "" };
   },
-  identifyChains(params) {
+  async identifyChains(params) {
     const { address } = params;
-    const chains = identifyChains(address);
+    const chains = await identifyChains(address);
     let note;
     if (chains.length > 1) {
       note = "Multiple chains use this address format. Specify chain explicitly.";
@@ -65179,7 +65192,6 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       ...explorer ? { explorer } : {}
     };
     await setCustomChain(chain2, def);
-    addEvmChainName(chain2);
     const key = configKey(chain2, network);
     const chainConfig2 = {
       rpc,
@@ -65306,8 +65318,67 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       txHash: result.txHash
     });
     return { ...result, chain: sentChain, network: sentNetwork, note: "" };
+  },
+  async toRawUnits(params) {
+    const { amount, chain: chain2, network, token, decimals: explicitDecimals } = params;
+    if (amount === void 0 || amount === null) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: amount", {
+        note: 'Provide an amount:\n  await money.toRawUnits({ amount: 25, token: "USDC", chain: "base" })'
+      });
+    }
+    const dec = await resolveDecimals({ chain: chain2, network, token, decimals: explicitDecimals });
+    return parseUnits(String(amount), dec);
+  },
+  async toHumanUnits(params) {
+    const { amount, chain: chain2, network, token, decimals: explicitDecimals } = params;
+    if (amount === void 0 || amount === null) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: amount", {
+        note: 'Provide an amount:\n  await money.toHumanUnits({ amount: 25000000n, token: "USDC", chain: "base" })'
+      });
+    }
+    const dec = await resolveDecimals({ chain: chain2, network, token, decimals: explicitDecimals });
+    return formatUnits(BigInt(amount), dec);
   }
 };
+var NATIVE_DECIMALS2 = {
+  SET: 18,
+  ETH: 18,
+  SOL: 9
+};
+async function resolveDecimals(opts) {
+  if (opts.decimals !== void 0)
+    return opts.decimals;
+  if (!opts.chain) {
+    throw new MoneyError("INVALID_PARAMS", 'Provide either "decimals" or "chain" (to look up token decimals)', {
+      note: 'Either pass decimals explicitly:\n  await money.toRawUnits({ amount: 25, decimals: 6 })\nOr pass chain + token:\n  await money.toRawUnits({ amount: 25, token: "USDC", chain: "base" })'
+    });
+  }
+  const config = await loadConfig();
+  const resolved = resolveChainKey(opts.chain, config.chains, opts.network);
+  if (!resolved) {
+    throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${opts.chain}" is not configured.`, {
+      chain: opts.chain,
+      note: `Run setup first:
+  await money.setup({ chain: "${opts.chain}" })`
+    });
+  }
+  const { key, chainConfig: chainConfig2 } = resolved;
+  const tokenName = opts.token ?? chainConfig2.defaultToken;
+  const nativeDec = NATIVE_DECIMALS2[tokenName];
+  if (tokenName === chainConfig2.defaultToken && nativeDec !== void 0) {
+    return nativeDec;
+  }
+  const alias = await getAlias(key, tokenName);
+  if (alias)
+    return alias.decimals;
+  if (tokenName === chainConfig2.defaultToken)
+    return 18;
+  throw new MoneyError("TOKEN_NOT_FOUND", `Cannot resolve decimals for token "${tokenName}" on chain "${opts.chain}".`, {
+    chain: opts.chain,
+    note: `Register the token first:
+  await money.registerToken({ chain: "${opts.chain}", name: "${tokenName}", address: "0x...", decimals: 6 })`
+  });
+}
 export {
   MoneyError,
   money

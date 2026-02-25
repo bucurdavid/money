@@ -498,32 +498,32 @@ describe('money.history', () => {
 // ─── money.identifyChains ─────────────────────────────────────────────────────
 
 describe('money.identifyChains', () => {
-  it('identifies "fast" from set1... address', () => {
-    const result = money.identifyChains({ address: 'set1ld55rskkecy2wflhf0kmfr82ay937tpq7zwmx978udetmqqt2task3fcxc' });
+  it('identifies "fast" from set1... address', async () => {
+    const result = await money.identifyChains({ address: 'set1ld55rskkecy2wflhf0kmfr82ay937tpq7zwmx978udetmqqt2task3fcxc' });
     assert.deepStrictEqual(result.chains, ['fast']);
     assert.equal(result.note, '');
   });
 
-  it('returns all EVM chains for EVM address with non-empty note', () => {
-    const result = money.identifyChains({ address: '0x742d35Cc6634C0532925a3b8D4C9b34EcFedBCfB' });
+  it('returns all EVM chains for EVM address with non-empty note', async () => {
+    const result = await money.identifyChains({ address: '0x742d35Cc6634C0532925a3b8D4C9b34EcFedBCfB' });
     assert.deepStrictEqual(result.chains, ['base', 'ethereum', 'arbitrum']);
     assert.ok(result.note.length > 0, 'expected non-empty note for ambiguous EVM address');
   });
 
-  it('identifies "solana" from base58 address', () => {
-    const result = money.identifyChains({ address: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU' });
+  it('identifies "solana" from base58 address', async () => {
+    const result = await money.identifyChains({ address: '7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU' });
     assert.deepStrictEqual(result.chains, ['solana']);
     assert.equal(result.note, '');
   });
 
-  it('returns empty chains array and non-empty note for garbage input', () => {
-    const result = money.identifyChains({ address: 'GARBAGE!@#$%NOT_AN_ADDRESS' });
+  it('returns empty chains array and non-empty note for garbage input', async () => {
+    const result = await money.identifyChains({ address: 'GARBAGE!@#$%NOT_AN_ADDRESS' });
     assert.deepStrictEqual(result.chains, []);
     assert.ok(result.note.length > 0, 'expected non-empty note for unrecognized address');
   });
 
-  it('returns empty chains array for empty string', () => {
-    const result = money.identifyChains({ address: '' });
+  it('returns empty chains array for empty string', async () => {
+    const result = await money.identifyChains({ address: '' });
     assert.deepStrictEqual(result.chains, []);
     assert.ok(result.note.length > 0);
   });
