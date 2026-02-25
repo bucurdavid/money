@@ -1,3 +1,6 @@
+import type { z } from 'zod';
+import type * as S from './schemas.js';
+
 // Chain names
 export type ChainName = 'fast' | 'base' | 'ethereum' | 'arbitrum' | 'polygon' | 'optimism' | 'bsc' | 'avalanche' | 'fantom' | 'zksync' | 'linea' | 'scroll' | 'solana';
 
@@ -31,96 +34,44 @@ export interface MoneyConfig {
   apiKeys?: Record<string, string>;
 }
 
-/** Params for money.setApiKey() */
-export interface SetApiKeyParams {
-  provider: string;    // provider name (e.g. "jupiter", "my-dex")
-  apiKey: string;
-}
-
 // ─── Param types (JSON-only method signatures) ───────────────────────────────
 
+/** Params for money.setApiKey() */
+export type SetApiKeyParams = z.infer<typeof S.SetApiKeyParams>;
+
 /** Params for money.setup() */
-export interface SetupParams {
-  chain: string;
-  network?: NetworkType;
-  rpc?: string;
-}
+export type SetupParams = z.infer<typeof S.SetupParams>;
 
 /** Params for money.balance() */
-export interface BalanceParams {
-  chain: string;
-  network?: NetworkType;
-  token?: string; // defaults to "native" → resolved to chain's native token
-}
+export type BalanceParams = z.infer<typeof S.BalanceParams>;
 
 /** Params for money.send() */
-export interface SendParams {
-  to: string;
-  amount: number | string;
-  chain: string;
-  network?: NetworkType;
-  token?: string; // defaults to "native"
-}
+export type SendParams = z.infer<typeof S.SendParams>;
 
 /** Params for money.faucet() */
-export interface FaucetParams {
-  chain: string;
-  network?: NetworkType;
-}
+export type FaucetParams = z.infer<typeof S.FaucetParams>;
 
 /** Params for money.identifyChains() */
-export interface IdentifyChainsParams {
-  address: string;
-}
+export type IdentifyChainsParams = z.infer<typeof S.IdentifyChainsParams>;
 
 /** Params for money.getToken() */
-export interface GetTokenParams {
-  chain: string;
-  network?: NetworkType;
-  name: string;
-}
+export type GetTokenParams = z.infer<typeof S.GetTokenParams>;
 
 /** Params for money.registerToken() */
-export interface RegisterTokenParams {
-  chain: string;
-  network?: NetworkType;
-  name: string;
-  address?: string;  // EVM contract address
-  mint?: string;     // Solana mint address
-  decimals?: number;
-}
+export type RegisterTokenParams = z.infer<typeof S.RegisterTokenParams>;
 
 /** Params for money.tokens() */
-export interface TokensParams {
-  chain: string;
-  network?: NetworkType;
-}
+export type TokensParams = z.infer<typeof S.TokensParams>;
 
 /** Params for money.history() */
-export interface HistoryParams {
-  chain?: string;
-  network?: NetworkType;
-  limit?: number;
-}
+export type HistoryParams = z.infer<typeof S.HistoryParams>;
 
 /** Params for money.registerEvmChain() */
-export interface RegisterEvmChainParams {
-  chain: string;
-  chainId: number;
-  rpc: string;
-  explorer?: string;   // e.g. "https://polygonscan.com/tx/"
-  defaultToken?: string; // defaults to "ETH"
-  network?: NetworkType; // defaults to "testnet"
-}
+export type RegisterEvmChainParams = z.infer<typeof S.RegisterEvmChainParams>;
 
 // ─── Return types for SDK methods ────────────────────────────────────────────
 
-export interface SetupResult {
-  chain: string;
-  address: string;
-  network: string;
-  note: string;
-}
+export type SetupResult = z.infer<typeof S.SetupResult>;
 
 export interface ChainStatus {
   chain: string;
@@ -132,42 +83,15 @@ export interface ChainStatus {
 }
 
 // StatusResult wraps the array
-export interface StatusResult {
-  entries: ChainStatus[];
-  note: string;
-}
+export type StatusResult = z.infer<typeof S.StatusResult>;
 
-export interface BalanceResult {
-  chain: string;
-  network: NetworkType;
-  address: string;
-  amount: string;
-  token: string;
-  note: string;
-}
+export type BalanceResult = z.infer<typeof S.BalanceResult>;
 
-export interface SendResult {
-  txHash: string;
-  explorerUrl: string;
-  fee: string;
-  chain: string;
-  network: NetworkType;
-  note: string;
-}
+export type SendResult = z.infer<typeof S.SendResult>;
 
-export interface FaucetResult {
-  chain: string;
-  network: NetworkType;
-  amount: string;
-  token: string;
-  txHash: string;
-  note: string;
-}
+export type FaucetResult = z.infer<typeof S.FaucetResult>;
 
-export interface IdentifyChainsResult {
-  chains: string[];
-  note: string;
-}
+export type IdentifyChainsResult = z.infer<typeof S.IdentifyChainsResult>;
 
 /** A token discovered on-chain (via RPC, not user-registered) */
 export interface OwnedToken {
@@ -178,17 +102,9 @@ export interface OwnedToken {
   decimals: number;
 }
 
-export interface TokensResult {
-  chain: string;
-  network: NetworkType;
-  owned: OwnedToken[];
-  note: string;
-}
+export type TokensResult = z.infer<typeof S.TokensResult>;
 
-export interface HistoryResult {
-  entries: HistoryEntry[];
-  note: string;
-}
+export type HistoryResult = z.infer<typeof S.HistoryResult>;
 
 export interface HistoryEntry {
   ts: string;          // ISO timestamp
@@ -212,171 +128,57 @@ export interface TokenInfo {
 // ─── Export keys types ──────────────────────────────────────────────────────
 
 /** Params for money.exportKeys() */
-export interface ExportKeysParams {
-  chain: string;
-  network?: NetworkType;
-}
+export type ExportKeysParams = z.infer<typeof S.ExportKeysParams>;
 
 /** Result of money.exportKeys() */
-export interface ExportKeysResult {
-  address: string;
-  privateKey: string;
-  keyfile: string;       // absolute path to the keyfile on disk
-  chain: string;
-  chainType: 'evm' | 'solana' | 'fast';
-  note: string;
-}
+export type ExportKeysResult = z.infer<typeof S.ExportKeysResult>;
 
 // ─── Sign types ─────────────────────────────────────────────────────────────
 
 /** Params for money.sign() */
-export interface SignParams {
-  chain: string;
-  message: string | Uint8Array;
-  network?: NetworkType;
-}
+export type SignParams = z.infer<typeof S.SignParams>;
 
 /** Result of money.sign() */
-export interface SignResult {
-  signature: string;     // EVM: 0x hex, Solana: base58, Fast: hex
-  address: string;
-  chain: string;
-  network: NetworkType;
-  note: string;
-}
+export type SignResult = z.infer<typeof S.SignResult>;
 
 /** Params for money.verifySign() */
-export interface VerifySignParams {
-  chain: string;
-  message: string | Uint8Array;
-  signature: string;
-  address: string;
-  network?: NetworkType;
-}
+export type VerifySignParams = z.infer<typeof S.VerifySignParams>;
 
 /** Result of money.verifySign() */
-export interface VerifySignResult {
-  valid: boolean;
-  address: string;
-  chain: string;
-  network: NetworkType;
-  note: string;
-}
+export type VerifySignResult = z.infer<typeof S.VerifySignResult>;
 
 // ─── Swap / Quote types ─────────────────────────────────────────────────────
 
 /** Params for money.quote() and money.swap() */
-export interface SwapParams {
-  chain: string;
-  from: string;              // token symbol ("SOL") or contract address
-  to: string;                // token symbol ("USDC") or contract address
-  amount: number | string;   // human units
-  network?: NetworkType;
-  slippageBps?: number;      // default 50 (0.5%)
-  provider?: string;         // optional: force a specific provider
-}
+export type SwapParams = z.infer<typeof S.SwapParams>;
 
 /** Result of money.quote() */
-export interface QuoteResult {
-  fromToken: string;
-  toToken: string;
-  fromAmount: string;        // human units
-  toAmount: string;          // human units
-  rate: string;              // e.g. "1 SOL = 145.23 USDC"
-  priceImpact: string;       // percentage
-  provider: string;
-  chain: string;
-  network: NetworkType;
-  note: string;
-}
+export type QuoteResult = z.infer<typeof S.QuoteResult>;
 
 /** Result of money.swap() */
-export interface SwapResult {
-  txHash: string;
-  explorerUrl: string;
-  fromToken: string;
-  toToken: string;
-  fromAmount: string;
-  toAmount: string;
-  provider: string;
-  chain: string;
-  network: NetworkType;
-  note: string;
-}
+export type SwapResult = z.infer<typeof S.SwapResult>;
 
 // ─── Price / Token info types ───────────────────────────────────────────────
 
 /** Params for money.price() */
-export interface PriceParams {
-  token: string;             // symbol or address
-  chain?: string;            // optional, narrows search
-  provider?: string;         // provider name (e.g. "dexscreener"); default: first registered
-}
+export type PriceParams = z.infer<typeof S.PriceParams>;
 
 /** Result of money.price() */
-export interface PriceResult {
-  price: string;             // USD price
-  symbol: string;
-  name: string;
-  priceChange24h?: string;
-  volume24h?: string;
-  liquidity?: string;
-  marketCap?: string;
-  chain?: string;
-  note: string;
-}
+export type PriceResult = z.infer<typeof S.PriceResult>;
 
 /** Params for money.tokenInfo() */
-export interface TokenInfoParams {
-  token: string;
-  chain?: string;
-  provider?: string;         // provider name; default: first registered
-}
+export type TokenInfoParams = z.infer<typeof S.TokenInfoParams>;
 
 /** Result of money.tokenInfo() */
-export interface TokenInfoResult {
-  name: string;
-  symbol: string;
-  address: string;
-  decimals?: number;
-  price: string;
-  priceChange24h?: string;
-  volume24h?: string;
-  liquidity?: string;
-  marketCap?: string;
-  pairs: Array<{ dex: string; pairAddress: string; quoteToken: string; price: string }>;
-  // Fast chain on-chain metadata (only populated for Fast tokens)
-  admin?: string;
-  minters?: string[];
-  totalSupply?: string;
-  chain?: string;
-  note: string;
-}
+export type TokenInfoResult = z.infer<typeof S.TokenInfoResult>;
 
 // ─── Bridge types ───────────────────────────────────────────────────────────
 
 /** Params for money.bridge() */
-export interface BridgeParams {
-  from: { chain: string; token: string };
-  to: { chain: string; token?: string };
-  amount: number | string;   // human units
-  network?: NetworkType;
-  receiver?: string;         // defaults to own address on dest chain
-  provider?: string;
-}
+export type BridgeParams = z.infer<typeof S.BridgeParams>;
 
 /** Result of money.bridge() */
-export interface BridgeResult {
-  txHash: string;
-  explorerUrl: string;
-  fromChain: string;
-  toChain: string;
-  fromAmount: string;
-  toAmount: string;
-  orderId: string;
-  estimatedTime?: string;
-  note: string;
-}
+export type BridgeResult = z.infer<typeof S.BridgeResult>;
 
 // ─── Help / Describe types ──────────────────────────────────────────────────
 
@@ -401,20 +203,7 @@ export interface DescribeResult {
 // ─── Unit conversion types ──────────────────────────────────────────────────
 
 /** Params for money.parseUnits() — convert human amount to raw bigint */
-export interface ParseUnitsParams {
-  amount: number | string;
-  chain?: string;          // Look up decimals from token alias
-  network?: NetworkType;
-  token?: string;          // Token name to look up decimals (defaults to chain's native token)
-  decimals?: number;       // Explicit decimals — skip token lookup
-}
+export type ParseUnitsParams = z.infer<typeof S.ParseUnitsParams>;
 
 /** Params for money.formatUnits() — convert raw bigint to human string */
-export interface FormatUnitsParams {
-  amount: bigint | number | string;
-  chain?: string;
-  network?: NetworkType;
-  token?: string;
-  decimals?: number;
-}
-
+export type FormatUnitsParams = z.infer<typeof S.FormatUnitsParams>;
