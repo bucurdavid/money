@@ -72,30 +72,11 @@ import { parseUnits, formatUnits } from 'viem';
 import { createWalletClient, createPublicClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { EvmTxExecutor, SolanaTxExecutor } from './providers/types.js';
-import { createFiatClient } from './fiat.js';
 import type {
-  ConfigureFiatParams,
-  WaitForParams,
-  WaitForResult,
-  FiatCreateAccountParams,
-  FiatCreateAccountResult,
-  FiatGetKycLinkParams,
-  FiatGetKycLinkResult,
-  FiatLinkWalletParams,
-  FiatLinkWalletResult,
-  FiatCreateRecipientParams,
-  FiatCreateRecipientResult,
-  FiatQuoteParams,
-  FiatQuoteResult,
-  FiatOnRampParams,
-  FiatOnRampResult,
-  FiatOffRampParams,
-  FiatOffRampResult,
-  FiatGetFundingAddressParams,
-  FiatGetFundingAddressResult,
-  FiatStatusParams,
-  FiatStatusResult,
-  FiatRail,
+  OnRampParams,
+  OnRampResult,
+  OffRampParams,
+  OffRampResult,
 } from './types.js';
 
 // ─── Register built-in providers ──────────────────────────────────────────────
@@ -145,28 +126,10 @@ export type {
   ChainName,
   TokenConfig,
   SetApiKeyParams,
-  ConfigureFiatParams,
-  WaitForParams,
-  WaitForResult,
-  FiatCreateAccountParams,
-  FiatCreateAccountResult,
-  FiatGetKycLinkParams,
-  FiatGetKycLinkResult,
-  FiatLinkWalletParams,
-  FiatLinkWalletResult,
-  FiatCreateRecipientParams,
-  FiatCreateRecipientResult,
-  FiatQuoteParams,
-  FiatQuoteResult,
-  FiatOnRampParams,
-  FiatOnRampResult,
-  FiatOffRampParams,
-  FiatOffRampResult,
-  FiatGetFundingAddressParams,
-  FiatGetFundingAddressResult,
-  FiatStatusParams,
-  FiatStatusResult,
-  FiatRail,
+  OnRampParams,
+  OnRampResult,
+  OffRampParams,
+  OffRampResult,
 } from './types.js';
 
 export type {
@@ -223,6 +186,22 @@ const BUILT_IN_EXPLORERS: Record<string, string> = {
   linea: 'https://lineascan.build/tx/',
   scroll: 'https://scrollscan.com/tx/',
   solana: 'https://solscan.io/tx/',
+};
+
+/** Map SDK chain names to Transak network identifiers */
+const TRANSAK_NETWORKS: Record<string, string> = {
+  ethereum: 'ethereum',
+  base: 'base',
+  arbitrum: 'arbitrum',
+  polygon: 'polygon',
+  optimism: 'optimism',
+  bsc: 'bsc',
+  avalanche: 'avaxcchain',
+  fantom: 'fantom',
+  zksync: 'zksync',
+  linea: 'linea',
+  scroll: 'scroll',
+  solana: 'solana',
 };
 
 /**
@@ -827,87 +806,106 @@ export const money = {
     await saveConfig(config);
   },
 
-  // ─── configureFiat ─────────────────────────────────────────────────────────
+  // ─── onRamp ────────────────────────────────────────────────────────────────
 
-  async configureFiat(params: ConfigureFiatParams): Promise<void> {
-    if (!params.host) {
-      throw new MoneyError('INVALID_PARAMS', 'Missing required param: host', {
-        note: 'await money.configureFiat({ host: "https://your-app.vercel.app" })',
+  async onRamp(params: OnRampParams): Promise<OnRampResult> {
+    const { chain, network } = params;
+
+    if (!chain) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: chain', {
+        note: 'Provide a chain:\n  await money.onRamp({ chain: "base" })',
       });
     }
-    // Strip trailing slash
-    const host = params.host.replace(/\/+$/, '');
+
     const config = await loadConfig();
-    config.fiatHost = host;
-    await saveConfig(config);
+    const resolved = resolveChainKey(chain, config.chains, network);
+    if (!resolved) {
+      throw new MoneyError('CHAIN_NOT_CONFIGURED', `Chain "${chain}" is not configured.`, {
+        chain,
+        note: `Set up the chain first:\n  await money.setup({ chain: "${chain}" })`,
+      });
+    }
+
+    const address = await getAddressForChain(resolved.chainConfig);
+    const fiatCurrency = (params.currency ?? 'USD').toUpperCase();
+    const cryptoToken = (params.token ?? 'USDC').toUpperCase();
+    const net = network ?? (resolved.chainConfig.network as NetworkType) ?? 'testnet';
+    const transakNetwork = TRANSAK_NETWORKS[chain] ?? chain;
+
+    const urlParams = new URLSearchParams({
+      walletAddress: address,
+      cryptoCurrencyCode: cryptoToken,
+      network: transakNetwork,
+      defaultFiatCurrency: fiatCurrency,
+      productsAvailed: 'BUY',
+      exchangeScreenTitle: `Buy ${cryptoToken}`,
+    });
+
+    if (params.amount) {
+      urlParams.set('defaultFiatAmount', String(params.amount));
+    }
+
+    const url = `https://global.transak.com/?${urlParams.toString()}`;
+
+    return {
+      url,
+      address,
+      provider: 'transak',
+      chain,
+      network: net,
+      note: 'Open this URL to buy crypto with fiat. The provider handles identity verification and payment processing. Crypto will be sent directly to your wallet.',
+    };
   },
 
-  // ─── fiat ──────────────────────────────────────────────────────────────────
+  // ─── offRamp ──────────────────────────────────────────────────────────────
 
-  fiat: createFiatClient(),
+  async offRamp(params: OffRampParams): Promise<OffRampResult> {
+    const { chain, network } = params;
 
-  // ─── waitFor ───────────────────────────────────────────────────────────────
-
-  async waitFor(params: WaitForParams): Promise<WaitForResult> {
-    if (!params.type || !params.id) {
-      throw new MoneyError('INVALID_PARAMS', 'Missing required params: type, id', {
-        note: 'await money.waitFor({ type: "fiat", id: "tf_xxx" })\nawait money.waitFor({ type: "bridge", id: "order-id" })',
+    if (!chain) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: chain', {
+        note: 'Provide a chain:\n  await money.offRamp({ chain: "base" })',
       });
     }
 
-    const timeout = params.timeout ?? 600_000;
-    const interval = params.interval ?? (params.type === 'bridge' ? 15_000 : 10_000);
-    const start = Date.now();
-
-    while (Date.now() - start < timeout) {
-      let status: string;
-      let details: Record<string, unknown> = {};
-
-      if (params.type === 'fiat') {
-        const result = await money.fiat.status({ transferId: params.id });
-        status = result.status;
-        details = {
-          source: result.source as unknown as Record<string, unknown> | undefined,
-          destination: result.destination as unknown as Record<string, unknown> | undefined,
-        };
-      } else if (params.type === 'bridge') {
-        // Poll DeBridge order status directly
-        const res = await fetch(`https://dln.debridge.finance/v1.0/dln/order/${params.id}/status`);
-        if (!res.ok) {
-          throw new MoneyError('TX_FAILED', `Bridge status check failed: ${res.status}`, {});
-        }
-        const data = await res.json() as Record<string, unknown>;
-        status = (data.status as string) ?? 'unknown';
-        details = data;
-      } else {
-        throw new MoneyError('INVALID_PARAMS', `Unknown wait type: "${params.type as string}"`, {
-          note: 'Supported types: "fiat", "bridge"',
-        });
-      }
-
-      const terminal = ['completed', 'failed', 'cancelled', 'ClaimedUnlock', 'OrderCancelled'];
-      // DeBridge uses 'ClaimedUnlock' for completed, 'OrderCancelled' for cancelled
-      const normalizedStatus = status === 'ClaimedUnlock' ? 'completed' :
-                               status === 'OrderCancelled' ? 'cancelled' : status;
-
-      if (terminal.includes(status) || terminal.includes(normalizedStatus)) {
-        return {
-          status: normalizedStatus,
-          type: params.type,
-          id: params.id,
-          details,
-          note: normalizedStatus === 'completed' ? 'Operation completed successfully.' :
-                normalizedStatus === 'failed' ? 'Operation failed.' :
-                normalizedStatus === 'cancelled' ? 'Operation was cancelled.' : '',
-        };
-      }
-
-      await new Promise<void>(r => setTimeout(r, interval));
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain, config.chains, network);
+    if (!resolved) {
+      throw new MoneyError('CHAIN_NOT_CONFIGURED', `Chain "${chain}" is not configured.`, {
+        chain,
+        note: `Set up the chain first:\n  await money.setup({ chain: "${chain}" })`,
+      });
     }
 
-    throw new MoneyError('TX_FAILED', `Timed out waiting for ${params.type} operation "${params.id}" after ${timeout}ms`, {
-      note: `The operation is still in progress. Check status manually:\n  await money.${params.type === 'fiat' ? `fiat.status({ transferId: "${params.id}" })` : `waitFor({ type: "bridge", id: "${params.id}" })`}`,
+    const address = await getAddressForChain(resolved.chainConfig);
+    const fiatCurrency = (params.currency ?? 'USD').toUpperCase();
+    const cryptoToken = (params.token ?? 'USDC').toUpperCase();
+    const net = network ?? (resolved.chainConfig.network as NetworkType) ?? 'testnet';
+    const transakNetwork = TRANSAK_NETWORKS[chain] ?? chain;
+
+    const urlParams = new URLSearchParams({
+      walletAddress: address,
+      cryptoCurrencyCode: cryptoToken,
+      network: transakNetwork,
+      defaultFiatCurrency: fiatCurrency,
+      productsAvailed: 'SELL',
+      exchangeScreenTitle: `Sell ${cryptoToken}`,
     });
+
+    if (params.amount) {
+      urlParams.set('defaultCryptoAmount', String(params.amount));
+    }
+
+    const url = `https://global.transak.com/?${urlParams.toString()}`;
+
+    return {
+      url,
+      address,
+      provider: 'transak',
+      chain,
+      network: net,
+      note: 'Open this URL to sell crypto for fiat. The provider handles identity verification and payout. You will need to send crypto from your wallet during the process.',
+    };
   },
 
   // ─── exportKeys ────────────────────────────────────────────────────────────

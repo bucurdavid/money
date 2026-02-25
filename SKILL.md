@@ -3,11 +3,11 @@ name: money
 version: {{VERSION}}
 description: >
   Universal payment SDK for AI agents. Send tokens, check balances, swap tokens, bridge cross-chain,
-  look up prices, sign messages, convert between fiat and crypto (on/off-ramp via Due Network),
+  look up prices, sign messages, buy and sell crypto with fiat (via Transak),
   and register custom EVM chains across 13 chains (Fast, Base, Ethereum,
   Arbitrum, Polygon, Optimism, BSC, Avalanche, Fantom, zkSync, Linea, Scroll, Solana) or any EVM chain.
   Use when asked to pay, transfer, swap, bridge, check price, sign a message, fund a wallet, check a balance,
-  or convert between fiat and crypto.
+  or buy/sell crypto.
   Do NOT use for yield farming, lending, staking, or detecting incoming payments.
 tags:
   - payments
@@ -18,12 +18,12 @@ tags:
   - bridge
   - wallet
   - fiat
-  - on-ramp
+  - transak
 ---
 
 # MONEY SKILL
 
-Everything works out of the box. RPCs, token addresses, explorer URLs — all built in for 13 chains, testnet and mainnet. Swap tokens via Jupiter (Solana) and Paraswap (EVM). Bridge cross-chain via DeBridge. Look up prices via DexScreener. Convert between fiat and crypto via Due Network. Sign messages on any chain. Register any EVM chain at runtime. You do not need API keys or config files.
+Everything works out of the box. RPCs, token addresses, explorer URLs — all built in for 13 chains, testnet and mainnet. Swap tokens via Jupiter (Solana) and Paraswap (EVM). Bridge cross-chain via DeBridge. Look up prices via DexScreener. Buy and sell crypto with fiat via Transak (zero config). Sign messages on any chain. Register any EVM chain at runtime. You do not need API keys or config files.
 
 ## Install
 
@@ -89,9 +89,8 @@ Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"polygon"` `"opti
 | Register a custom provider | Custom Providers |
 | Export wallet private key | Export Keys |
 | Configure API keys (e.g. Jupiter) | Swap |
-| Convert fiat to crypto (on-ramp) | Fiat On/Off-Ramp |
-| Convert crypto to fiat (off-ramp) | Fiat On/Off-Ramp |
-| Wait for async operation to complete | Wait For |
+| Buy crypto with fiat (on-ramp) | Buy & Sell Crypto |
+| Sell crypto for fiat (off-ramp) | Buy & Sell Crypto |
 | See all methods | Reference |
 
 ## NOT for this skill
@@ -403,123 +402,45 @@ All EVM chains share the same key — exporting from any EVM chain returns the s
 
 ---
 
-## Fiat On/Off-Ramp
+## Buy & Sell Crypto
 
-Convert between fiat currency (USD, EUR, etc.) and crypto (USDC) via Due Network. Requires a one-time middleware setup and KYC verification.
+Buy crypto with fiat (on-ramp) or sell crypto for fiat (off-ramp) via Transak. No API key needed. No configuration. The SDK generates a URL — give it to the user to complete the purchase or sale.
 
-**Prerequisite:** Configure the fiat middleware host (your deployed app URL):
+Transak handles identity verification, payment processing, and crypto delivery. Crypto is sent directly to the agent's wallet.
 
-```js
-await money.configureFiat({ host: "{{HOST}}" });
-```
-
-### Initial Setup (once per user)
+### On-Ramp: Buy crypto with fiat
 
 ```js
-// 1. Create a Due account
-const acct = await money.fiat.createAccount({ email: "user@example.com", firstName: "John", lastName: "Doe" });
-// acct = { accountId: "acct_xxx", kycUrl: "https://kyc.due.network/...", note: "User must complete KYC..." }
+// Generate a buy link — user opens it to purchase USDC
+const r = await money.onRamp({ chain: "base" });
+// r = { url: "https://global.transak.com/?...", address: "0x...", provider: "transak", chain: "base", network: "testnet", note: "Open this URL to buy crypto..." }
 
-// 2. User must complete KYC at the URL above (share with user)
-// To get the KYC link again later:
-const kyc = await money.fiat.getKycLink();
-// kyc = { url: "https://...", note: "Share this URL with the user..." }
+// Specify amount and currency
+const r = await money.onRamp({ chain: "base", amount: 100, currency: "USD" });
 
-// 3. Link your wallet (so Due knows where to send/receive crypto)
-const wlt = await money.fiat.linkWallet({ chain: "base" });
-// wlt = { walletId: "wlt_xxx", address: "0x...", note: "" }
+// Buy a different token
+const r = await money.onRamp({ chain: "ethereum", token: "ETH", amount: 50, currency: "EUR" });
+
+// Mainnet (real money)
+const r = await money.onRamp({ chain: "base", amount: 100, network: "mainnet" });
 ```
 
-### On-Ramp: Fiat → Crypto
+After the user completes payment on Transak's page, crypto arrives in the wallet. Check with `money.balance()`.
 
-User sends fiat from their bank account → Due converts → USDC arrives in your wallet.
+### Off-Ramp: Sell crypto for fiat
 
 ```js
-// 1. Get a quote (expires in 2 minutes)
-const q = await money.fiat.quote({
-  source: { rail: "ach", currency: "USD", amount: "100" },
-  destination: { rail: "base", currency: "USDC" },
-});
-// q = { quoteToken: "eyJ...", source: { amount: "100", fee: "1.50", ... }, destination: { amount: "98.12", ... }, fxRate: 1.0, expiresAt: "...", note: "" }
+// Generate a sell link — user opens it to sell USDC
+const r = await money.offRamp({ chain: "base" });
+// r = { url: "https://global.transak.com/?...", address: "0x...", provider: "transak", chain: "base", network: "testnet", note: "Open this URL to sell crypto..." }
 
-// 2. Create the on-ramp transfer
-const tx = await money.fiat.onRamp({ quoteToken: q.quoteToken, walletId: wlt.walletId });
-// tx = { transferId: "tf_xxx", bankingDetails: { bank: "...", accountNumber: "...", routingNumber: "...", reference: "..." }, note: "Give the banking details to the user..." }
-
-// 3. Give the banking details to the user — they send fiat from their bank app
-//    Due handles conversion and deposits USDC into your wallet automatically
-
-// 4. Wait for completion (or check status manually)
-const done = await money.waitFor({ type: "fiat", id: tx.transferId });
-// done = { status: "completed", type: "fiat", id: "tf_xxx", note: "Operation completed successfully." }
+// Specify amount
+const r = await money.offRamp({ chain: "base", amount: 50, currency: "EUR" });
 ```
 
-### Off-Ramp: Crypto → Fiat
+The user completes the process on Transak's page, including sending crypto from their wallet and providing bank details for fiat payout.
 
-Send USDC to a Due funding address → Due converts → fiat arrives in user's bank account.
-
-```js
-// 1. Create a bank recipient (once per bank account)
-const rcp = await money.fiat.createRecipient({
-  name: "Marie Dubois",
-  details: {
-    schema: "bank_sepa",
-    accountType: "individual",
-    firstName: "Marie",
-    lastName: "Dubois",
-    IBAN: "FR1420041010050500013M02606",
-  },
-});
-// rcp = { recipientId: "rcp_xxx", note: "" }
-
-// 2. Get a quote
-const q = await money.fiat.quote({
-  source: { rail: "base", currency: "USDC" },
-  destination: { rail: "sepa", currency: "EUR", amount: "1000" },
-});
-
-// 3. Create the off-ramp transfer
-const tx = await money.fiat.offRamp({ quoteToken: q.quoteToken, recipientId: rcp.recipientId });
-// tx = { transferId: "tf_xxx", note: "Get a funding address next..." }
-
-// 4. Get the funding address
-const fund = await money.fiat.getFundingAddress({ transferId: tx.transferId });
-// fund = { address: "0xABC...", chain: "base", amount: "1177.17", note: "Send the exact amount..." }
-
-// 5. Send USDC to the funding address
-await money.send({ to: fund.address, amount: fund.amount, chain: "base", token: "USDC", network: "mainnet" });
-
-// 6. Wait for completion
-const done = await money.waitFor({ type: "fiat", id: tx.transferId });
-```
-
-Supported fiat rails: ACH (USD), SEPA (EUR), FPS (GBP), SPEI (MXN), PIX (BRL), and more (80+ countries via Due Network).
-
-Supported crypto rails: Ethereum, Arbitrum, Base, Optimism, Polygon, Avalanche, Solana (USDC).
-
----
-
-## Wait For
-
-Wait for an async operation (fiat transfer or cross-chain bridge) to complete. Polls the status at regular intervals until a terminal state is reached or timeout.
-
-```js
-// Wait for a fiat transfer to complete
-const result = await money.waitFor({ type: "fiat", id: "tf_xxx" });
-// result = { status: "completed", type: "fiat", id: "tf_xxx", details: {...}, note: "Operation completed successfully." }
-
-// Wait for a bridge to deliver on the destination chain
-const bridge = await money.bridge({ from: { chain: "ethereum", token: "USDC" }, to: { chain: "base" }, amount: 100, network: "mainnet" });
-const result = await money.waitFor({ type: "bridge", id: bridge.orderId });
-// result = { status: "completed", type: "bridge", id: "...", details: {...}, note: "Operation completed successfully." }
-
-// Custom timeout and polling interval
-const result = await money.waitFor({ type: "fiat", id: "tf_xxx", timeout: 900000, interval: 15000 });
-```
-
-Defaults: timeout 10 minutes, polling interval 10s (fiat) or 15s (bridge). Throws `TX_FAILED` on timeout.
-
-Terminal states: `completed`, `failed`, `cancelled`.
+Supported chains: Ethereum, Base, Arbitrum, Polygon, Optimism, BSC, Avalanche, Fantom, zkSync, Linea, Scroll, Solana.
 
 ---
 
@@ -700,17 +621,8 @@ Custom providers are used alongside built-ins. The SDK selects the first provide
 | `money.registerSwapProvider(provider)` | `void` |
 | `money.registerBridgeProvider(provider)` | `void` |
 | `money.registerPriceProvider(provider)` | `void` |
-| `money.configureFiat({ host })` | `void` |
-| `money.fiat.createAccount({ email, firstName, lastName })` | `{ accountId, kycUrl, note }` |
-| `money.fiat.getKycLink({ accountId? })` | `{ url, note }` |
-| `money.fiat.linkWallet({ chain, network?, accountId? })` | `{ walletId, address, note }` |
-| `money.fiat.createRecipient({ name, details, accountId? })` | `{ recipientId, note }` |
-| `money.fiat.quote({ source, destination, accountId? })` | `{ quoteToken, source, destination, fxRate, expiresAt, note }` |
-| `money.fiat.onRamp({ quoteToken, walletId?, accountId? })` | `{ transferId, bankingDetails, note }` |
-| `money.fiat.offRamp({ quoteToken, recipientId, accountId? })` | `{ transferId, note }` |
-| `money.fiat.getFundingAddress({ transferId, accountId? })` | `{ address, chain, amount, note }` |
-| `money.fiat.status({ transferId, accountId? })` | `{ status, source?, destination?, note }` |
-| `money.waitFor({ type, id, timeout?, interval? })` | `{ status, type, id, details?, note }` |
+| `money.onRamp({ chain, amount?, currency?, token?, network? })` | `{ url, address, provider, chain, network, note }` |
+| `money.offRamp({ chain, amount?, currency?, token?, network? })` | `{ url, address, provider, chain, network, note }` |
 
 All errors: `{ code, message, note }`. The `note` field contains a code example showing how to fix the error.
 

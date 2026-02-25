@@ -71654,227 +71654,6 @@ var debridgeProvider = {
 // dist/src/index.js
 init_esm2();
 init_esm2();
-
-// dist/src/fiat.js
-async function getAuthHeaders() {
-  const config = await loadConfig();
-  let evmKeyfile = null;
-  for (const [, cc] of Object.entries(config.chains)) {
-    if (cc.keyfile && cc.keyfile.includes("evm")) {
-      evmKeyfile = cc.keyfile;
-      break;
-    }
-  }
-  if (!evmKeyfile) {
-    throw new MoneyError("CHAIN_NOT_CONFIGURED", "No EVM chain configured. Set up an EVM chain first for fiat auth.", {
-      note: 'Set up any EVM chain first:\n  await money.setup({ chain: "base" })'
-    });
-  }
-  const kp = await loadKeyfile(expandHome(evmKeyfile));
-  const account = privateKeyToAccount(`0x${kp.privateKey}`);
-  const timestamp = Math.floor(Date.now() / 1e3).toString();
-  const message = `money-fiat:${timestamp}`;
-  const signature = await account.signMessage({ message });
-  return {
-    "X-Wallet-Address": account.address,
-    "X-Wallet-Signature": signature,
-    "X-Wallet-Timestamp": timestamp
-  };
-}
-async function fiatFetch(path5, options = {}) {
-  const config = await loadConfig();
-  const host = config.fiatHost;
-  if (!host) {
-    throw new MoneyError("INVALID_PARAMS", "Fiat host not configured.", {
-      note: 'Configure the fiat middleware host first:\n  await money.configureFiat({ host: "https://your-app.vercel.app" })'
-    });
-  }
-  const auth = await getAuthHeaders();
-  const res = await fetch(`${host}${path5}`, {
-    method: options.method ?? "GET",
-    headers: {
-      ...auth,
-      ...options.body ? { "Content-Type": "application/json" } : {}
-    },
-    body: options.body ? JSON.stringify(options.body) : void 0
-  });
-  if (!res.ok) {
-    const err2 = await res.json().catch(() => ({ message: res.statusText }));
-    throw new MoneyError("TX_FAILED", err2.message ?? `Fiat API error: ${res.status}`, {
-      details: err2
-    });
-  }
-  return res.json();
-}
-async function getAccountId(params) {
-  if (params.accountId)
-    return params.accountId;
-  const config = await loadConfig();
-  if (!config.fiatAccountId) {
-    throw new MoneyError("INVALID_PARAMS", "No Due account ID found. Create an account first.", {
-      note: 'Create a Due account first:\n  await money.fiat.createAccount({ email: "user@example.com", firstName: "John", lastName: "Doe" })'
-    });
-  }
-  return config.fiatAccountId;
-}
-function createFiatClient() {
-  return {
-    async createAccount(params) {
-      if (!params.email || !params.firstName || !params.lastName) {
-        throw new MoneyError("INVALID_PARAMS", "Missing required params: email, firstName, lastName", {
-          note: 'await money.fiat.createAccount({ email: "user@example.com", firstName: "John", lastName: "Doe" })'
-        });
-      }
-      const data = await fiatFetch("/api/fiat/accounts", {
-        method: "POST",
-        body: {
-          type: "individual",
-          email: params.email,
-          details: { firstName: params.firstName, lastName: params.lastName }
-        }
-      });
-      const config = await loadConfig();
-      config.fiatAccountId = data.id;
-      await saveConfig(config);
-      return {
-        accountId: data.id,
-        kycUrl: data.kycUrl ?? "",
-        note: data.kycUrl ? "User must complete KYC at the URL before transfers are enabled." : ""
-      };
-    },
-    async getKycLink(params = {}) {
-      const accountId = await getAccountId(params);
-      const data = await fiatFetch(`/api/fiat/accounts/${accountId}/kyc`);
-      return {
-        url: data.url,
-        note: "Share this URL with the user to complete identity verification."
-      };
-    },
-    async linkWallet(params) {
-      const accountId = await getAccountId(params);
-      const config = await loadConfig();
-      const ck = params.network ? configKey(params.chain, params.network) : params.chain;
-      const chainConfig2 = config.chains[ck];
-      if (!chainConfig2) {
-        throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${params.chain}" is not configured.`, {
-          chain: params.chain,
-          note: `Set up the chain first:
-  await money.setup({ chain: "${params.chain}" })`
-        });
-      }
-      const keyfilePath = expandHome(chainConfig2.keyfile);
-      const kp = await loadKeyfile(keyfilePath);
-      let address;
-      if (chainConfig2.keyfile.includes("evm")) {
-        const account = privateKeyToAccount(`0x${kp.privateKey}`);
-        address = account.address;
-      } else if (chainConfig2.keyfile.includes("solana")) {
-        const { PublicKey: PublicKey23 } = await Promise.resolve().then(() => __toESM(require_index_cjs(), 1));
-        const pubKeyBytes = Buffer.from(kp.publicKey, "hex");
-        address = new PublicKey23(pubKeyBytes).toBase58();
-      } else {
-        const { bech32m: bech32m2 } = await Promise.resolve().then(() => __toESM(require_dist(), 1));
-        const pubKeyBytes = Buffer.from(kp.publicKey, "hex");
-        const words = bech32m2.toWords(pubKeyBytes);
-        address = bech32m2.encode("set", words);
-      }
-      const data = await fiatFetch("/api/fiat/wallets", {
-        method: "POST",
-        body: { address, accountId }
-      });
-      config.fiatWalletId = data.id;
-      await saveConfig(config);
-      return {
-        walletId: data.id,
-        address: data.address ?? address,
-        note: ""
-      };
-    },
-    async createRecipient(params) {
-      const accountId = await getAccountId(params);
-      if (!params.name || !params.details) {
-        throw new MoneyError("INVALID_PARAMS", "Missing required params: name, details", {
-          note: 'await money.fiat.createRecipient({ name: "Alice", details: { accountNumber: "...", routingNumber: "..." } })'
-        });
-      }
-      const data = await fiatFetch("/api/fiat/recipients", {
-        method: "POST",
-        body: { name: params.name, details: params.details, accountId }
-      });
-      return { recipientId: data.id, note: "" };
-    },
-    async quote(params) {
-      const accountId = await getAccountId(params);
-      const data = await fiatFetch("/api/fiat/quotes", {
-        method: "POST",
-        body: { source: params.source, destination: params.destination, accountId }
-      });
-      return {
-        quoteToken: data.token,
-        source: data.source,
-        destination: data.destination,
-        fxRate: data.fxRate,
-        expiresAt: data.expiresAt,
-        note: "Quote expires in 2 minutes. Use quoteToken to create a transfer."
-      };
-    },
-    async onRamp(params) {
-      const accountId = await getAccountId(params);
-      const config = await loadConfig();
-      const walletId = params.walletId ?? config.fiatWalletId;
-      if (!walletId) {
-        throw new MoneyError("INVALID_PARAMS", "No wallet linked. Link a wallet first.", {
-          note: 'Link your wallet first:\n  await money.fiat.linkWallet({ chain: "base" })'
-        });
-      }
-      const data = await fiatFetch("/api/fiat/transfers", {
-        method: "POST",
-        body: { quote: params.quoteToken, recipient: walletId, accountId }
-      });
-      return {
-        transferId: data.id,
-        bankingDetails: data.bankingDetails ?? {},
-        note: "Give the banking details to the user so they can send fiat from their bank."
-      };
-    },
-    async offRamp(params) {
-      const accountId = await getAccountId(params);
-      const data = await fiatFetch("/api/fiat/transfers", {
-        method: "POST",
-        body: { quote: params.quoteToken, recipient: params.recipientId, accountId }
-      });
-      return {
-        transferId: data.id,
-        note: 'Transfer created. Get a funding address next:\n  await money.fiat.getFundingAddress({ transferId: "..." })'
-      };
-    },
-    async getFundingAddress(params) {
-      const accountId = await getAccountId(params);
-      const data = await fiatFetch(`/api/fiat/transfers/${params.transferId}/funding`, {
-        method: "POST",
-        body: { accountId }
-      });
-      return {
-        address: data.address,
-        chain: data.chain ?? "",
-        amount: data.amount ?? "",
-        note: 'Send the exact amount to this address using money.send():\n  await money.send({ to: "...", amount: "...", chain: "...", token: "USDC", network: "mainnet" })'
-      };
-    },
-    async status(params) {
-      const accountId = await getAccountId(params);
-      const data = await fiatFetch(`/api/fiat/transfers/${params.transferId}?accountId=${accountId}`);
-      return {
-        status: data.status,
-        source: data.source,
-        destination: data.destination,
-        note: ""
-      };
-    }
-  };
-}
-
-// dist/src/index.js
 registerSwapProvider(jupiterProvider);
 registerSwapProvider(paraswapProvider);
 registerBridgeProvider(debridgeProvider);
@@ -71911,6 +71690,20 @@ var BUILT_IN_EXPLORERS = {
   linea: "https://lineascan.build/tx/",
   scroll: "https://scrollscan.com/tx/",
   solana: "https://solscan.io/tx/"
+};
+var TRANSAK_NETWORKS = {
+  ethereum: "ethereum",
+  base: "base",
+  arbitrum: "arbitrum",
+  polygon: "polygon",
+  optimism: "optimism",
+  bsc: "bsc",
+  avalanche: "avaxcchain",
+  fantom: "fantom",
+  zksync: "zksync",
+  linea: "linea",
+  scroll: "scroll",
+  solana: "solana"
 };
 async function getAddressForChain(chainConfig2) {
   const keyfilePath = expandHome(chainConfig2.keyfile);
@@ -72398,70 +72191,91 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     config.apiKeys[params.provider] = params.apiKey;
     await saveConfig(config);
   },
-  // ─── configureFiat ─────────────────────────────────────────────────────────
-  async configureFiat(params) {
-    if (!params.host) {
-      throw new MoneyError("INVALID_PARAMS", "Missing required param: host", {
-        note: 'await money.configureFiat({ host: "https://your-app.vercel.app" })'
+  // ─── onRamp ────────────────────────────────────────────────────────────────
+  async onRamp(params) {
+    const { chain: chain2, network } = params;
+    if (!chain2) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
+        note: 'Provide a chain:\n  await money.onRamp({ chain: "base" })'
       });
     }
-    const host = params.host.replace(/\/+$/, "");
     const config = await loadConfig();
-    config.fiatHost = host;
-    await saveConfig(config);
-  },
-  // ─── fiat ──────────────────────────────────────────────────────────────────
-  fiat: createFiatClient(),
-  // ─── waitFor ───────────────────────────────────────────────────────────────
-  async waitFor(params) {
-    if (!params.type || !params.id) {
-      throw new MoneyError("INVALID_PARAMS", "Missing required params: type, id", {
-        note: 'await money.waitFor({ type: "fiat", id: "tf_xxx" })\nawait money.waitFor({ type: "bridge", id: "order-id" })'
+    const resolved = resolveChainKey(chain2, config.chains, network);
+    if (!resolved) {
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
+        chain: chain2,
+        note: `Set up the chain first:
+  await money.setup({ chain: "${chain2}" })`
       });
     }
-    const timeout = params.timeout ?? 6e5;
-    const interval = params.interval ?? (params.type === "bridge" ? 15e3 : 1e4);
-    const start = Date.now();
-    while (Date.now() - start < timeout) {
-      let status;
-      let details = {};
-      if (params.type === "fiat") {
-        const result = await money.fiat.status({ transferId: params.id });
-        status = result.status;
-        details = {
-          source: result.source,
-          destination: result.destination
-        };
-      } else if (params.type === "bridge") {
-        const res = await fetch(`https://dln.debridge.finance/v1.0/dln/order/${params.id}/status`);
-        if (!res.ok) {
-          throw new MoneyError("TX_FAILED", `Bridge status check failed: ${res.status}`, {});
-        }
-        const data = await res.json();
-        status = data.status ?? "unknown";
-        details = data;
-      } else {
-        throw new MoneyError("INVALID_PARAMS", `Unknown wait type: "${params.type}"`, {
-          note: 'Supported types: "fiat", "bridge"'
-        });
-      }
-      const terminal = ["completed", "failed", "cancelled", "ClaimedUnlock", "OrderCancelled"];
-      const normalizedStatus = status === "ClaimedUnlock" ? "completed" : status === "OrderCancelled" ? "cancelled" : status;
-      if (terminal.includes(status) || terminal.includes(normalizedStatus)) {
-        return {
-          status: normalizedStatus,
-          type: params.type,
-          id: params.id,
-          details,
-          note: normalizedStatus === "completed" ? "Operation completed successfully." : normalizedStatus === "failed" ? "Operation failed." : normalizedStatus === "cancelled" ? "Operation was cancelled." : ""
-        };
-      }
-      await new Promise((r) => setTimeout(r, interval));
-    }
-    throw new MoneyError("TX_FAILED", `Timed out waiting for ${params.type} operation "${params.id}" after ${timeout}ms`, {
-      note: `The operation is still in progress. Check status manually:
-  await money.${params.type === "fiat" ? `fiat.status({ transferId: "${params.id}" })` : `waitFor({ type: "bridge", id: "${params.id}" })`}`
+    const address = await getAddressForChain(resolved.chainConfig);
+    const fiatCurrency = (params.currency ?? "USD").toUpperCase();
+    const cryptoToken = (params.token ?? "USDC").toUpperCase();
+    const net = network ?? resolved.chainConfig.network ?? "testnet";
+    const transakNetwork = TRANSAK_NETWORKS[chain2] ?? chain2;
+    const urlParams = new URLSearchParams({
+      walletAddress: address,
+      cryptoCurrencyCode: cryptoToken,
+      network: transakNetwork,
+      defaultFiatCurrency: fiatCurrency,
+      productsAvailed: "BUY",
+      exchangeScreenTitle: `Buy ${cryptoToken}`
     });
+    if (params.amount) {
+      urlParams.set("defaultFiatAmount", String(params.amount));
+    }
+    const url = `https://global.transak.com/?${urlParams.toString()}`;
+    return {
+      url,
+      address,
+      provider: "transak",
+      chain: chain2,
+      network: net,
+      note: "Open this URL to buy crypto with fiat. The provider handles identity verification and payment processing. Crypto will be sent directly to your wallet."
+    };
+  },
+  // ─── offRamp ──────────────────────────────────────────────────────────────
+  async offRamp(params) {
+    const { chain: chain2, network } = params;
+    if (!chain2) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
+        note: 'Provide a chain:\n  await money.offRamp({ chain: "base" })'
+      });
+    }
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain2, config.chains, network);
+    if (!resolved) {
+      throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
+        chain: chain2,
+        note: `Set up the chain first:
+  await money.setup({ chain: "${chain2}" })`
+      });
+    }
+    const address = await getAddressForChain(resolved.chainConfig);
+    const fiatCurrency = (params.currency ?? "USD").toUpperCase();
+    const cryptoToken = (params.token ?? "USDC").toUpperCase();
+    const net = network ?? resolved.chainConfig.network ?? "testnet";
+    const transakNetwork = TRANSAK_NETWORKS[chain2] ?? chain2;
+    const urlParams = new URLSearchParams({
+      walletAddress: address,
+      cryptoCurrencyCode: cryptoToken,
+      network: transakNetwork,
+      defaultFiatCurrency: fiatCurrency,
+      productsAvailed: "SELL",
+      exchangeScreenTitle: `Sell ${cryptoToken}`
+    });
+    if (params.amount) {
+      urlParams.set("defaultCryptoAmount", String(params.amount));
+    }
+    const url = `https://global.transak.com/?${urlParams.toString()}`;
+    return {
+      url,
+      address,
+      provider: "transak",
+      chain: chain2,
+      network: net,
+      note: "Open this URL to sell crypto for fiat. The provider handles identity verification and payout. You will need to send crypto from your wallet during the process."
+    };
   },
   // ─── exportKeys ────────────────────────────────────────────────────────────
   async exportKeys(params) {
