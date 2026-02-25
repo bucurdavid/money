@@ -70174,27 +70174,15 @@ function createFastTxExecutor(keyfilePath, rpcUrl, senderAddress) {
         msg.set(msgBody, msgHead.length);
         const signature = await signEd25519(msg, keypair.privateKey);
         const txHash = hashTransaction(transaction);
-        await rpcCall(rpcUrl, "proxy_submitTransaction", {
+        const submitResult = await rpcCall(rpcUrl, "proxy_submitTransaction", {
           transaction,
           signature: { Signature: signature }
         });
-        let certificate = null;
-        for (let attempt = 0; attempt < 10; attempt++) {
-          await new Promise((resolve) => setTimeout(resolve, 2e3));
-          try {
-            certificate = await rpcCall(rpcUrl, "proxy_getCertificateByNonce", {
-              sender: senderPubkey,
-              nonce
-            });
-            if (certificate)
-              break;
-          } catch {
-          }
-        }
+        const certificate = submitResult?.Success ?? submitResult;
         if (!certificate) {
-          throw new MoneyError("TX_FAILED", "Failed to retrieve transaction certificate from FastSet after submission", {
+          throw new MoneyError("TX_FAILED", "proxy_submitTransaction returned empty result", {
             chain: "fast",
-            note: "The transaction was submitted but the certificate could not be fetched. Try again."
+            note: "The transaction was submitted but no certificate was returned. Try again."
           });
         }
         return { txHash, nonce, certificate };
@@ -70235,27 +70223,15 @@ function createFastTxExecutor(keyfilePath, rpcUrl, senderAddress) {
         msg.set(msgBody, msgHead.length);
         const signature = await signEd25519(msg, keypair.privateKey);
         const txHash = hashTransaction(transaction);
-        await rpcCall(rpcUrl, "proxy_submitTransaction", {
+        const submitResult = await rpcCall(rpcUrl, "proxy_submitTransaction", {
           transaction,
           signature: { Signature: signature }
         });
-        let certificate = null;
-        for (let attempt = 0; attempt < 10; attempt++) {
-          await new Promise((resolve) => setTimeout(resolve, 2e3));
-          try {
-            certificate = await rpcCall(rpcUrl, "proxy_getCertificateByNonce", {
-              sender: senderPubkey,
-              nonce
-            });
-            if (certificate)
-              break;
-          } catch {
-          }
-        }
+        const certificate = submitResult?.Success ?? submitResult;
         if (!certificate) {
-          throw new MoneyError("TX_FAILED", "Failed to retrieve ExternalClaim certificate from FastSet", {
+          throw new MoneyError("TX_FAILED", "proxy_submitTransaction returned empty result for ExternalClaim", {
             chain: "fast",
-            note: "The ExternalClaim was submitted but the certificate could not be fetched. Try again."
+            note: "The ExternalClaim was submitted but no certificate was returned. Try again."
           });
         }
         return { txHash, nonce, certificate };
@@ -71696,6 +71672,14 @@ var WELL_KNOWN_TOKENS = [
       arbitrum: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
       polygon: "0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063",
       optimism: "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1"
+    }
+  },
+  {
+    symbol: "WSET",
+    decimals: 18,
+    addresses: {
+      ethereum: "0x485DdBAa2D62ee70D03B4789912948f3aF7E35B8",
+      arbitrum: "0xA0431d49B71c6f07603272C6C580560AfF41598E"
     }
   }
 ];

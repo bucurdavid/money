@@ -125,6 +125,20 @@ describe('resolveTokenAddress', () => {
     assert.equal(result!.address, 'fa575e7000000000000000000000000000000000000000000000000000000000');
     assert.equal(result!.decimals, 18);
   });
+
+  it('resolves WSET on ethereum', () => {
+    const result = resolveTokenAddress('WSET', 'ethereum');
+    assert.ok(result);
+    assert.equal(result!.address, '0x485DdBAa2D62ee70D03B4789912948f3aF7E35B8');
+    assert.equal(result!.decimals, 18);
+  });
+
+  it('resolves WSET on arbitrum', () => {
+    const result = resolveTokenAddress('WSET', 'arbitrum');
+    assert.ok(result);
+    assert.equal(result!.address, '0xA0431d49B71c6f07603272C6C580560AfF41598E');
+    assert.equal(result!.decimals, 18);
+  });
 });
 
 describe('NATIVE_TOKEN maps', () => {

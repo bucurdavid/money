@@ -170,4 +170,24 @@ describe('money.bridge', () => {
       },
     );
   });
+
+  it('resolves WSET token on ethereum for deposit (fails at chain config, not token resolution)', async () => {
+    // This verifies that "WSET" on "ethereum" no longer throws TOKEN_NOT_FOUND.
+    // It should get past token resolution and fail at CHAIN_NOT_CONFIGURED instead.
+    await assert.rejects(
+      () => money.bridge({
+        from: { chain: 'ethereum', token: 'WSET' },
+        to: { chain: 'fast' },
+        amount: 5,
+        network: 'testnet',
+      }),
+      (err: unknown) => {
+        assert.ok(err instanceof MoneyError);
+        // Must NOT be TOKEN_NOT_FOUND — that was the bug
+        assert.notEqual((err as MoneyError).code, 'TOKEN_NOT_FOUND');
+        assert.equal((err as MoneyError).code, 'CHAIN_NOT_CONFIGURED');
+        return true;
+      },
+    );
+  });
 });

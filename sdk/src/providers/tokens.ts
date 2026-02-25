@@ -85,6 +85,14 @@ export const WELL_KNOWN_TOKENS: WellKnownToken[] = [
       optimism: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
     },
   },
+  {
+    symbol: 'WSET',
+    decimals: 18,
+    addresses: {
+      ethereum: '0x485DdBAa2D62ee70D03B4789912948f3aF7E35B8',
+      arbitrum: '0xA0431d49B71c6f07603272C6C580560AfF41598E',
+    },
+  },
 ];
 
 /**
