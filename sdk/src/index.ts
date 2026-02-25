@@ -928,6 +928,8 @@ export const money = {
     const keyfilePath = expandHome(chainConfig.keyfile);
     const userAddress = await getAddressForChain(chainConfig);
 
+    const apiKey = config.apiKeys?.[provider.name];
+
     const fromResolved = resolveSwapToken(from, chain);
     const toResolved = resolveSwapToken(to, chain);
     const fromRaw = toRawAmount(String(amount), fromResolved.decimals);
@@ -942,9 +944,8 @@ export const money = {
       amount: fromRaw,
       slippageBps,
       userAddress,
+      apiKey,
     });
-
-    const apiKey = config.apiKeys?.[provider.name];
 
     // Build executors based on chain type
     const isSolana = chain === 'solana';

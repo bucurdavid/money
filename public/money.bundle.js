@@ -71267,7 +71267,11 @@ var jupiterProvider = {
     url.searchParams.set("amount", params.amount);
     url.searchParams.set("slippageBps", String(params.slippageBps));
     url.searchParams.set("restrictIntermediateTokens", "true");
-    const res = await fetch(url.toString());
+    const headers = {};
+    if (params.apiKey) {
+      headers["x-api-key"] = params.apiKey;
+    }
+    const res = await fetch(url.toString(), { headers });
     if (res.status === 401 || res.status === 403) {
       throwApiKeyError();
     }
@@ -72288,6 +72292,7 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     const { key, chainConfig: chainConfig2 } = resolved;
     const keyfilePath = expandHome(chainConfig2.keyfile);
     const userAddress = await getAddressForChain(chainConfig2);
+    const apiKey = config.apiKeys?.[provider.name];
     const fromResolved = resolveSwapToken(from14, chain2);
     const toResolved = resolveSwapToken(to, chain2);
     const fromRaw = toRawAmount(String(amount), fromResolved.decimals);
@@ -72299,9 +72304,9 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       toDecimals: toResolved.decimals,
       amount: fromRaw,
       slippageBps,
-      userAddress
+      userAddress,
+      apiKey
     });
-    const apiKey = config.apiKeys?.[provider.name];
     const isSolana = chain2 === "solana";
     const evmExecutor = isSolana ? void 0 : createEvmExecutor(keyfilePath, chainConfig2, chain2);
     const solanaExecutor = isSolana ? createSolanaExecutor(keyfilePath, chainConfig2.rpc) : void 0;

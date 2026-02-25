@@ -29,7 +29,12 @@ export const jupiterProvider: SwapProvider = {
     url.searchParams.set('slippageBps', String(params.slippageBps));
     url.searchParams.set('restrictIntermediateTokens', 'true');
 
-    const res = await fetch(url.toString());
+    const headers: Record<string, string> = {};
+    if (params.apiKey) {
+      headers['x-api-key'] = params.apiKey;
+    }
+
+    const res = await fetch(url.toString(), { headers });
 
     if (res.status === 401 || res.status === 403) {
       throwApiKeyError();
