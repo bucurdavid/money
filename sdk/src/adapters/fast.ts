@@ -181,7 +181,7 @@ export function addressToPubkey(address: string): Uint8Array {
 export function toJSON(data: unknown): string {
   return JSON.stringify(data, (_k, v) => {
     if (v instanceof Uint8Array) return Array.from(v);
-    if (typeof v === 'bigint') return v.toString();
+    if (typeof v === 'bigint') return Number(v);
     return v;
   });
 }

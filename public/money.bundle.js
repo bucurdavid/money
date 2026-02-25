@@ -69845,7 +69845,7 @@ function toJSON(data) {
     if (v instanceof Uint8Array)
       return Array.from(v);
     if (typeof v === "bigint")
-      return v.toString();
+      return Number(v);
     return v;
   });
 }
