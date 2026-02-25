@@ -378,6 +378,26 @@ export interface BridgeResult {
   note: string;
 }
 
+// ─── Help / Describe types ──────────────────────────────────────────────────
+
+/** A brief entry returned by money.help() */
+export interface HelpEntry {
+  name: string;
+  params: string;
+  description: string;
+}
+
+/** Full method documentation returned by money.describe() */
+export interface DescribeResult {
+  name: string;
+  params: string;
+  description: string;
+  paramDetails: Record<string, string>;
+  result: string;
+  examples: string[];
+  notes: string;
+}
+
 // ─── Unit conversion types ──────────────────────────────────────────────────
 
 /** Params for money.parseUnits() — convert human amount to raw bigint */

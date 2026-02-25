@@ -74,6 +74,7 @@ Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"polygon"` `"opti
 | Check balance | Check Balance |
 | Swap tokens (e.g. SOL to USDC) | Swap |
 | Bridge tokens cross-chain | Bridge |
+| Bridge Fast ↔ EVM (deposit/withdraw) | Bridge (OmniSet) |
 | Look up token price | Price |
 | Sign or verify a message | Sign |
 | Get free testnet tokens | Faucet |
@@ -86,6 +87,7 @@ Supported chains: `"fast"` `"base"` `"ethereum"` `"arbitrum"` `"polygon"` `"opti
 | Register a custom provider | Custom Providers |
 | Export wallet private key | Export Keys |
 | Configure API keys (e.g. Jupiter) | Swap |
+| Discover available methods | Discovery |
 
 | See all methods | Reference |
 
@@ -299,9 +301,11 @@ Supported swap chains: Solana (Jupiter), Ethereum, Base, Arbitrum, Polygon, Opti
 
 ## Bridge
 
-Bridge tokens between chains. Uses DeBridge DLN. **Requires `network: "mainnet"` explicitly.**
+Bridge tokens between chains. ERC-20 token approvals are handled automatically. Transactions are confirmed on-chain before the SDK returns — no phantom transaction hashes.
 
-ERC-20 token approvals are handled automatically. Transactions are confirmed on-chain before the SDK returns — no phantom transaction hashes.
+### DeBridge (EVM ↔ EVM, EVM ↔ Solana) — mainnet
+
+Uses DeBridge DLN. **Requires `network: "mainnet"` explicitly.**
 
 ```js
 // Bridge USDC from Ethereum to Base
@@ -323,11 +327,53 @@ const tx = await money.bridge({
 });
 ```
 
+Supported DeBridge chains: Ethereum, Optimism, BSC, Polygon, Base, Arbitrum, Avalanche, Linea, Fantom, Solana.
+
+### OmniSet (Fast ↔ EVM) — testnet
+
+Bridge between Fast chain and EVM chains (Ethereum Sepolia, Arbitrum Sepolia). Supports depositing ETH/WETH/WSET from EVM to Fast, and withdrawing SET/setWETH from Fast to EVM. **Requires `network: "testnet"`.**
+
+```js
+// Deposit ETH from Ethereum Sepolia → Fast (auto-wraps to setWETH on Fast)
+const tx = await money.bridge({
+  from: { chain: "ethereum", token: "ETH" },
+  to: { chain: "fast" },
+  amount: 0.1,
+  network: "testnet",
+  provider: "omniset",
+});
+
+// Deposit WSET from Arbitrum Sepolia → Fast (burns WSET, mints SET on Fast)
+const tx = await money.bridge({
+  from: { chain: "arbitrum", token: "WSET" },
+  to: { chain: "fast" },
+  amount: 100,
+  network: "testnet",
+  provider: "omniset",
+});
+
+// Withdraw setWETH from Fast → Ethereum Sepolia (releases WETH on EVM)
+const tx = await money.bridge({
+  from: { chain: "fast", token: "WETH" },
+  to: { chain: "ethereum" },
+  amount: 0.1,
+  network: "testnet",
+  provider: "omniset",
+});
+
+// Withdraw SET from Fast → Arbitrum Sepolia (mints WSET on EVM)
+const tx = await money.bridge({
+  from: { chain: "fast", token: "SET" },
+  to: { chain: "arbitrum" },
+  amount: 100,
+  network: "testnet",
+  provider: "omniset",
+});
+```
+
+Supported OmniSet tokens: ETH, WETH, WSET, SET. Both source and destination chains must be set up first (`money.setup()`).
+
 Both source and destination chains must be set up first (`money.setup()`). If you don't provide `receiver`, the SDK uses your address on the destination chain.
-
-Supported bridge chains: Ethereum, Optimism, BSC, Polygon, Base, Arbitrum, Avalanche, Linea, Fantom, Solana.
-
-Note: Solana as bridge source is not yet supported (coming soon).
 
 ---
 
@@ -605,6 +651,40 @@ Custom providers are used alongside built-ins. The SDK selects the first provide
 
 ---
 
+## Discovery
+
+The SDK has built-in auto-discovery. Instead of reading this entire document, agents can call two methods to learn what's available.
+
+### List all methods
+
+```js
+const methods = money.help();
+// Returns array of { name, params, description } for every SDK method
+// Example entry: { name: "bridge", params: "{ from, to, amount, network, provider?, receiver? }", description: "Bridge tokens between chains." }
+```
+
+### Get detailed info on a method
+
+```js
+const info = money.describe("bridge");
+// Returns: {
+//   name: "bridge",
+//   description: "Bridge tokens between chains.",
+//   params: "{ from: { chain, token }, to: { chain, token? }, amount, network, provider?, receiver? }",
+//   paramDetails: { from: "{ chain: string, token: string } — source chain and token", ... },
+//   result: "{ txHash, explorerUrl, fromChain, toChain, fromAmount, toAmount, orderId, estimatedTime, note }",
+//   examples: [...],
+//   notes: "DeBridge for mainnet EVM/Solana. OmniSet for testnet Fast<->EVM..."
+// }
+
+// Returns null if method not found
+money.describe("nonexistent"); // null
+```
+
+Both methods are **synchronous** — no `await` needed. Start with `money.help()` to see what's available, then drill into any method with `money.describe(name)`.
+
+---
+
 ## Reference
 
 | Method | Returns |
@@ -634,13 +714,15 @@ Custom providers are used alongside built-ins. The SDK selects the first provide
 | `money.registerSwapProvider(provider)` | `void` |
 | `money.registerBridgeProvider(provider)` | `void` |
 | `money.registerPriceProvider(provider)` | `void` |
+| `money.help()` | `HelpEntry[]` |
+| `money.describe(methodName)` | `DescribeResult \| null` |
 
 
 All errors: `{ code, message, note }`. The `note` field contains a code example showing how to fix the error.
 
 `token` is optional on send/balance. When omitted, the chain's native token is used: SET (Fast), ETH (Base/Ethereum/Arbitrum/Optimism/zkSync/Linea/Scroll), POL (Polygon), BNB (BSC), AVAX (Avalanche), FTM (Fantom), SOL (Solana).
 
-Swap, quote, and bridge **require `network: "mainnet"` explicitly**. Price and tokenInfo are read-only and work regardless of network.
+Swap and quote **require `network: "mainnet"` explicitly**. Bridge requires mainnet (DeBridge) or testnet (OmniSet) depending on the provider. Price and tokenInfo are read-only and work regardless of network.
 
 Solana swaps require a Jupiter API key (free at portal.jup.ag). Run `money.setApiKey({ provider: "jupiter", apiKey: "..." })` once before your first Solana swap.
 

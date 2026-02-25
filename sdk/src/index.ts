@@ -72,6 +72,8 @@ import type {
   BridgeParams,
   BridgeResult,
   SetApiKeyParams,
+  HelpEntry,
+  DescribeResult,
 } from './types.js';
 
 import { parseUnits, formatUnits } from 'viem';
@@ -124,6 +126,8 @@ export type {
   VerifySignParams,
   VerifySignResult,
   SwapParams,
+  HelpEntry,
+  DescribeResult,
 } from './types.js';
 
 export type {
@@ -388,6 +392,403 @@ function createSolanaExecutor(keyfilePath: string, rpc: string): SolanaTxExecuto
     },
   };
 }
+
+// ─── Method registry for help() / describe() ─────────────────────────────────
+
+const METHOD_REGISTRY: DescribeResult[] = [
+  {
+    name: 'setup',
+    params: '{ chain, network? }',
+    description: 'Set up a wallet on a chain. Creates a keyfile if none exists.',
+    paramDetails: {
+      chain: 'string — chain name (e.g. "fast", "ethereum", "base", "solana")',
+      network: '"testnet" | "mainnet" — defaults to "testnet"',
+    },
+    result: '{ chain, network, address, note }',
+    examples: [
+      'await money.setup({ chain: "fast" })',
+      'await money.setup({ chain: "ethereum", network: "mainnet" })',
+    ],
+    notes: 'Idempotent — safe to call multiple times. Same key = same address across networks.',
+  },
+  {
+    name: 'status',
+    params: '(none)',
+    description: 'Show all configured chains and their addresses.',
+    paramDetails: {},
+    result: '{ chains: [{ chain, network, address }] }',
+    examples: ['await money.status()'],
+    notes: 'Read-only. No setup required.',
+  },
+  {
+    name: 'balance',
+    params: '{ chain, token?, network? }',
+    description: 'Check token balance on a chain.',
+    paramDetails: {
+      chain: 'string — chain name',
+      token: 'string — token symbol or address (optional, defaults to native token)',
+      network: '"testnet" | "mainnet" — defaults to "testnet"',
+    },
+    result: '{ balance, token, chain, address, note }',
+    examples: [
+      'await money.balance({ chain: "fast" })',
+      'await money.balance({ chain: "ethereum", token: "USDC", network: "mainnet" })',
+    ],
+    notes: 'Chain must be set up first via money.setup().',
+  },
+  {
+    name: 'send',
+    params: '{ chain, to, amount, token?, network? }',
+    description: 'Send tokens to an address.',
+    paramDetails: {
+      chain: 'string — chain name',
+      to: 'string — recipient address',
+      amount: 'number | string — amount in human-readable units',
+      token: 'string — token symbol or address (optional, defaults to native token)',
+      network: '"testnet" | "mainnet" — defaults to "testnet"',
+    },
+    result: '{ txHash, explorerUrl, from, to, amount, token, fee, note }',
+    examples: [
+      'await money.send({ chain: "fast", to: "set1...", amount: 10 })',
+      'await money.send({ chain: "ethereum", to: "0x...", amount: 0.5, token: "USDC", network: "mainnet" })',
+    ],
+    notes: 'Chain must be set up first. Transactions are confirmed on-chain before returning.',
+  },
+  {
+    name: 'faucet',
+    params: '{ chain, network? }',
+    description: 'Get free testnet tokens.',
+    paramDetails: {
+      chain: 'string — chain name',
+      network: '"testnet" | "mainnet" — defaults to "testnet"',
+    },
+    result: '{ amount, token, txHash, note }',
+    examples: ['await money.faucet({ chain: "fast" })'],
+    notes: 'Testnet only. May be throttled — wait and retry if you get FAUCET_THROTTLED.',
+  },
+  {
+    name: 'tokens',
+    params: '{ chain, network? }',
+    description: 'Discover all tokens owned by your wallet on a chain.',
+    paramDetails: {
+      chain: 'string — chain name',
+      network: '"testnet" | "mainnet" — defaults to "testnet"',
+    },
+    result: '{ chain, network, owned: [{ symbol, address, balance, rawBalance, decimals }], note }',
+    examples: ['await money.tokens({ chain: "fast" })'],
+    notes: 'Discovered tokens are cached so you can use their symbol in balance/send.',
+  },
+  {
+    name: 'swap',
+    params: '{ chain, from, to, amount, slippage?, network, provider? }',
+    description: 'Swap one token for another on the same chain.',
+    paramDetails: {
+      chain: 'string — chain name',
+      from: 'string — source token symbol or address',
+      to: 'string — destination token symbol or address',
+      amount: 'number | string — amount to swap',
+      slippage: 'number — slippage in bps (optional, default 50 = 0.5%)',
+      network: '"mainnet" — swaps require mainnet',
+      provider: 'string — "jupiter" or "paraswap" (optional, auto-selected by chain)',
+    },
+    result: '{ txHash, explorerUrl, fromToken, toToken, fromAmount, toAmount, note }',
+    examples: [
+      'await money.swap({ chain: "solana", from: "SOL", to: "USDC", amount: 1, network: "mainnet" })',
+      'await money.swap({ chain: "ethereum", from: "ETH", to: "USDC", amount: 0.5, network: "mainnet" })',
+    ],
+    notes: 'Requires network: "mainnet". Jupiter for Solana (needs API key), Paraswap for EVM chains.',
+  },
+  {
+    name: 'quote',
+    params: '{ chain, from, to, amount, slippage?, network, provider? }',
+    description: 'Get a swap quote without executing. Same params as swap.',
+    paramDetails: {
+      chain: 'string — chain name',
+      from: 'string — source token',
+      to: 'string — destination token',
+      amount: 'number | string',
+      slippage: 'number — bps (optional)',
+      network: '"mainnet"',
+      provider: 'string (optional)',
+    },
+    result: '{ fromToken, toToken, fromAmount, toAmount, priceImpact, provider, note }',
+    examples: [
+      'await money.quote({ chain: "ethereum", from: "ETH", to: "USDC", amount: 1, network: "mainnet" })',
+    ],
+    notes: 'Read-only preview of a swap. No transaction is executed.',
+  },
+  {
+    name: 'bridge',
+    params: '{ from: { chain, token }, to: { chain, token? }, amount, network, provider?, receiver? }',
+    description: 'Bridge tokens between chains.',
+    paramDetails: {
+      from: '{ chain: string, token: string } — source chain and token',
+      to: '{ chain: string, token?: string } — destination chain',
+      amount: 'number | string — amount to bridge',
+      network: '"testnet" | "mainnet" — depends on provider',
+      provider: '"debridge" | "omniset" (optional, auto-selected)',
+      receiver: 'string — destination address (optional, defaults to your own)',
+    },
+    result: '{ txHash, explorerUrl, fromChain, toChain, fromAmount, toAmount, orderId, estimatedTime, note }',
+    examples: [
+      'await money.bridge({ from: { chain: "ethereum", token: "USDC" }, to: { chain: "base" }, amount: 100, network: "mainnet" })',
+      'await money.bridge({ from: { chain: "ethereum", token: "ETH" }, to: { chain: "fast" }, amount: 0.1, network: "testnet", provider: "omniset" })',
+      'await money.bridge({ from: { chain: "fast", token: "WETH" }, to: { chain: "ethereum" }, amount: 0.1, network: "testnet", provider: "omniset" })',
+    ],
+    notes: 'DeBridge for mainnet EVM/Solana. OmniSet for testnet Fast<->EVM (Ethereum Sepolia, Arbitrum Sepolia). ERC-20 approvals handled automatically.',
+  },
+  {
+    name: 'price',
+    params: '{ token, chain?, provider? }',
+    description: 'Look up token price in USD.',
+    paramDetails: {
+      token: 'string — token symbol or contract address',
+      chain: 'string — chain name (optional, helps narrow results)',
+      provider: 'string (optional)',
+    },
+    result: '{ price, symbol, name, priceChange24h, volume24h, liquidity, marketCap, note }',
+    examples: [
+      'await money.price({ token: "ETH" })',
+      'await money.price({ token: "0xA0b8...eB48", chain: "ethereum" })',
+    ],
+    notes: 'Read-only. No setup required. Uses DexScreener for most chains, FastSet RPC for Fast chain.',
+  },
+  {
+    name: 'tokenInfo',
+    params: '{ token, chain?, provider? }',
+    description: 'Get detailed token info including DEX pairs.',
+    paramDetails: {
+      token: 'string — token symbol or address',
+      chain: 'string (optional)',
+      provider: 'string (optional)',
+    },
+    result: '{ name, symbol, address, price, priceChange24h, volume24h, liquidity, marketCap, pairs, note }',
+    examples: [
+      'await money.tokenInfo({ token: "USDC", chain: "ethereum" })',
+    ],
+    notes: 'Superset of price(). Includes DEX pair data.',
+  },
+  {
+    name: 'sign',
+    params: '{ chain, message, network? }',
+    description: 'Sign a message with your wallet key.',
+    paramDetails: {
+      chain: 'string — chain name',
+      message: 'string | Uint8Array — message to sign',
+      network: '"testnet" | "mainnet" (optional)',
+    },
+    result: '{ signature, address, note }',
+    examples: [
+      'await money.sign({ chain: "fast", message: "hello" })',
+      'await money.sign({ chain: "ethereum", message: "verify me" })',
+    ],
+    notes: 'EVM: 0x-prefixed hex. Solana: base58. Fast: hex. Use verifySign() to verify.',
+  },
+  {
+    name: 'verifySign',
+    params: '{ chain, message, signature, address, network? }',
+    description: 'Verify a message signature.',
+    paramDetails: {
+      chain: 'string — chain name',
+      message: 'string | Uint8Array — original message',
+      signature: 'string — signature to verify',
+      address: 'string — expected signer address',
+      network: '"testnet" | "mainnet" (optional)',
+    },
+    result: '{ valid, note }',
+    examples: [
+      'await money.verifySign({ chain: "fast", message: "hello", signature: "ab12...", address: "set1..." })',
+    ],
+    notes: 'Returns { valid: true } if the signature matches the address for the given message.',
+  },
+  {
+    name: 'getToken',
+    params: '{ chain, token, network? }',
+    description: 'Look up a registered token alias.',
+    paramDetails: {
+      chain: 'string',
+      token: 'string — token name',
+      network: '"testnet" | "mainnet" (optional)',
+    },
+    result: '{ name, address, decimals } | null',
+    examples: ['await money.getToken({ chain: "ethereum", token: "USDC" })'],
+    notes: 'Returns null if the token is not registered.',
+  },
+  {
+    name: 'registerToken',
+    params: '{ chain, name, address, decimals, network? }',
+    description: 'Register a custom token alias for use in balance/send.',
+    paramDetails: {
+      chain: 'string',
+      name: 'string — alias name (e.g. "USDC")',
+      address: 'string — contract address',
+      decimals: 'number',
+      network: '"testnet" | "mainnet" (optional)',
+    },
+    result: 'void',
+    examples: [
+      'await money.registerToken({ chain: "base", name: "USDC", address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 })',
+    ],
+    notes: 'Persists across sessions. Use getToken() to verify.',
+  },
+  {
+    name: 'identifyChains',
+    params: '{ address }',
+    description: 'Detect which blockchain(s) an address belongs to.',
+    paramDetails: {
+      address: 'string — any blockchain address',
+    },
+    result: '{ address, chains, note }',
+    examples: [
+      'await money.identifyChains({ address: "0x1234..." })',
+      'await money.identifyChains({ address: "set1..." })',
+    ],
+    notes: 'Pattern-based detection. Does not verify on-chain.',
+  },
+  {
+    name: 'history',
+    params: '{ chain?, network?, limit? }',
+    description: 'View past send/bridge transactions.',
+    paramDetails: {
+      chain: 'string (optional — filter by chain)',
+      network: '"testnet" | "mainnet" (optional)',
+      limit: 'number (optional, default 50)',
+    },
+    result: '{ entries: [{ ts, chain, network, to, amount, token, txHash }] }',
+    examples: ['await money.history()', 'await money.history({ chain: "fast", limit: 10 })'],
+    notes: 'Local history only. Includes sends and bridges.',
+  },
+  {
+    name: 'exportKeys',
+    params: '{ chain, network? }',
+    description: 'Export wallet private key for backup or import into another wallet.',
+    paramDetails: {
+      chain: 'string — chain name',
+      network: '"testnet" | "mainnet" (optional)',
+    },
+    result: '{ chain, address, privateKey, keyFormat, note }',
+    examples: ['await money.exportKeys({ chain: "ethereum" })'],
+    notes: 'SENSITIVE — handle the private key securely. Never log or share it.',
+  },
+  {
+    name: 'setApiKey',
+    params: '{ provider, apiKey }',
+    description: 'Set an API key for a provider (e.g. Jupiter).',
+    paramDetails: {
+      provider: 'string — provider name (e.g. "jupiter")',
+      apiKey: 'string — the API key',
+    },
+    result: 'void',
+    examples: ['await money.setApiKey({ provider: "jupiter", apiKey: "your-key" })'],
+    notes: 'Persists across sessions. Required for Jupiter (Solana swaps). Free key from portal.jup.ag.',
+  },
+  {
+    name: 'registerEvmChain',
+    params: '{ name, rpc, chainId, nativeCurrency, explorerUrl? }',
+    description: 'Register a custom EVM-compatible chain at runtime.',
+    paramDetails: {
+      name: 'string — chain name',
+      rpc: 'string — RPC URL',
+      chainId: 'number — EVM chain ID',
+      nativeCurrency: '{ name, symbol, decimals }',
+      explorerUrl: 'string (optional)',
+    },
+    result: 'void',
+    examples: [
+      'await money.registerEvmChain({ name: "my-chain", rpc: "https://rpc.my-chain.io", chainId: 12345, nativeCurrency: { name: "MYC", symbol: "MYC", decimals: 18 } })',
+    ],
+    notes: 'After registering, use the chain name in setup/balance/send like any built-in chain.',
+  },
+  {
+    name: 'toRawUnits',
+    params: '{ amount, chain?, token?, decimals? }',
+    description: 'Convert human-readable amount to raw units (bigint).',
+    paramDetails: {
+      amount: 'number | string — human amount (e.g. 1.5)',
+      chain: 'string (optional — for decimal lookup)',
+      token: 'string (optional — for decimal lookup)',
+      decimals: 'number (optional — explicit decimals)',
+    },
+    result: 'bigint',
+    examples: [
+      'await money.toRawUnits({ amount: 1.5, decimals: 18 })',
+      'await money.toRawUnits({ amount: 25, token: "USDC", chain: "ethereum" })',
+    ],
+    notes: 'Provide either decimals explicitly, or chain+token for automatic lookup.',
+  },
+  {
+    name: 'toHumanUnits',
+    params: '{ amount, chain?, token?, decimals? }',
+    description: 'Convert raw units (bigint) to human-readable string.',
+    paramDetails: {
+      amount: 'bigint | number | string — raw amount',
+      chain: 'string (optional)',
+      token: 'string (optional)',
+      decimals: 'number (optional)',
+    },
+    result: 'string',
+    examples: [
+      'await money.toHumanUnits({ amount: 1500000000000000000n, decimals: 18 })',
+    ],
+    notes: 'Inverse of toRawUnits.',
+  },
+  {
+    name: 'registerSwapProvider',
+    params: 'provider object',
+    description: 'Register a custom swap provider.',
+    paramDetails: {
+      provider: '{ name, chains, quote(), swap() } — implements SwapProvider interface',
+    },
+    result: 'void',
+    examples: ['money.registerSwapProvider({ name: "my-dex", chains: ["ethereum"], quote: ..., swap: ... })'],
+    notes: 'Built-in: Jupiter (Solana), Paraswap (EVM). Custom providers override by name.',
+  },
+  {
+    name: 'registerBridgeProvider',
+    params: 'provider object',
+    description: 'Register a custom bridge provider.',
+    paramDetails: {
+      provider: '{ name, chains, networks?, bridge() } — implements BridgeProvider interface',
+    },
+    result: 'void',
+    examples: ['money.registerBridgeProvider({ name: "my-bridge", chains: ["ethereum", "base"], bridge: ... })'],
+    notes: 'Built-in: DeBridge (mainnet EVM/Solana), OmniSet (testnet Fast<->EVM).',
+  },
+  {
+    name: 'registerPriceProvider',
+    params: 'provider object',
+    description: 'Register a custom price provider.',
+    paramDetails: {
+      provider: '{ name, chains?, getPrice(), getTokenInfo?() } — implements PriceProvider interface',
+    },
+    result: 'void',
+    examples: ['money.registerPriceProvider({ name: "my-oracle", getPrice: ... })'],
+    notes: 'Built-in: DexScreener (most chains), FastSet RPC (Fast chain).',
+  },
+  {
+    name: 'help',
+    params: '(none)',
+    description: 'List all available SDK methods with brief descriptions.',
+    paramDetails: {},
+    result: 'HelpEntry[] — array of { name, params, description }',
+    examples: ['money.help()'],
+    notes: 'Use money.describe("methodName") for detailed info on any method.',
+  },
+  {
+    name: 'describe',
+    params: 'methodName: string',
+    description: 'Get detailed docs for a specific method including params, result, examples, and notes.',
+    paramDetails: {
+      methodName: 'string — name of the method (e.g. "bridge", "swap", "send")',
+    },
+    result: '{ name, params, description, paramDetails, result, examples, notes } | null',
+    examples: [
+      'money.describe("bridge")',
+      'money.describe("setup")',
+    ],
+    notes: 'Returns null if the method name is not found. Use money.help() to see all methods.',
+  },
+];
 
 // ─── SDK Object ───────────────────────────────────────────────────────────────
 
@@ -1386,6 +1787,20 @@ export const money = {
       estimatedTime: result.estimatedTime,
       note: '',
     };
+  },
+
+  // ─── discovery ──────────────────────────────────────────────────────────────
+
+  help(): HelpEntry[] {
+    return METHOD_REGISTRY.map((m) => ({
+      name: m.name,
+      params: m.params,
+      description: m.description,
+    }));
+  },
+
+  describe(methodName: string): DescribeResult | null {
+    return METHOD_REGISTRY.find((m) => m.name === methodName) ?? null;
   },
 
   // ─── provider registration ────────────────────────────────────────────────
