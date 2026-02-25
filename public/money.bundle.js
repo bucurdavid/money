@@ -68731,6 +68731,19 @@ async function setAlias(cacheKey2, name, config2) {
   all[cacheKey2] = { ...all[cacheKey2] ?? {}, [name]: config2 };
   await saveAliases(all);
 }
+async function getAliases(cacheKey2) {
+  const all = await loadAliases();
+  const entries = all[cacheKey2] ?? {};
+  const { chain: chain2, network } = parseConfigKey(cacheKey2);
+  return Object.entries(entries).map(([name, tc]) => ({
+    chain: chain2,
+    network,
+    name,
+    ...tc.address ? { address: tc.address } : {},
+    ...tc.mint ? { mint: tc.mint } : {},
+    decimals: tc.decimals ?? 6
+  }));
+}
 async function getEvmAliases(cacheKey2) {
   const all = await loadAliases();
   const entries = all[cacheKey2] ?? {};
@@ -87482,11 +87495,37 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     if (owned.length > 0) {
       evictAdapter(key);
     }
+    try {
+      const aliases = await getAliases(key);
+      const knownAddrs = new Set(owned.map((t) => t.address.toLowerCase()));
+      const adapter = await getAdapter(key);
+      const keyfilePath = expandHome(chainConfig2.keyfile);
+      const { address: walletAddr } = await adapter.setupWallet(keyfilePath);
+      for (const alias of aliases) {
+        const addr = (alias.address ?? alias.mint ?? "").toLowerCase();
+        if (!addr || knownAddrs.has(addr))
+          continue;
+        let balance = "0";
+        try {
+          const bal = await adapter.getBalance(walletAddr, alias.name);
+          balance = bal.amount;
+        } catch {
+        }
+        owned.push({
+          symbol: alias.name,
+          address: alias.address ?? alias.mint ?? "",
+          balance,
+          rawBalance: "",
+          decimals: alias.decimals
+        });
+      }
+    } catch {
+    }
     return {
       chain: resolvedChain,
       network: resolvedNetwork,
       owned,
-      note: owned.length > 0 ? "" : "On-chain token discovery not available for this chain. Use money.registerToken() to register tokens manually."
+      note: owned.length > 0 ? "" : "No tokens found. Use money.registerToken() to register tokens manually."
     };
   },
   async history(params) {
@@ -88008,6 +88047,19 @@ Or pass receiver address:
       token: from14.token,
       txHash: result.txHash
     });
+    try {
+      const dstResolved = resolveChainKey(to.chain, config2.chains, network);
+      if (dstResolved && toTokenResolved.address && toTokenResolved.address !== "0x0000000000000000000000000000000000000000") {
+        const tokenName = to.token ?? from14.token;
+        if (to.chain === "solana") {
+          await setAlias(dstResolved.key, tokenName, { mint: toTokenResolved.address, decimals: toTokenResolved.decimals });
+        } else {
+          await setAlias(dstResolved.key, tokenName, { address: toTokenResolved.address, decimals: toTokenResolved.decimals });
+        }
+        evictAdapter(dstResolved.key);
+      }
+    } catch {
+    }
     return {
       txHash: result.txHash,
       explorerUrl,

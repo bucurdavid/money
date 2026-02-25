@@ -9,7 +9,7 @@ import { identifyChains, isValidAddress } from './detect.js';
 import { MoneyError } from './errors.js';
 import { getAdapter, evictAdapter, _resetAdapterCache } from './registry.js';
 import { DEFAULT_CHAIN_CONFIGS, configKey, parseConfigKey, supportedChains } from './defaults.js';
-import { getAlias, setAlias } from './aliases.js';
+import { getAlias, setAlias, getAliases } from './aliases.js';
 import { appendHistory, readHistory } from './history.js';
 import {
   registerSwapProvider,
@@ -771,13 +771,42 @@ export const money = {
       evictAdapter(key);
     }
 
+    // Merge registered aliases — fetch balance for any not already discovered on-chain
+    try {
+      const aliases = await getAliases(key);
+      const knownAddrs = new Set(owned.map((t) => t.address.toLowerCase()));
+      const adapter = await getAdapter(key);
+      const keyfilePath = expandHome(chainConfig.keyfile);
+      const { address: walletAddr } = await adapter.setupWallet(keyfilePath);
+      for (const alias of aliases) {
+        const addr = (alias.address ?? alias.mint ?? '').toLowerCase();
+        if (!addr || knownAddrs.has(addr)) continue;
+        let balance = '0';
+        try {
+          const bal = await adapter.getBalance(walletAddr, alias.name);
+          balance = bal.amount;
+        } catch {
+          // balance fetch failed — still include with "0"
+        }
+        owned.push({
+          symbol: alias.name,
+          address: alias.address ?? alias.mint ?? '',
+          balance,
+          rawBalance: '',
+          decimals: alias.decimals,
+        });
+      }
+    } catch {
+      // alias lookup failed — non-critical
+    }
+
     return {
       chain: resolvedChain,
       network: resolvedNetwork as NetworkType,
       owned,
       note: owned.length > 0
         ? ''
-        : 'On-chain token discovery not available for this chain. Use money.registerToken() to register tokens manually.',
+        : 'No tokens found. Use money.registerToken() to register tokens manually.',
     };
   },
 
@@ -1389,6 +1418,22 @@ export const money = {
       token: from.token,
       txHash: result.txHash,
     });
+
+    // Auto-register destination token so balance()/tokens() can find it
+    try {
+      const dstResolved = resolveChainKey(to.chain, config.chains, network);
+      if (dstResolved && toTokenResolved.address && toTokenResolved.address !== '0x0000000000000000000000000000000000000000') {
+        const tokenName = to.token ?? from.token;
+        if (to.chain === 'solana') {
+          await setAlias(dstResolved.key, tokenName, { mint: toTokenResolved.address, decimals: toTokenResolved.decimals });
+        } else {
+          await setAlias(dstResolved.key, tokenName, { address: toTokenResolved.address, decimals: toTokenResolved.decimals });
+        }
+        evictAdapter(dstResolved.key);
+      }
+    } catch {
+      // Best-effort — don't fail the bridge
+    }
 
     return {
       txHash: result.txHash,
