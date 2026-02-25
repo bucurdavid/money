@@ -61,6 +61,7 @@ Use these instead of reading this entire document. The sections below cover **op
 2. **Sends are irreversible.** Verify the address before calling `send()`.
 3. **Amounts are in human units.** `10` means 10 tokens, not 10 wei or 10 lamports.
 4. **Mainnet requires explicit user consent.** Only call `setup({ network: "mainnet" })` when the user specifically asks.
+5. **NEVER delete, overwrite, or modify files in `~/.money/keys/`.** These are wallet private keys. Loss means permanent, irreversible loss of funds. Do not run `rm`, `mv`, `cp`, `echo >`, or any command that could alter these files.
 
 ---
 

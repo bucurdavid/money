@@ -20552,7 +20552,7 @@ var require_stream = __commonJS({
       };
       duplex._final = function(callback) {
         if (ws.readyState === ws.CONNECTING) {
-          ws.once("open", function open() {
+          ws.once("open", function open2() {
             duplex._final(callback);
           });
           return;
@@ -20573,7 +20573,7 @@ var require_stream = __commonJS({
       };
       duplex._write = function(chunk, encoding, callback) {
         if (ws.readyState === ws.CONNECTING) {
-          ws.once("open", function open() {
+          ws.once("open", function open2() {
             duplex._write(chunk, encoding, callback);
           });
           return;
@@ -52175,12 +52175,12 @@ Message: ${transactionMessage}.
       };
       return humanizeMs;
     }
-    var constants;
+    var constants2;
     var hasRequiredConstants;
     function requireConstants() {
-      if (hasRequiredConstants) return constants;
+      if (hasRequiredConstants) return constants2;
       hasRequiredConstants = 1;
-      constants = {
+      constants2 = {
         // agent
         CURRENT_ID: Symbol("agentkeepalive#currentId"),
         CREATE_ID: Symbol("agentkeepalive#createId"),
@@ -52192,7 +52192,7 @@ Message: ${transactionMessage}.
         SOCKET_REQUEST_COUNT: Symbol("agentkeepalive#socketRequestCount"),
         SOCKET_REQUEST_FINISHED_COUNT: Symbol("agentkeepalive#socketRequestFinishedCount")
       };
-      return constants;
+      return constants2;
     }
     var agent;
     var hasRequiredAgent;
@@ -58414,7 +58414,7 @@ var require_bindings = __commonJS({
     var fs4 = __require("fs");
     var path5 = __require("path");
     var fileURLToPath = require_file_uri_to_path();
-    var join2 = path5.join;
+    var join3 = path5.join;
     var dirname2 = path5.dirname;
     var exists = fs4.accessSync && function(path6) {
       try {
@@ -58474,7 +58474,7 @@ var require_bindings = __commonJS({
       var requireFunc = typeof __webpack_require__ === "function" ? __non_webpack_require__ : __require;
       var tries = [], i = 0, l = opts.try.length, n, b, err2;
       for (; i < l; i++) {
-        n = join2.apply(
+        n = join3.apply(
           null,
           opts.try[i].map(function(p) {
             return opts[p] || p;
@@ -58535,7 +58535,7 @@ var require_bindings = __commonJS({
         if (dir === ".") {
           dir = process.cwd();
         }
-        if (exists(join2(dir, "package.json")) || exists(join2(dir, "node_modules"))) {
+        if (exists(join3(dir, "package.json")) || exists(join3(dir, "node_modules"))) {
           return dir;
         }
         if (prev === dir) {
@@ -58544,7 +58544,7 @@ var require_bindings = __commonJS({
           );
         }
         prev = dir;
-        dir = join2(dir, "..");
+        dir = join3(dir, "..");
       }
     };
   }
@@ -67807,8 +67807,9 @@ function compareDecimalStrings(a, b) {
 
 // dist/src/keys.js
 import { randomBytes as randomBytes3, createPrivateKey, createPublicKey, sign as cryptoSign } from "node:crypto";
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
+import { open, readFile, mkdir, copyFile } from "node:fs/promises";
+import { dirname, basename, join } from "node:path";
+import { constants } from "node:fs";
 
 // node_modules/@noble/ed25519/index.js
 var ed25519_CURVE = {
@@ -68354,12 +68355,26 @@ async function loadKeyfile(path5) {
   }
   return { publicKey: parsed.publicKey, privateKey: parsed.privateKey };
 }
-async function saveKeyfile(path5, keypair) {
-  const resolved = expandHome(path5);
+async function saveKeyfile(keyPath, keypair) {
+  const resolved = expandHome(keyPath);
   const dir = dirname(resolved);
   await mkdir(dir, { recursive: true, mode: 448 });
   const json2 = JSON.stringify({ publicKey: keypair.publicKey, privateKey: keypair.privateKey }, null, 2);
-  await writeFile(resolved, json2, { mode: 384, encoding: "utf-8" });
+  const fd = await open(resolved, constants.O_CREAT | constants.O_WRONLY | constants.O_EXCL, 384);
+  try {
+    await fd.writeFile(json2, { encoding: "utf-8" });
+  } finally {
+    await fd.close();
+  }
+  try {
+    const backupDir = join(dir, "backups");
+    await mkdir(backupDir, { recursive: true, mode: 448 });
+    const backupPath = join(backupDir, basename(resolved));
+    await copyFile(resolved, backupPath, constants.COPYFILE_EXCL);
+    const { chmod } = await import("node:fs/promises");
+    await chmod(backupPath, 256);
+  } catch {
+  }
 }
 async function signEd25519(message, privateKeyHex) {
   const privKeyBuf = Buffer.from(privateKeyHex, "hex");
@@ -68949,7 +68964,7 @@ function alphabet(letters) {
   };
 }
 // @__NO_SIDE_EFFECTS__
-function join(separator = "") {
+function join2(separator = "") {
   astr("join", separator);
   return {
     encode: (from14) => {
@@ -69026,7 +69041,7 @@ function radix(num2) {
     }
   };
 }
-var genBase58 = /* @__NO_SIDE_EFFECTS__ */ (abc) => /* @__PURE__ */ chain(/* @__PURE__ */ radix(58), /* @__PURE__ */ alphabet(abc), /* @__PURE__ */ join(""));
+var genBase58 = /* @__NO_SIDE_EFFECTS__ */ (abc) => /* @__PURE__ */ chain(/* @__PURE__ */ radix(58), /* @__PURE__ */ alphabet(abc), /* @__PURE__ */ join2(""));
 var base58 = /* @__PURE__ */ genBase58("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");
 
 // node_modules/@mysten/utils/dist/b58.mjs

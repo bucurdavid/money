@@ -123,6 +123,43 @@ describe('saveKeyfile', () => {
     const mode = stat.mode & 0o777;
     assert.equal(mode, 0o700, `expected dir mode 0700, got 0${mode.toString(8)}`);
   });
+
+  it('refuses to overwrite an existing keyfile (O_EXCL)', async () => {
+    const keyfile = path.join(tmpDir, 'excl.json');
+    const kp1 = await generateEd25519Key();
+    const kp2 = await generateEd25519Key();
+    await saveKeyfile(keyfile, kp1);
+
+    await assert.rejects(
+      () => saveKeyfile(keyfile, kp2),
+      (err: Error) => {
+        assert.ok(err.message.includes('EEXIST') || (err as NodeJS.ErrnoException).code === 'EEXIST',
+          `expected EEXIST error, got: ${err.message}`);
+        return true;
+      },
+    );
+
+    // Original key must be intact
+    const loaded = await loadKeyfile(keyfile);
+    assert.equal(loaded.publicKey, kp1.publicKey, 'original key must survive');
+  });
+
+  it('creates a backup copy in backups/ subdirectory', async () => {
+    const keyfile = path.join(tmpDir, 'backup-test.json');
+    const kp = await generateEd25519Key();
+    await saveKeyfile(keyfile, kp);
+
+    const backupPath = path.join(tmpDir, 'backups', 'backup-test.json');
+    const backupStat = await fs.stat(backupPath);
+    assert.ok(backupStat.isFile(), 'backup file should exist');
+
+    const backupMode = backupStat.mode & 0o777;
+    assert.equal(backupMode, 0o400, `expected backup mode 0400 (read-only), got 0${backupMode.toString(8)}`);
+
+    const backup = JSON.parse(await fs.readFile(backupPath, 'utf-8')) as Record<string, unknown>;
+    assert.equal(backup.publicKey, kp.publicKey, 'backup publicKey should match');
+    assert.equal(backup.privateKey, kp.privateKey, 'backup privateKey should match');
+  });
 });
 
 // ---------------------------------------------------------------------------

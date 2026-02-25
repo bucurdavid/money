@@ -12,8 +12,9 @@ import {
   createPublicKey,
   sign as cryptoSign,
 } from 'node:crypto';
-import { readFile, writeFile, mkdir } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { open, readFile, mkdir, copyFile } from 'node:fs/promises';
+import { dirname, basename, join } from 'node:path';
+import { constants } from 'node:fs';
 import { expandHome } from './utils.js';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
@@ -159,16 +160,43 @@ export async function loadKeyfile(
 /**
  * Save a keypair to a keyfile.
  * Creates parent directories with mode 0700 and writes the file with mode 0600.
+ *
+ * Uses O_CREAT | O_WRONLY | O_EXCL so the call **fails** if the file already
+ * exists.  This prevents any code path from accidentally overwriting a wallet
+ * private key.
+ *
+ * After writing, a backup copy is created at `<dir>/backups/<name>` so keys
+ * can be recovered even if the primary file is accidentally deleted.
  */
 export async function saveKeyfile(
-  path: string,
+  keyPath: string,
   keypair: { publicKey: string; privateKey: string },
 ): Promise<void> {
-  const resolved = expandHome(path);
+  const resolved = expandHome(keyPath);
   const dir = dirname(resolved);
   await mkdir(dir, { recursive: true, mode: 0o700 });
   const json = JSON.stringify({ publicKey: keypair.publicKey, privateKey: keypair.privateKey }, null, 2);
-  await writeFile(resolved, json, { mode: 0o600, encoding: 'utf-8' });
+
+  // O_EXCL: fail if file exists — never overwrite a keyfile
+  const fd = await open(resolved, constants.O_CREAT | constants.O_WRONLY | constants.O_EXCL, 0o600);
+  try {
+    await fd.writeFile(json, { encoding: 'utf-8' });
+  } finally {
+    await fd.close();
+  }
+
+  // Write a backup copy (best-effort — don't fail key creation if backup fails)
+  try {
+    const backupDir = join(dir, 'backups');
+    await mkdir(backupDir, { recursive: true, mode: 0o700 });
+    const backupPath = join(backupDir, basename(resolved));
+    await copyFile(resolved, backupPath, constants.COPYFILE_EXCL);
+    // Lock down backup permissions
+    const { chmod } = await import('node:fs/promises');
+    await chmod(backupPath, 0o400);
+  } catch {
+    // Backup is best-effort; primary keyfile was already written successfully
+  }
 }
 
 /**
