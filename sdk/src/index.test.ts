@@ -387,6 +387,46 @@ describe('money.getToken / money.registerToken', () => {
   });
 });
 
+// ─── money.registerToken with network ────────────────────────────────────────
+
+describe('money.registerToken with network', () => {
+  it('registers token on testnet and mainnet separately', async () => {
+    globalThis.fetch = standardFastFetch();
+
+    // Setup both networks for fast chain
+    await money.setup({ chain: 'fast' });
+    await money.setup({ chain: 'fast', network: 'mainnet' });
+
+    // Register different token configs per network
+    await money.registerToken({ chain: 'fast', name: 'TKN', address: '0x' + 'a'.repeat(40), decimals: 18 });
+    await money.registerToken({ chain: 'fast', network: 'mainnet', name: 'TKN', address: '0x' + 'b'.repeat(40), decimals: 18 });
+
+    // Verify they resolve separately
+    const testnetToken = await money.getToken({ chain: 'fast', name: 'TKN' });
+    const mainnetToken = await money.getToken({ chain: 'fast', network: 'mainnet', name: 'TKN' });
+
+    assert.ok(testnetToken, 'testnet token should exist');
+    assert.ok(mainnetToken, 'mainnet token should exist');
+    assert.equal(testnetToken!.address, '0x' + 'a'.repeat(40));
+    assert.equal(mainnetToken!.address, '0x' + 'b'.repeat(40));
+  });
+
+  it('getToken returns null for mainnet when only testnet token registered', async () => {
+    globalThis.fetch = standardFastFetch();
+
+    await money.setup({ chain: 'fast' });
+    await money.setup({ chain: 'fast', network: 'mainnet' });
+
+    await money.registerToken({ chain: 'fast', name: 'ONLY_TEST', address: '0x' + 'c'.repeat(40), decimals: 6 });
+
+    const testnetToken = await money.getToken({ chain: 'fast', name: 'ONLY_TEST' });
+    const mainnetToken = await money.getToken({ chain: 'fast', network: 'mainnet', name: 'ONLY_TEST' });
+
+    assert.ok(testnetToken, 'testnet token should exist');
+    assert.equal(mainnetToken, null, 'mainnet token should not exist');
+  });
+});
+
 // ─── money.tokens ─────────────────────────────────────────────────────────────
 
 describe('money.tokens', () => {

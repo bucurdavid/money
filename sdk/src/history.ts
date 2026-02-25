@@ -97,10 +97,12 @@ export async function appendHistory(entry: HistoryEntry): Promise<void> {
 /**
  * Read history from CSV, newest-first.
  * @param opts.chain - optional config key filter (e.g. "fast", "base:mainnet")
+ * @param opts.network - optional network filter (e.g. "testnet", "mainnet")
  * @param opts.limit - max entries to return
  */
-export async function readHistory(opts?: { chain?: string; limit?: number }): Promise<HistoryEntry[]> {
+export async function readHistory(opts?: { chain?: string; network?: string; limit?: number }): Promise<HistoryEntry[]> {
   const chain = opts?.chain;
+  const network = opts?.network;
   const limit = opts?.limit;
   const histPath = getHistoryPath();
   let raw: string;
@@ -118,6 +120,7 @@ export async function readHistory(opts?: { chain?: string; limit?: number }): Pr
     const entry = rowToEntry(line);
     if (!entry) continue;
     if (chain && entry.chain !== chain) continue;
+    if (network && entry.network !== network) continue;
     entries.push(entry);
   }
 

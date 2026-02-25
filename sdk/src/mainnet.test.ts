@@ -156,7 +156,7 @@ describe('faucet mainnet gating', () => {
     await money.setup({ chain: 'fast', network: 'mainnet' });
 
     await assert.rejects(
-      () => money.faucet({ chain: 'fast:mainnet' }),
+      () => money.faucet({ chain: 'fast', network: 'mainnet' }),
       (err: unknown) => {
         assert.ok(err instanceof MoneyError, `expected MoneyError, got ${String(err)}`);
         assert.equal((err as MoneyError).code, 'TX_FAILED');

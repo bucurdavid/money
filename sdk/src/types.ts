@@ -34,6 +34,7 @@ export interface SetupParams {
 /** Params for money.balance() */
 export interface BalanceParams {
   chain: string;
+  network?: NetworkType;
   token?: string; // defaults to "native" → resolved to chain's native token
 }
 
@@ -42,12 +43,14 @@ export interface SendParams {
   to: string;
   amount: number | string;
   chain: string;
+  network?: NetworkType;
   token?: string; // defaults to "native"
 }
 
 /** Params for money.faucet() */
 export interface FaucetParams {
   chain: string;
+  network?: NetworkType;
 }
 
 /** Params for money.identifyChains() */
@@ -58,12 +61,14 @@ export interface IdentifyChainsParams {
 /** Params for money.getToken() */
 export interface GetTokenParams {
   chain: string;
+  network?: NetworkType;
   name: string;
 }
 
 /** Params for money.registerToken() */
 export interface RegisterTokenParams {
   chain: string;
+  network?: NetworkType;
   name: string;
   address?: string;  // EVM contract address
   mint?: string;     // Solana mint address
@@ -73,11 +78,13 @@ export interface RegisterTokenParams {
 /** Params for money.tokens() */
 export interface TokensParams {
   chain: string;
+  network?: NetworkType;
 }
 
 /** Params for money.history() */
 export interface HistoryParams {
   chain?: string;
+  network?: NetworkType;
   limit?: number;
 }
 

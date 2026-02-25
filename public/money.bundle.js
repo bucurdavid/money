@@ -64736,6 +64736,7 @@ async function appendHistory(entry) {
 }
 async function readHistory(opts) {
   const chain2 = opts?.chain;
+  const network = opts?.network;
   const limit = opts?.limit;
   const histPath = getHistoryPath();
   let raw;
@@ -64753,6 +64754,8 @@ async function readHistory(opts) {
     if (!entry)
       continue;
     if (chain2 && entry.chain !== chain2)
+      continue;
+    if (network && entry.network !== network)
       continue;
     entries.push(entry);
   }
@@ -64773,12 +64776,10 @@ async function readHistory(opts) {
 }
 
 // dist/index.js
-function resolveChainKey(chain2, chains) {
-  if (chains[chain2])
-    return { key: chain2, chainConfig: chains[chain2] };
-  const mainnetKey = `${chain2}:mainnet`;
-  if (chains[mainnetKey])
-    return { key: mainnetKey, chainConfig: chains[mainnetKey] };
+function resolveChainKey(chain2, chains, network) {
+  const key = network ? configKey(chain2, network) : chain2;
+  if (chains[key])
+    return { key, chainConfig: chains[key] };
   return null;
 }
 var money = {
@@ -64858,14 +64859,14 @@ var money = {
     return { entries: results, note: "" };
   },
   async balance(params) {
-    const { chain: chain2, token: tokenOpt } = params;
+    const { chain: chain2, network, token: tokenOpt } = params;
     if (!chain2) {
       throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
         note: 'Provide a chain name:\n  await money.balance({ chain: "fast" })'
       });
     }
     const config = await loadConfig();
-    const resolved = resolveChainKey(chain2, config.chains);
+    const resolved = resolveChainKey(chain2, config.chains, network);
     if (!resolved) {
       throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, { chain: chain2, note: `Run setup first:
   await money.setup({ chain: "${chain2}" })` });
@@ -64885,7 +64886,7 @@ var money = {
     return { chain: balChain, network: balNetwork, address, amount: bal.amount, token: bal.token, note };
   },
   async send(params) {
-    const { to, amount: amountRaw, chain: chain2, token: tokenOpt } = params;
+    const { to, amount: amountRaw, chain: chain2, network, token: tokenOpt } = params;
     if (!to) {
       throw new MoneyError("INVALID_PARAMS", "Missing required param: to", {
         note: 'Provide a recipient address:\n  await money.send({ to: "set1...", amount: "1", chain: "fast" })'
@@ -64912,7 +64913,7 @@ var money = {
   money.identifyChains({ address: "${to}" })` });
     }
     const config = await loadConfig();
-    const resolved = resolveChainKey(chain2, config.chains);
+    const resolved = resolveChainKey(chain2, config.chains, network);
     if (!resolved) {
       throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
         chain: chain2,
@@ -64963,25 +64964,27 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     return { ...result, chain: sentChain, network: sentNetwork, note: "" };
   },
   async faucet(params) {
-    const { chain: chain2 } = params;
+    const { chain: chain2, network } = params;
     if (!chain2) {
       throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
         note: 'Provide a chain name:\n  await money.faucet({ chain: "fast" })'
       });
     }
-    const chainConfig2 = await getChainConfig(chain2);
-    if (!chainConfig2) {
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain2, config.chains, network);
+    if (!resolved) {
       throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
         chain: chain2,
         note: `Run setup first:
   await money.setup({ chain: "${chain2}" })`
       });
     }
-    const adapter = await getAdapter(chain2);
+    const { key, chainConfig: chainConfig2 } = resolved;
+    const adapter = await getAdapter(key);
     const keyfilePath = expandHome(chainConfig2.keyfile);
     const { address } = await adapter.setupWallet(keyfilePath);
     const result = await adapter.faucet(address);
-    const { chain: faucetChain, network: faucetNetwork } = parseConfigKey(chain2);
+    const { chain: faucetChain, network: faucetNetwork } = parseConfigKey(key);
     return {
       chain: faucetChain,
       network: faucetNetwork,
@@ -64993,14 +64996,14 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     };
   },
   async getToken(params) {
-    const { chain: chain2, name } = params;
+    const { chain: chain2, network, name } = params;
     if (!chain2 || !name) {
       throw new MoneyError("INVALID_PARAMS", "Missing required params: chain and name", {
         note: 'Provide chain and name:\n  await money.getToken({ chain: "fast", name: "MYTOKEN" })'
       });
     }
     const config = await loadConfig();
-    const resolved = resolveChainKey(chain2, config.chains);
+    const resolved = resolveChainKey(chain2, config.chains, network);
     if (!resolved) {
       throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
         chain: chain2,
@@ -65012,14 +65015,14 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     return getAlias(key, name);
   },
   async registerToken(params) {
-    const { chain: chain2, name, ...tokenConfig } = params;
+    const { chain: chain2, network, name, ...tokenConfig } = params;
     if (!chain2 || !name) {
       throw new MoneyError("INVALID_PARAMS", "Missing required params: chain and name", {
         note: 'Provide chain and name:\n  await money.registerToken({ chain: "fast", name: "MYTOKEN", address: "0x...", decimals: 18 })'
       });
     }
     const config = await loadConfig();
-    const resolved = resolveChainKey(chain2, config.chains);
+    const resolved = resolveChainKey(chain2, config.chains, network);
     if (!resolved) {
       throw new MoneyError("CHAIN_NOT_CONFIGURED", `Chain "${chain2}" is not configured.`, {
         chain: chain2,
@@ -65031,9 +65034,9 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
     await setAlias(key, name, tokenConfig);
   },
   async tokens(params) {
-    const { chain: chain2 } = params;
+    const { chain: chain2, network } = params;
     const config = await loadConfig();
-    const resolved = resolveChainKey(chain2, config.chains);
+    const resolved = resolveChainKey(chain2, config.chains, network);
     if (!resolved)
       return { tokens: [], note: "" };
     const aliasResults = await getAliases(resolved.key);

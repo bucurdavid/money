@@ -75,7 +75,7 @@ Stop. Tell the user this skill cannot help with: trading, swapping, DeFi, yield,
 
 ## Rules
 
-1. **Default is testnet.** Testnet is safe. Mainnet uses real money — opt in explicitly with `{ network: "mainnet" }`.
+1. **Default is testnet.** Never pass `network: "mainnet"` unless the user explicitly requested mainnet. If unsure, always use testnet. Mainnet uses real money.
 2. **Sends are irreversible.** Verify the address before calling `send()`.
 3. **Amounts are in human units.** `10` means 10 tokens, not 10 wei or 10 lamports.
 
@@ -99,6 +99,8 @@ const w = await money.setup({ chain: "base", network: "mainnet", rpc: "https://y
 
 Same call for every chain. Only the `chain` value changes. RPC is stored permanently — no need to pass it again.
 
+**Mainnet requires explicit user consent.** Only call `setup({ network: "mainnet" })` when the user specifically asks for mainnet. When in doubt, confirm with the user first.
+
 ---
 
 ## Send Tokens
@@ -121,6 +123,9 @@ const tx = await money.send({ to: "0x1234...abcd", amount: 1.5, chain: "ethereum
 
 // Send non-native token
 const tx = await money.send({ to: "0x1234...abcd", amount: 25, chain: "base", token: "USDC" });
+
+// Send on mainnet — requires prior setup with network: "mainnet"
+const tx = await money.send({ to: "0x1234...abcd", amount: 1.5, chain: "ethereum", network: "mainnet" });
 ```
 
 ### Don't know the chain? Use identifyChains
@@ -143,6 +148,9 @@ const bal = await money.balance({ chain: "fast" });
 
 // Check a specific token
 const bal = await money.balance({ chain: "base", token: "USDC" });
+
+// Check mainnet balance
+const bal = await money.balance({ chain: "base", network: "mainnet" });
 ```
 
 For balances across all configured chains, use `money.status()`.
@@ -245,9 +253,13 @@ Native token works immediately after `setup()` — no configuration needed.
 For other tokens, register a named token once and use it by name forever:
 
 ```js
-// Register a named token once, use by name forever
-await money.registerToken({ chain: "base", name: "USDC", address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 });
+// Register a named token — separate registration per network (different contract addresses)
+await money.registerToken({ chain: "base", name: "USDC", address: "0x036CbD53842c5426634e7929541eC2318f3dCF7e", decimals: 6 });
+await money.registerToken({ chain: "base", network: "mainnet", name: "USDC", address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6 });
+
+// Use by name — network selects the right contract address
 await money.send({ to: "0x1234...abcd", amount: 25, chain: "base", token: "USDC" });
+await money.send({ to: "0x1234...abcd", amount: 25, chain: "base", network: "mainnet", token: "USDC" });
 
 // Look up or list tokens
 const info = await money.getToken({ chain: "base", name: "USDC" });
@@ -275,6 +287,7 @@ const { tokens } = await money.tokens({ chain: "base" });
 const { entries } = await money.history();                          // all chains
 const { entries } = await money.history({ chain: "fast" });         // one chain
 const { entries } = await money.history({ limit: 5 });              // last 5
+const { entries } = await money.history({ chain: "base", network: "mainnet" }); // mainnet only
 
 // Each entry: { ts, chain, network, to, amount, token, txHash }
 ```
@@ -286,15 +299,15 @@ const { entries } = await money.history({ limit: 5 });              // last 5
 | Method | Returns |
 |--------|---------|
 | `money.setup({ chain, network?, rpc? })` | `{ chain, address, network, note }` |
-| `money.status()` | `{ entries: [{ chain, address, network, defaultToken, status, balance? }], note }` |
-| `money.balance({ chain, token? })` | `{ amount, token, chain, network, address, note }` |
-| `money.send({ to, amount, chain, token? })` | `{ txHash, explorerUrl, fee, chain, network, note }` |
-| `money.faucet({ chain })` | `{ amount, token, txHash, chain, network, note }` |
+| `money.status()` | `{ entries: [...], note }` |
+| `money.balance({ chain, network?, token? })` | `{ amount, token, chain, network, address, note }` |
+| `money.send({ to, amount, chain, network?, token? })` | `{ txHash, explorerUrl, fee, chain, network, note }` |
+| `money.faucet({ chain, network? })` | `{ amount, token, txHash, chain, network, note }` |
 | `money.identifyChains({ address })` | `{ chains: string[], note }` |
-| `money.getToken({ chain, name })` | `TokenInfo` or `null` |
-| `money.registerToken({ chain, name, address?, mint?, decimals? })` | `void` |
-| `money.tokens({ chain })` | `{ tokens: TokenInfo[], note }` |
-| `money.history({ chain?, limit? })` | `{ entries: [{ ts, chain, network, to, amount, token, txHash }], note }` |
+| `money.getToken({ chain, network?, name })` | `TokenInfo` or `null` |
+| `money.registerToken({ chain, network?, name, address?, mint?, decimals? })` | `void` |
+| `money.tokens({ chain, network? })` | `{ tokens: TokenInfo[], note }` |
+| `money.history({ chain?, network?, limit? })` | `{ entries: [...], note }` |
 
 All errors: `{ code, message, note }`. The `note` field contains a code example showing how to fix the error.
 `token` is optional. When omitted, the chain's native token is used: SET (Fast), ETH (Base/Ethereum/Arbitrum), SOL (Solana).
