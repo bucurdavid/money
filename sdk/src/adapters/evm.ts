@@ -247,10 +247,18 @@ export function createEvmAdapter(
 
   async function readContract(params: {
     address: string;
-    abi: unknown[];
+    abi?: unknown[];
+    idl?: unknown;
+    accounts?: Record<string, string>;
     functionName: string;
     args?: unknown[];
   }): Promise<unknown> {
+    if (!params.abi || !Array.isArray(params.abi)) {
+      throw new MoneyError('INVALID_PARAMS', 'EVM readContract requires "abi" parameter.', {
+        chain: chainName,
+        note: 'Provide an ABI array:\n  await money.readContract({ chain: "base", address: "0x...", abi: [...], functionName: "..." })',
+      });
+    }
     const result = await publicClient.readContract({
       address: params.address as `0x${string}`,
       abi: params.abi as readonly Record<string, unknown>[],
@@ -264,12 +272,20 @@ export function createEvmAdapter(
 
   async function writeContract(params: {
     address: string;
-    abi: unknown[];
+    abi?: unknown[];
+    idl?: unknown;
+    accounts?: Record<string, string>;
     functionName: string;
     args?: unknown[];
     value?: bigint;
     keyfile: string;
   }): Promise<{ txHash: string; explorerUrl: string; fee: string }> {
+    if (!params.abi || !Array.isArray(params.abi)) {
+      throw new MoneyError('INVALID_PARAMS', 'EVM writeContract requires "abi" parameter.', {
+        chain: chainName,
+        note: 'Provide an ABI array:\n  await money.writeContract({ chain: "base", address: "0x...", abi: [...], functionName: "..." })',
+      });
+    }
     try {
       const txHash = await withKey(params.keyfile, async (kp) => {
         const account = privateKeyToAccount(`0x${kp.privateKey}` as `0x${string}`);
@@ -313,6 +329,63 @@ export function createEvmAdapter(
     }
   }
 
+  // ─── fetchContractInterface ─────────────────────────────────────────────────
+
+  async function fetchContractInterface(address: string): Promise<{
+    name: string | null;
+    abi: unknown[] | null;
+    idl: unknown | null;
+  }> {
+    const chainId = viemChain.id;
+    const url = `https://sourcify.dev/server/files/any/${chainId}/${address}`;
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        return { name: null, abi: null, idl: null };
+      }
+
+      const data = await res.json() as {
+        files?: Array<{ name: string; content: string }>;
+      };
+
+      if (!data.files || !Array.isArray(data.files)) {
+        return { name: null, abi: null, idl: null };
+      }
+
+      // Find metadata.json which contains the ABI and contract name
+      const metadataFile = data.files.find((f) => f.name === 'metadata.json');
+      if (!metadataFile) {
+        return { name: null, abi: null, idl: null };
+      }
+
+      const metadata = JSON.parse(metadataFile.content) as {
+        output?: {
+          abi?: unknown[];
+          devdoc?: { title?: string };
+        };
+        settings?: { compilationTarget?: Record<string, string> };
+      };
+
+      const abi = metadata.output?.abi ?? null;
+
+      // Extract contract name from compilationTarget or devdoc
+      let name: string | null = null;
+      const compilationTarget = metadata.settings?.compilationTarget;
+      if (compilationTarget) {
+        const values = Object.values(compilationTarget);
+        if (values.length > 0) name = values[0]!;
+      }
+      if (!name) {
+        name = metadata.output?.devdoc?.title ?? null;
+      }
+
+      return { name, abi: abi as unknown[] | null, idl: null };
+    } catch {
+      return { name: null, abi: null, idl: null };
+    }
+  }
+
   // ─── Assemble adapter ────────────────────────────────────────────────────────
 
   return {
@@ -324,5 +397,6 @@ export function createEvmAdapter(
     faucet,
     readContract,
     writeContract,
+    fetchContractInterface,
   };
 }

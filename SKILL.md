@@ -323,7 +323,9 @@ Built-in chains (`fast`, `base`, `ethereum`, `arbitrum`, `solana`) cannot be ove
 
 ## Contract Calls
 
-Read or write any smart contract on EVM chains (Base, Ethereum, Arbitrum, and custom EVM chains). Not available on Fast or Solana.
+Read or write any smart contract on EVM chains and Solana. Same methods, different interface definitions: EVM uses `abi`, Solana uses `idl`.
+
+### EVM (Base, Ethereum, Arbitrum, custom EVM chains)
 
 ```js
 // Read a view function (no gas, no wallet needed)
@@ -335,15 +337,6 @@ const r = await money.readContract({
 });
 // r = { result: 1000000000000000000n, chain: "base", network: "testnet", note: "" }
 
-// Read with arguments
-const r = await money.readContract({
-  chain: "base",
-  address: "0xTokenAddress...",
-  abi: [{ name: "balanceOf", type: "function", stateMutability: "view", inputs: [{ name: "account", type: "address" }], outputs: [{ name: "", type: "uint256" }] }],
-  functionName: "balanceOf",
-  args: ["0xWalletAddress..."],
-});
-
 // Write a state-changing function (costs gas, uses wallet)
 const tx = await money.writeContract({
   chain: "base",
@@ -351,24 +344,73 @@ const tx = await money.writeContract({
   abi: [{ name: "mint", type: "function", stateMutability: "nonpayable", inputs: [{ name: "amount", type: "uint256" }], outputs: [] }],
   functionName: "mint",
   args: [100],
+  value: "0.5",  // optional: send native ETH with the call (for payable fns)
 });
 // tx = { txHash, explorerUrl, fee, chain: "base", network: "testnet", note: "" }
+```
 
-// Payable function — send native ETH with the call
+### Solana (Anchor programs)
+
+```js
+// Read (simulate) — returns logs and return data
+const r = await money.readContract({
+  chain: "solana",
+  address: "ProgramId...",
+  idl: { /* Anchor IDL */ },
+  functionName: "get_count",
+  accounts: { counter: "CounterAddress..." },
+});
+// r = { result: { logs: [...], returnData: ..., unitsConsumed: ... }, chain: "solana", network: "testnet", note: "" }
+
+// Write — sends a transaction
 const tx = await money.writeContract({
+  chain: "solana",
+  address: "ProgramId...",
+  idl: { /* Anchor IDL */ },
+  functionName: "increment",
+  args: [1],
+  accounts: {
+    counter: "CounterAddress...",
+    authority: "AuthorityAddress...",
+  },
+  value: "0.1",  // optional: send SOL alongside the instruction
+});
+// tx = { txHash, explorerUrl, fee, chain: "solana", network: "testnet", note: "" }
+```
+
+Well-known accounts (`systemProgram`, `tokenProgram`, `associatedTokenProgram`, `rent`, `clock`) are auto-resolved — you only need to provide program-specific accounts.
+
+### Contract Discovery
+
+Don't know the ABI or IDL? Fetch it:
+
+```js
+// EVM — fetches ABI from Sourcify (decentralized, no API key)
+const contract = await money.fetchContractInterface({ chain: "base", address: "0xContract..." });
+// { name: "MyToken", abi: [...], idl: null, ... }
+
+// Solana — fetches IDL from on-chain (Anchor programs)
+const contract = await money.fetchContractInterface({ chain: "solana", address: "ProgramId..." });
+// { name: "my_program", abi: null, idl: {...}, ... }
+
+// Then use it
+await money.readContract({
   chain: "base",
-  address: "0xContractAddress...",
-  abi: [{ name: "deposit", type: "function", stateMutability: "payable", inputs: [], outputs: [] }],
-  functionName: "deposit",
-  value: "0.5",  // 0.5 ETH in human units
+  address: "0xContract...",
+  abi: contract.abi,
+  functionName: "totalSupply",
 });
 ```
 
-`abi` is a standard JSON ABI array. Only include the function(s) you need — you don't need the full contract ABI.
+Returns `null` for `abi`/`idl` if no verified interface is found (EVM: contract not on Sourcify; Solana: no Anchor IDL published on-chain).
 
-`result` type depends on the contract: could be `bigint`, `string`, `boolean`, a tuple, etc.
+### Notes
 
-`value` is in human units (like `send()`). `"0.5"` means 0.5 ETH, not 0.5 wei. Only needed for payable functions.
+- **EVM `abi`**: standard JSON ABI array. Only include the function(s) you need.
+- **Solana `idl`**: Anchor IDL object. Fetch it with `fetchContractInterface` or provide it directly.
+- **`result`** type depends on the contract. EVM: could be `bigint`, `string`, `boolean`, tuple. Solana: `{ logs, returnData, unitsConsumed }`.
+- **`value`** is in human units. `"0.5"` = 0.5 ETH or 0.5 SOL.
+- **`args`** use raw units (wei/lamports). Use `toRawUnits` to convert.
 
 **Note:** `args` in contract calls use raw units (wei/smallest denomination), not human units. Use `toRawUnits` to convert:
 
@@ -444,8 +486,9 @@ const { entries } = await money.history({ chain: "base", network: "mainnet" }); 
 | `money.getToken({ chain, network?, name })` | `TokenInfo` or `null` |
 | `money.registerToken({ chain, network?, name, address?, mint?, decimals? })` | `void` |
 | `money.tokens({ chain, network? })` | `{ tokens: TokenInfo[], note }` |
-| `money.readContract({ chain, network?, address, abi, functionName, args? })` | `{ result, chain, network, note }` |
-| `money.writeContract({ chain, network?, address, abi, functionName, args?, value? })` | `{ txHash, explorerUrl, fee, chain, network, note }` |
+| `money.readContract({ chain, network?, address, abi?, idl?, accounts?, functionName, args? })` | `{ result, chain, network, note }` |
+| `money.writeContract({ chain, network?, address, abi?, idl?, accounts?, functionName, args?, value? })` | `{ txHash, explorerUrl, fee, chain, network, note }` |
+| `money.fetchContractInterface({ chain, network?, address })` | `{ name, abi, idl, chain, network, address, note }` |
 | `money.toRawUnits({ amount, chain?, network?, token?, decimals? })` | `bigint` |
 | `money.toHumanUnits({ amount, chain?, network?, token?, decimals? })` | `string` |
 | `money.history({ chain?, network?, limit? })` | `{ entries: [...], note }` |

@@ -40,6 +40,8 @@ import type {
   ReadContractResult,
   WriteContractParams,
   WriteContractResult,
+  FetchContractInterfaceParams,
+  FetchContractInterfaceResult,
   ParseUnitsParams,
   FormatUnitsParams,
   CustomChainDef,
@@ -76,6 +78,8 @@ export type {
   ReadContractResult,
   WriteContractParams,
   WriteContractResult,
+  FetchContractInterfaceParams,
+  FetchContractInterfaceResult,
   ParseUnitsParams,
   FormatUnitsParams,
   RegisterEvmChainParams,
@@ -495,7 +499,7 @@ export const money = {
   },
 
   async readContract(params: ReadContractParams): Promise<ReadContractResult> {
-    const { chain, network, address, abi, functionName, args } = params;
+    const { chain, network, address, abi, idl, accounts, functionName, args } = params;
 
     if (!chain) {
       throw new MoneyError('INVALID_PARAMS', 'Missing required param: chain', {
@@ -507,14 +511,15 @@ export const money = {
         note: 'Provide the contract address:\n  await money.readContract({ chain: "base", address: "0x...", abi: [...], functionName: "totalSupply" })',
       });
     }
-    if (!abi || !Array.isArray(abi)) {
-      throw new MoneyError('INVALID_PARAMS', 'Missing or invalid param: abi (must be an array)', {
-        note: 'Provide the contract ABI as an array:\n  await money.readContract({ chain: "base", address: "0x...", abi: [{ name: "totalSupply", type: "function", ... }], functionName: "totalSupply" })',
-      });
-    }
     if (!functionName) {
       throw new MoneyError('INVALID_PARAMS', 'Missing required param: functionName', {
         note: 'Provide the function to call:\n  await money.readContract({ chain: "base", address: "0x...", abi: [...], functionName: "totalSupply" })',
+      });
+    }
+    // Must provide either abi (EVM) or idl (Solana)
+    if (!abi && !idl) {
+      throw new MoneyError('INVALID_PARAMS', 'Provide either "abi" (EVM) or "idl" (Solana) to describe the contract interface.', {
+        note: 'EVM:\n  await money.readContract({ chain: "base", address: "0x...", abi: [...], functionName: "..." })\nSolana:\n  await money.readContract({ chain: "solana", address: "...", idl: {...}, functionName: "..." })',
       });
     }
 
@@ -530,13 +535,13 @@ export const money = {
     const adapter = await getAdapter(key);
 
     if (!adapter.readContract) {
-      throw new MoneyError('UNSUPPORTED_OPERATION', `readContract is only supported on EVM chains. "${chain}" does not support contract calls.`, {
+      throw new MoneyError('UNSUPPORTED_OPERATION', `readContract is not supported on chain "${chain}".`, {
         chain,
-        note: `Use an EVM chain (base, ethereum, arbitrum) or a registered custom EVM chain.`,
+        note: `readContract is supported on EVM chains and Solana.`,
       });
     }
 
-    const result = await adapter.readContract({ address, abi, functionName, args });
+    const result = await adapter.readContract({ address, abi, idl, accounts, functionName, args });
     const { chain: resolvedChain, network: resolvedNetwork } = parseConfigKey(key);
 
     return {
@@ -548,7 +553,7 @@ export const money = {
   },
 
   async writeContract(params: WriteContractParams): Promise<WriteContractResult> {
-    const { chain, network, address, abi, functionName, args, value } = params;
+    const { chain, network, address, abi, idl, accounts, functionName, args, value } = params;
 
     if (!chain) {
       throw new MoneyError('INVALID_PARAMS', 'Missing required param: chain', {
@@ -560,14 +565,14 @@ export const money = {
         note: 'Provide the contract address:\n  await money.writeContract({ chain: "base", address: "0x...", abi: [...], functionName: "mint", args: [100] })',
       });
     }
-    if (!abi || !Array.isArray(abi)) {
-      throw new MoneyError('INVALID_PARAMS', 'Missing or invalid param: abi (must be an array)', {
-        note: 'Provide the contract ABI as an array:\n  await money.writeContract({ chain: "base", address: "0x...", abi: [...], functionName: "mint", args: [100] })',
-      });
-    }
     if (!functionName) {
       throw new MoneyError('INVALID_PARAMS', 'Missing required param: functionName', {
         note: 'Provide the function to call:\n  await money.writeContract({ chain: "base", address: "0x...", abi: [...], functionName: "mint", args: [100] })',
+      });
+    }
+    if (!abi && !idl) {
+      throw new MoneyError('INVALID_PARAMS', 'Provide either "abi" (EVM) or "idl" (Solana) to describe the contract interface.', {
+        note: 'EVM:\n  await money.writeContract({ chain: "base", address: "0x...", abi: [...], functionName: "..." })\nSolana:\n  await money.writeContract({ chain: "solana", address: "...", idl: {...}, functionName: "...", accounts: {...} })',
       });
     }
 
@@ -583,20 +588,28 @@ export const money = {
     const adapter = await getAdapter(key);
 
     if (!adapter.writeContract) {
-      throw new MoneyError('UNSUPPORTED_OPERATION', `writeContract is only supported on EVM chains. "${chain}" does not support contract calls.`, {
+      throw new MoneyError('UNSUPPORTED_OPERATION', `writeContract is not supported on chain "${chain}".`, {
         chain,
-        note: `Use an EVM chain (base, ethereum, arbitrum) or a registered custom EVM chain.`,
+        note: `writeContract is supported on EVM chains and Solana.`,
       });
     }
 
     const keyfilePath = expandHome(chainConfig.keyfile);
-    const valueBigInt = value ? parseUnits(value, 18) : undefined;
+
+    // Convert value from human units to raw — EVM uses 18 decimals, Solana uses 9
+    let valueBigInt: bigint | undefined;
+    if (value) {
+      const decimals = idl ? 9 : 18; // Solana (SOL=9) vs EVM (ETH=18)
+      valueBigInt = parseUnits(value, decimals);
+    }
 
     let result: { txHash: string; explorerUrl: string; fee: string };
     try {
       result = await adapter.writeContract({
         address,
         abi,
+        idl,
+        accounts,
         functionName,
         args,
         value: valueBigInt,
@@ -605,7 +618,7 @@ export const money = {
     } catch (err: unknown) {
       if (err instanceof MoneyError) throw err;
       const msg = err instanceof Error ? err.message : String(err);
-      throw new MoneyError('TX_FAILED', msg, { chain, note: `Wait 5 seconds, then retry:\n  await money.writeContract({ chain: "${chain}", address: "${address}", abi: [...], functionName: "${functionName}" })` });
+      throw new MoneyError('TX_FAILED', msg, { chain, note: `Wait 5 seconds, then retry:\n  await money.writeContract({ chain: "${chain}", address: "${address}", ... })` });
     }
 
     // Record in history
@@ -621,6 +634,57 @@ export const money = {
     });
 
     return { ...result, chain: sentChain, network: sentNetwork as NetworkType, note: '' };
+  },
+
+  async fetchContractInterface(params: FetchContractInterfaceParams): Promise<FetchContractInterfaceResult> {
+    const { chain, network, address } = params;
+
+    if (!chain) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: chain', {
+        note: 'Provide a chain name:\n  await money.fetchContractInterface({ chain: "base", address: "0x..." })',
+      });
+    }
+    if (!address) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: address', {
+        note: 'Provide the contract address:\n  await money.fetchContractInterface({ chain: "base", address: "0x..." })',
+      });
+    }
+
+    const config = await loadConfig();
+    const resolved = resolveChainKey(chain, config.chains, network);
+    if (!resolved) {
+      throw new MoneyError('CHAIN_NOT_CONFIGURED', `Chain "${chain}" is not configured.`, {
+        chain,
+        note: `Run setup first:\n  await money.setup({ chain: "${chain}" })`,
+      });
+    }
+    const { key } = resolved;
+    const adapter = await getAdapter(key);
+
+    if (!adapter.fetchContractInterface) {
+      throw new MoneyError('UNSUPPORTED_OPERATION', `fetchContractInterface is not supported on chain "${chain}".`, {
+        chain,
+        note: `fetchContractInterface is supported on EVM chains and Solana.`,
+      });
+    }
+
+    const result = await adapter.fetchContractInterface(address);
+    const { chain: resolvedChain, network: resolvedNetwork } = parseConfigKey(key);
+
+    let note = '';
+    if (!result.abi && !result.idl) {
+      note = `No verified contract interface found for ${address} on ${chain}. For EVM: contract may not be verified on Sourcify. For Solana: program may not have published an Anchor IDL on-chain.`;
+    }
+
+    return {
+      chain: resolvedChain,
+      network: resolvedNetwork as NetworkType,
+      address,
+      name: result.name,
+      abi: result.abi,
+      idl: result.idl,
+      note,
+    };
   },
 
   async toRawUnits(params: ParseUnitsParams): Promise<bigint> {

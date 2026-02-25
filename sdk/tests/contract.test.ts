@@ -175,7 +175,7 @@ describe('money.readContract', () => {
       (err: unknown) => {
         assert.ok(err instanceof MoneyError);
         assert.equal((err as MoneyError).code, 'UNSUPPORTED_OPERATION');
-        assert.ok((err as MoneyError).message.includes('EVM'));
+        assert.ok((err as MoneyError).message.includes('fast'));
         return true;
       },
     );
