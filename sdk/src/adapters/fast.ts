@@ -178,7 +178,7 @@ export function addressToPubkey(address: string): Uint8Array {
 // JSON helper for Uint8Array serialization
 // ---------------------------------------------------------------------------
 
-export function toJSON(data: unknown): string {
+function toJSON(data: unknown): string {
   return JSON.stringify(data, (_k, v) => {
     if (v instanceof Uint8Array) return Array.from(v);
     if (typeof v === 'bigint') return Number(v);

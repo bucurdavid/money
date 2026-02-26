@@ -22,7 +22,7 @@ export interface WellKnownToken {
 const EVM_NATIVE = '0x0000000000000000000000000000000000000000';
 const WSOL_MINT = 'So11111111111111111111111111111111111111112';
 
-export const WELL_KNOWN_TOKENS: WellKnownToken[] = [
+const WELL_KNOWN_TOKENS: WellKnownToken[] = [
   {
     symbol: 'USDC',
     decimals: 6,

@@ -6,95 +6,19 @@
  * functions that return them for immediate use by withKey).
  */
 
-import {
-  randomBytes,
-  createPrivateKey,
-  createPublicKey,
-  sign as cryptoSign,
-} from 'node:crypto';
-import { open, readFile, mkdir, copyFile } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
+import { open, readFile, mkdir, copyFile, chmod } from 'node:fs/promises';
 import { dirname, basename, join } from 'node:path';
 import { constants } from 'node:fs';
 import { expandHome } from './utils.js';
 import * as ed from '@noble/ed25519';
+import * as secp from '@noble/secp256k1';
 import { sha512 } from '@noble/hashes/sha512';
 
 // Required for @noble/ed25519 synchronous hashing in Node.js
 ed.etc.sha512Sync = (...msgs: Uint8Array[]) => sha512(
   msgs.length === 1 ? msgs[0] : new Uint8Array(msgs.reduce((a, m) => { const r = new Uint8Array(a.length + m.length); r.set(a); r.set(m, a.length); return r; }, new Uint8Array(0)))
 );
-
-// ─── secp256k1 DER helpers ────────────────────────────────────────────────────
-//
-// SEC1 DER layout for a secp256k1 private key:
-//   SEQUENCE {
-//     INTEGER 1                          -- version
-//     OCTET STRING (32 bytes)            -- private key
-//     [0] EXPLICIT OID secp256k1         -- curve
-//   }
-//
-// Byte layout:
-//   30 2e                               -- SEQUENCE, 46 bytes
-//     02 01 01                          -- INTEGER 1
-//     04 20 [32 bytes]                  -- OCTET STRING
-//     a0 07 06 05 2b 81 04 00 0a        -- [0] OID 1.3.132.0.10
-//
-// Total prefix (before private key): 7 bytes
-// Total suffix (after private key):  9 bytes
-//
-const SEC1_SECP256K1_PREFIX = Buffer.from([
-  0x30, 0x2e,               // SEQUENCE(46)
-  0x02, 0x01, 0x01,         // version = 1
-  0x04, 0x20,               // OCTET STRING(32)
-]);
-const SEC1_SECP256K1_SUFFIX = Buffer.from([
-  0xa0, 0x07,               // [0] EXPLICIT(7)
-  0x06, 0x05,               // OID(5)
-  0x2b, 0x81, 0x04, 0x00, 0x0a, // secp256k1 (1.3.132.0.10)
-]);
-
-//
-// SPKI DER layout for a secp256k1 uncompressed public key (65 bytes):
-//   SEQUENCE {
-//     SEQUENCE {
-//       OID ecPublicKey  (1.2.840.10045.2.1)
-//       OID secp256k1    (1.3.132.0.10)
-//     }
-//     BIT STRING {0x00, 0x04, x(32), y(32)}
-//   }
-//
-// The uncompressed point (04 || x || y) starts at byte offset 23.
-//
-const SPKI_SECP256K1_POINT_OFFSET = 23;
-
-function buildSec1Der(privKeyBuf: Buffer): Buffer {
-  return Buffer.concat([SEC1_SECP256K1_PREFIX, privKeyBuf, SEC1_SECP256K1_SUFFIX]);
-}
-
-function extractSpkiPublicKey(spkiDer: Buffer): Buffer {
-  // Returns the 65-byte uncompressed point (04 || x || y)
-  return spkiDer.slice(SPKI_SECP256K1_POINT_OFFSET);
-}
-
-/** Parse a DER-encoded ECDSA signature into r and s as hex strings. */
-function parseDerSignature(der: Buffer): { r: string; s: string } {
-  // 30 [total-len] 02 [r-len] [r-bytes] 02 [s-len] [s-bytes]
-  let offset = 2; // skip 0x30 and total length
-  if (der[offset] !== 0x02) throw new Error('Bad DER sig: expected INTEGER tag for r');
-  offset++;
-  const rLen = der[offset++];
-  const rBytes = der.slice(offset, offset + rLen);
-  offset += rLen;
-  if (der[offset] !== 0x02) throw new Error('Bad DER sig: expected INTEGER tag for s');
-  offset++;
-  const sLen = der[offset++];
-  const sBytes = der.slice(offset, offset + sLen);
-
-  // DER integers are big-endian and may have a leading 0x00 padding byte
-  const rHex = rBytes.toString('hex').replace(/^00/, '').padStart(64, '0');
-  const sHex = sBytes.toString('hex').replace(/^00/, '').padStart(64, '0');
-  return { r: rHex, s: sHex };
-}
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
@@ -115,19 +39,15 @@ export async function generateEd25519Key(): Promise<{ publicKey: string; private
 }
 
 /**
- * Generate a secp256k1 keypair using Node.js crypto.
+ * Generate a secp256k1 keypair.
  * Internal — callers should prefer withKey().
  */
 export async function generateSecp256k1Key(): Promise<{ publicKey: string; privateKey: string }> {
   const privKeyBuf = randomBytes(32);
   try {
-    const sec1Der = buildSec1Der(privKeyBuf);
-    const privKeyObj = createPrivateKey({ key: sec1Der, format: 'der', type: 'sec1' });
-    const pubKeyObj = createPublicKey(privKeyObj);
-    const spkiDer = pubKeyObj.export({ format: 'der', type: 'spki' }) as Buffer;
-    const pubKeyHex = extractSpkiPublicKey(spkiDer).toString('hex');
+    const pubKeyBytes = secp.getPublicKey(privKeyBuf, false); // false = uncompressed (65 bytes)
     return {
-      publicKey: pubKeyHex,
+      publicKey: Buffer.from(pubKeyBytes).toString('hex'),
       privateKey: privKeyBuf.toString('hex'),
     };
   } finally {
@@ -191,8 +111,6 @@ export async function saveKeyfile(
     await mkdir(backupDir, { recursive: true, mode: 0o700 });
     const backupPath = join(backupDir, basename(resolved));
     await copyFile(resolved, backupPath, constants.COPYFILE_EXCL);
-    // Lock down backup permissions
-    const { chmod } = await import('node:fs/promises');
     await chmod(backupPath, 0o400);
   } catch {
     // Backup is best-effort; primary keyfile was already written successfully
@@ -230,10 +148,7 @@ export async function verifyEd25519(
 
 /**
  * Sign a message hash with secp256k1 (ECDSA).
- * Returns r, s as 64-char hex strings and v as a recovery hint (0).
- *
- * Note: Node.js crypto does not expose the ECDSA recovery bit. v is always 0
- * here — adapters that need EIP-155 recovery must compute it themselves.
+ * Returns r, s as 64-char hex strings and v as the recovery bit (0 or 1).
  */
 export async function signSecp256k1(
   messageHash: Uint8Array,
@@ -241,12 +156,14 @@ export async function signSecp256k1(
 ): Promise<{ r: string; s: string; v: number }> {
   const privKeyBuf = Buffer.from(privateKeyHex, 'hex');
   try {
-    const sec1Der = buildSec1Der(privKeyBuf);
-    const privKeyObj = createPrivateKey({ key: sec1Der, format: 'der', type: 'sec1' });
-    // null algorithm = sign raw bytes (messageHash already hashed by caller)
-    const derSig = cryptoSign(null, Buffer.from(messageHash), privKeyObj) as Buffer;
-    const { r, s } = parseDerSignature(derSig);
-    return { r, s, v: 0 };
+    // format: 'recovered' returns 65 bytes: recovery(1) || r(32) || s(32)
+    const sigBytes = await secp.signAsync(messageHash, privKeyBuf, {
+      prehash: false,
+      format: 'recovered',
+    });
+    const rHex = Buffer.from(sigBytes.slice(1, 33)).toString('hex');
+    const sHex = Buffer.from(sigBytes.slice(33, 65)).toString('hex');
+    return { r: rHex, s: sHex, v: sigBytes[0] };
   } finally {
     privKeyBuf.fill(0);
   }

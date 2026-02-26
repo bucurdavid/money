@@ -139,22 +139,3 @@ export const debridgeProvider: BridgeProvider = {
   },
 };
 
-/** Check bridge order status */
-export async function checkBridgeStatus(orderId: string): Promise<{
-  status: string;
-  srcTxHash?: string;
-  dstTxHash?: string;
-}> {
-  const res = await fetch(`${BASE_URL}/dln/order/${orderId}/status`);
-  if (!res.ok) {
-    throw new Error(`DeBridge status check failed (${res.status})`);
-  }
-  const data = (await res.json()) as {
-    status: string;
-    fulfilledDstEventMetadata?: { transactionHash?: { stringValue?: string } };
-  };
-  return {
-    status: data.status,
-    dstTxHash: data.fulfilledDstEventMetadata?.transactionHash?.stringValue,
-  };
-}

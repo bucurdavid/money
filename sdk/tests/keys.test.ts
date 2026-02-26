@@ -295,11 +295,11 @@ describe('signSecp256k1', () => {
     assert.match(sig.s, /^[0-9a-f]{64}$/, 's should be lowercase hex');
   });
 
-  it('v is 0 (documented limitation of Node.js crypto)', async () => {
+  it('v is the ECDSA recovery bit (0 or 1)', async () => {
     const kp = await generateSecp256k1Key();
     const messageHash = new Uint8Array(32).fill(0x01);
     const sig = await signSecp256k1(messageHash, kp.privateKey);
-    assert.equal(sig.v, 0, 'v should always be 0');
+    assert.ok(sig.v === 0 || sig.v === 1, `v should be 0 or 1, got ${sig.v}`);
   });
 
   it('different messages produce different signatures', async () => {
