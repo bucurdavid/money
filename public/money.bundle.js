@@ -87908,7 +87908,11 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
   async verifySign(params) {
     const { chain: chain2, message, signature, address, network } = params;
     requireParam(chain2, "chain", 'Provide a chain name:\n  await money.verifySign({ chain: "base", message: "hello", signature: "0x...", address: "0x..." })');
-    requireParam(message, "message", "Provide the original message that was signed.");
+    if (message === void 0 || message === null) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: message", {
+        note: "Provide the original message that was signed."
+      });
+    }
     requireParam(signature, "signature", "Provide the signature to verify.");
     requireParam(address, "address", "Provide the address of the expected signer.");
     const { key } = await requireChainConfig(chain2, network);
