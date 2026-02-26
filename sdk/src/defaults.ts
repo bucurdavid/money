@@ -209,18 +209,18 @@ export const BUILT_IN_CHAIN_IDS: Record<string, { mainnet: number; testnet: numb
 };
 
 export const BUILT_IN_EXPLORERS: Record<string, { mainnet: string; testnet: string }> = {
-  ethereum:  { mainnet: 'https://etherscan.io/tx/',               testnet: 'https://sepolia.etherscan.io/tx/' },
-  base:      { mainnet: 'https://basescan.org/tx/',               testnet: 'https://sepolia.basescan.org/tx/' },
-  arbitrum:  { mainnet: 'https://arbiscan.io/tx/',                testnet: 'https://sepolia.arbiscan.io/tx/' },
-  polygon:   { mainnet: 'https://polygonscan.com/tx/',            testnet: 'https://amoy.polygonscan.com/tx/' },
-  optimism:  { mainnet: 'https://optimistic.etherscan.io/tx/',    testnet: 'https://sepolia-optimism.etherscan.io/tx/' },
-  bsc:       { mainnet: 'https://bscscan.com/tx/',                testnet: 'https://testnet.bscscan.com/tx/' },
-  avalanche: { mainnet: 'https://snowtrace.io/tx/',               testnet: 'https://testnet.snowtrace.io/tx/' },
-  fantom:    { mainnet: 'https://ftmscan.com/tx/',                testnet: 'https://testnet.ftmscan.com/tx/' },
-  zksync:    { mainnet: 'https://explorer.zksync.io/tx/',         testnet: 'https://sepolia.explorer.zksync.io/tx/' },
-  linea:     { mainnet: 'https://lineascan.build/tx/',            testnet: 'https://sepolia.lineascan.build/tx/' },
-  scroll:    { mainnet: 'https://scrollscan.com/tx/',             testnet: 'https://sepolia.scrollscan.com/tx/' },
-  solana:    { mainnet: 'https://solscan.io/tx/',                 testnet: 'https://solscan.io/tx/' },
+  ethereum:  { mainnet: 'https://etherscan.io',               testnet: 'https://sepolia.etherscan.io' },
+  base:      { mainnet: 'https://basescan.org',               testnet: 'https://sepolia.basescan.org' },
+  arbitrum:  { mainnet: 'https://arbiscan.io',                testnet: 'https://sepolia.arbiscan.io' },
+  polygon:   { mainnet: 'https://polygonscan.com',            testnet: 'https://amoy.polygonscan.com' },
+  optimism:  { mainnet: 'https://optimistic.etherscan.io',    testnet: 'https://sepolia-optimism.etherscan.io' },
+  bsc:       { mainnet: 'https://bscscan.com',                testnet: 'https://testnet.bscscan.com' },
+  avalanche: { mainnet: 'https://snowtrace.io',               testnet: 'https://testnet.snowtrace.io' },
+  fantom:    { mainnet: 'https://ftmscan.com',                testnet: 'https://testnet.ftmscan.com' },
+  zksync:    { mainnet: 'https://explorer.zksync.io',         testnet: 'https://sepolia.explorer.zksync.io' },
+  linea:     { mainnet: 'https://lineascan.build',            testnet: 'https://sepolia.lineascan.build' },
+  scroll:    { mainnet: 'https://scrollscan.com',             testnet: 'https://sepolia.scrollscan.com' },
+  solana:    { mainnet: 'https://solscan.io',                 testnet: 'https://solscan.io' },
 };
 
 /**

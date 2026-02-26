@@ -279,7 +279,7 @@ function getExplorerUrl(chain: string, txHash: string, chainConfig: ChainConfig)
   const entry = BUILT_IN_EXPLORERS[chain];
   if (!entry) return '';
   const baseUrl = chainConfig.network === 'mainnet' ? entry.mainnet : entry.testnet;
-  return `${baseUrl}${txHash}`;
+  return `${baseUrl}/tx/${txHash}`;
 }
 
 /**
