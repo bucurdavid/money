@@ -4,8 +4,8 @@
  * Decimal/amount conversion and path helpers.
  */
 
-import os from 'os';
-import path from 'path';
+import os from 'node:os';
+import path from 'node:path';
 
 /**
  * Expand `~` in a path string to the user's home directory.

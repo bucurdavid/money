@@ -22,7 +22,7 @@ import {
   listBridgeProviders,
   listPriceProviders,
 } from './providers/registry.js';
-import { resolveTokenAddress, NATIVE_TOKEN_ADDRESS, NATIVE_TOKEN_DECIMALS, NATIVE_TOKEN_SYMBOL } from './providers/tokens.js';
+import { resolveTokenAddress } from './providers/tokens.js';
 import { jupiterProvider } from './providers/jupiter.js';
 import { paraswapProvider } from './providers/paraswap.js';
 import { dexscreenerProvider } from './providers/dexscreener.js';

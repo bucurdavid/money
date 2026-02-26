@@ -67758,8 +67758,8 @@ async function setCustomChain(name, def) {
 }
 
 // dist/src/utils.js
-import os2 from "os";
-import path2 from "path";
+import os2 from "node:os";
+import path2 from "node:path";
 function expandHome(p) {
   if (p === "~")
     return os2.homedir();
