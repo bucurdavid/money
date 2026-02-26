@@ -2,6 +2,9 @@ export interface ChainAdapter {
   chain: string;
   addressPattern: RegExp;
 
+  /** Build a block-explorer URL for a transaction hash. */
+  explorerUrl(txHash: string): string;
+
   getBalance(address: string, token?: string): Promise<{ amount: string; token: string }>;
 
   send(params: {

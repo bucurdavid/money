@@ -330,6 +330,9 @@ export function createEvmAdapter(
   return {
     chain: chainName,
     addressPattern: ADDRESS_PATTERN,
+    explorerUrl(txHash: string): string {
+      return explorerBaseUrl ? `${explorerBaseUrl}/tx/${txHash}` : '';
+    },
     setupWallet,
     getBalance,
     send,

@@ -241,6 +241,10 @@ export function createFastAdapter(rpcUrl: string, network: string = 'testnet'): 
     chain: 'fast',
     addressPattern: ADDRESS_PATTERN,
 
+    explorerUrl(txHash: string): string {
+      return `${EXPLORER_BASE}/${txHash}`;
+    },
+
     // -----------------------------------------------------------------------
     // setupWallet: idempotent — loads existing or generates new
     // -----------------------------------------------------------------------

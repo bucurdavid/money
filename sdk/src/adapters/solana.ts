@@ -474,6 +474,7 @@ export function createSolanaAdapter(
   return {
     chain: 'solana',
     addressPattern: ADDRESS_PATTERN,
+    explorerUrl: explorerUrl,
     setupWallet,
     getBalance,
     send,

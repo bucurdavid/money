@@ -8,7 +8,7 @@ import { loadKeyfile, withKey } from './keys.js';
 import { identifyChains, isValidAddress } from './detect.js';
 import { MoneyError } from './errors.js';
 import { getAdapter, evictAdapter, _resetAdapterCache } from './registry.js';
-import { DEFAULT_CHAIN_CONFIGS, configKey, parseConfigKey, supportedChains, BUILT_IN_CHAIN_IDS, BUILT_IN_EXPLORERS } from './defaults.js';
+import { DEFAULT_CHAIN_CONFIGS, configKey, parseConfigKey, supportedChains, BUILT_IN_CHAIN_IDS } from './defaults.js';
 import { getAlias, setAlias, getAliases } from './aliases.js';
 import { appendHistory, readHistory } from './history.js';
 import {
@@ -270,17 +270,6 @@ function getBuiltInChainId(chain: string, network: string): number {
   return network === 'mainnet' ? ids.mainnet : ids.testnet;
 }
 
-/**
- * Build an explorer URL for a transaction.
- * Checks custom chains first, then built-in explorer map.
- * Uses chainConfig.network to pick mainnet or testnet explorer.
- */
-function getExplorerUrl(chain: string, txHash: string, chainConfig: ChainConfig): string {
-  const entry = BUILT_IN_EXPLORERS[chain];
-  if (!entry) return '';
-  const baseUrl = chainConfig.network === 'mainnet' ? entry.mainnet : entry.testnet;
-  return `${baseUrl}/tx/${txHash}`;
-}
 
 /**
  * Create an EvmTxExecutor for a given chain config.
@@ -1058,8 +1047,9 @@ export const money = {
       apiKey,
     });
 
-    // Get explorer URL from adapter
-    const explorerUrl = getExplorerUrl(chain, result.txHash, chainConfig);
+    // Build explorer URL from the chain adapter
+    const adapter = await getAdapter(key);
+    const explorerUrl = adapter.explorerUrl(result.txHash);
 
     // Record in history
     const { chain: sentChain, network: sentNetwork } = parseConfigKey(key);
@@ -1267,7 +1257,9 @@ export const money = {
       apiKey,
     });
 
-    const explorerUrl = getExplorerUrl(from.chain, result.txHash, srcResolved.chainConfig);
+    // Build explorer URL from the source chain adapter
+    const srcAdapter = await getAdapter(srcResolved.key);
+    const explorerUrl = srcAdapter.explorerUrl(result.txHash);
 
     // Record in history
     const { chain: sentChain, network: sentNetwork } = parseConfigKey(srcResolved.key);

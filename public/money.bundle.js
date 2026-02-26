@@ -70300,6 +70300,9 @@ function createFastAdapter(rpcUrl, network = "testnet") {
   const adapter = {
     chain: "fast",
     addressPattern: ADDRESS_PATTERN,
+    explorerUrl(txHash) {
+      return `${EXPLORER_BASE}/${txHash}`;
+    },
     // -----------------------------------------------------------------------
     // setupWallet: idempotent — loads existing or generates new
     // -----------------------------------------------------------------------
@@ -71102,6 +71105,9 @@ function createEvmAdapter(chainName, rpcUrl, explorerBaseUrl, aliases, viemChain
   return {
     chain: chainName,
     addressPattern: ADDRESS_PATTERN2,
+    explorerUrl(txHash) {
+      return explorerBaseUrl ? `${explorerBaseUrl}/tx/${txHash}` : "";
+    },
     setupWallet,
     getBalance: getBalance2,
     send,
@@ -71392,6 +71398,7 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
   return {
     chain: "solana",
     addressPattern: ADDRESS_PATTERN3,
+    explorerUrl,
     setupWallet,
     getBalance: getBalance2,
     send,
@@ -87423,13 +87430,6 @@ function getBuiltInChainId(chain2, network) {
     return 1;
   return network === "mainnet" ? ids.mainnet : ids.testnet;
 }
-function getExplorerUrl(chain2, txHash, chainConfig2) {
-  const entry = BUILT_IN_EXPLORERS[chain2];
-  if (!entry)
-    return "";
-  const baseUrl = chainConfig2.network === "mainnet" ? entry.mainnet : entry.testnet;
-  return `${baseUrl}/tx/${txHash}`;
-}
 function createEvmExecutor(keyfilePath, chainConfig2, chain2) {
   let _clients = null;
   async function getClients() {
@@ -88057,7 +88057,8 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       solanaExecutor,
       apiKey
     });
-    const explorerUrl = getExplorerUrl(chain2, result.txHash, chainConfig2);
+    const adapter = await getAdapter(key);
+    const explorerUrl = adapter.explorerUrl(result.txHash);
     const { chain: sentChain, network: sentNetwork } = parseConfigKey(key);
     await appendHistory({
       ts: (/* @__PURE__ */ new Date()).toISOString(),
@@ -88231,7 +88232,8 @@ Or pass receiver address:
       fastExecutor,
       apiKey
     });
-    const explorerUrl = getExplorerUrl(from14.chain, result.txHash, srcResolved.chainConfig);
+    const srcAdapter = await getAdapter(srcResolved.key);
+    const explorerUrl = srcAdapter.explorerUrl(result.txHash);
     const { chain: sentChain, network: sentNetwork } = parseConfigKey(srcResolved.key);
     await appendHistory({
       ts: (/* @__PURE__ */ new Date()).toISOString(),
