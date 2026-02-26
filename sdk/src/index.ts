@@ -84,6 +84,7 @@ import type {
 
 import { parseUnits, formatUnits } from 'viem';
 import { createWalletClient, createPublicClient, http } from 'viem';
+import type { Chain, WalletClient, PublicClient, Transport, Account } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import type { EvmTxExecutor, SolanaTxExecutor, FastTxExecutor } from './providers/types.js';
 
@@ -285,11 +286,17 @@ function getExplorerUrl(chain: string, txHash: string, chainConfig: ChainConfig)
  * Create an EvmTxExecutor for a given chain config.
  * Lazily initializes wallet+public clients on first use.
  */
-function createEvmExecutor(keyfilePath: string, chainConfig: ChainConfig, chain: string): EvmTxExecutor {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let _clients: { walletClient: any; publicClient: any; account: any; viemChain: any } | null = null;
+type EvmClients = {
+  walletClient: WalletClient<Transport, Chain, Account>;
+  publicClient: PublicClient<Transport, Chain>;
+  account: ReturnType<typeof privateKeyToAccount>;
+  viemChain: Chain;
+};
 
-  async function getClients(): Promise<{ walletClient: any; publicClient: any; account: any; viemChain: any }> {
+function createEvmExecutor(keyfilePath: string, chainConfig: ChainConfig, chain: string): EvmTxExecutor {
+  let _clients: EvmClients | null = null;
+
+  async function getClients(): Promise<EvmClients> {
     if (_clients) return _clients;
 
     const kp = await loadKeyfile(keyfilePath);

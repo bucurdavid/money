@@ -67807,7 +67807,7 @@ function compareDecimalStrings(a, b) {
 
 // dist/src/keys.js
 import { randomBytes as randomBytes4 } from "node:crypto";
-import { open, readFile, mkdir, copyFile } from "node:fs/promises";
+import { open, readFile, mkdir, copyFile, chmod } from "node:fs/promises";
 import { dirname, basename, join } from "node:path";
 import { constants } from "node:fs";
 
@@ -68741,7 +68741,6 @@ async function saveKeyfile(keyPath, keypair) {
     await mkdir(backupDir, { recursive: true, mode: 448 });
     const backupPath = join(backupDir, basename(resolved));
     await copyFile(resolved, backupPath, constants.COPYFILE_EXCL);
-    const { chmod } = await import("node:fs/promises");
     await chmod(backupPath, 256);
   } catch {
   }
@@ -69302,7 +69301,7 @@ var BcsReader = class {
   }
 };
 
-// node_modules/@mysten/utils/node_modules/@scure/base/index.js
+// node_modules/@scure/base/index.js
 function isBytes4(a) {
   return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
 }
@@ -71264,9 +71263,7 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
       const address = pubkey.toBase58();
       const msgBytes = typeof params.message === "string" ? new TextEncoder().encode(params.message) : params.message;
       const sigBytes = await signEd25519(msgBytes, kp.privateKey);
-      const bs58Module = await Promise.resolve().then(() => __toESM(require_bs58(), 1));
-      const bs58Encode = bs58Module.default?.encode ?? bs58Module.encode;
-      const signature = bs58Encode(sigBytes);
+      const signature = base58.encode(sigBytes);
       return { signature, address };
     });
   }
@@ -71382,9 +71379,7 @@ function createSolanaAdapter(rpcUrl, aliases = {}, network = "testnet") {
   async function verifySign(params) {
     try {
       const { PublicKey: PublicKey23 } = await getWeb3();
-      const bs58Module = await Promise.resolve().then(() => __toESM(require_bs58(), 1));
-      const bs58Decode = bs58Module.default?.decode ?? bs58Module.decode;
-      const sigBytes = bs58Decode(params.signature);
+      const sigBytes = base58.decode(params.signature);
       const msgBytes = typeof params.message === "string" ? new TextEncoder().encode(params.message) : params.message;
       const pubkey = new PublicKey23(params.address);
       const publicKeyHex = Buffer.from(pubkey.toBytes()).toString("hex");
@@ -87320,49 +87315,31 @@ var METHOD_SCHEMAS = {
 };
 function getZodTypeName(field) {
   const def = field._def;
-  const typeName = def?.type ?? def?.typeName;
-  if (typeName === "optional" || typeName === "ZodOptional") {
-    if (def.innerType)
-      return getZodTypeName(def.innerType);
+  const type = def.type;
+  if (type === "optional" && def.innerType)
+    return getZodTypeName(def.innerType);
+  if (type === "union") {
+    const options = def.options;
+    if (options)
+      return options.map(getZodTypeName).join(" | ");
   }
-  if (typeName === "union" || typeName === "ZodUnion") {
-    const types = def.options ?? def.types;
-    if (types)
-      return types.map(getZodTypeName).join(" | ");
-  }
-  if (typeName === "enum" || typeName === "ZodEnum") {
+  if (type === "enum") {
     const entries = def.entries;
     if (entries)
       return Object.keys(entries).map((v) => `"${v}"`).join(" | ");
-    const vals = def.values;
-    if (vals)
-      return vals.map((v) => `"${v}"`).join(" | ");
   }
-  if (typeName === "array" || typeName === "ZodArray")
-    return "array";
-  if (typeName === "object" || typeName === "ZodObject")
-    return "object";
-  if (typeName === "string" || typeName === "ZodString")
-    return "string";
-  if (typeName === "number" || typeName === "ZodNumber")
-    return "number";
-  if (typeName === "boolean" || typeName === "ZodBoolean")
-    return "boolean";
-  if (typeName === "bigint" || typeName === "ZodBigInt")
-    return "bigint";
-  if ((typeName === "effects" || typeName === "ZodEffects") && def.innerType) {
-    return getZodTypeName(def.innerType);
-  }
-  if (typeName === "custom" || typeName === "ZodCustom")
+  if (type === "pipe" && def.in)
+    return getZodTypeName(def.in);
+  if (type === "custom")
     return "Uint8Array";
-  return typeName ?? "unknown";
+  return type ?? "unknown";
 }
 function getFieldDescription(field) {
   const desc = field.description;
   if (desc)
     return desc;
-  const def = field._def;
-  return def?.innerType?.description ?? "";
+  const innerType = field._def.innerType;
+  return innerType?.description ?? "";
 }
 function schemaToParamString(schema) {
   const fields = Object.entries(schema.shape).map(([k, v]) => {

@@ -25,6 +25,7 @@ import {
 import { MoneyError } from '../errors.js';
 import { toRaw, toHuman } from '../utils.js';
 import type { ChainAdapter } from './adapter.js';
+import { base58 } from '@scure/base';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -287,14 +288,7 @@ export function createSolanaAdapter(
       // Sign with Ed25519
       const sigBytes = await signEd25519(msgBytes, kp.privateKey);
 
-      // Encode signature as base58 (Solana convention).
-      // bs58 ships without type declarations; use @ts-ignore to suppress the error.
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      const bs58Module = await import('bs58');
-      // bs58 v5 exports encode directly; v6+ may use .default
-      const bs58Encode = (bs58Module.default?.encode ?? bs58Module.encode) as (bytes: Uint8Array) => string;
-      const signature = bs58Encode(sigBytes);
+      const signature = base58.encode(sigBytes);
 
       return { signature, address };
     });
@@ -456,11 +450,7 @@ export function createSolanaAdapter(
     try {
       const { PublicKey } = await getWeb3();
 
-      // Decode base58 signature to bytes
-      // @ts-ignore
-      const bs58Module = await import('bs58');
-      const bs58Decode = (bs58Module.default?.decode ?? bs58Module.decode) as (str: string) => Uint8Array;
-      const sigBytes = bs58Decode(params.signature);
+      const sigBytes = base58.decode(params.signature);
 
       // Convert message to bytes
       const msgBytes = typeof params.message === 'string'

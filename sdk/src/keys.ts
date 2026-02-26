@@ -7,7 +7,7 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import { open, readFile, mkdir, copyFile } from 'node:fs/promises';
+import { open, readFile, mkdir, copyFile, chmod } from 'node:fs/promises';
 import { dirname, basename, join } from 'node:path';
 import { constants } from 'node:fs';
 import { expandHome } from './utils.js';
@@ -111,8 +111,6 @@ export async function saveKeyfile(
     await mkdir(backupDir, { recursive: true, mode: 0o700 });
     const backupPath = join(backupDir, basename(resolved));
     await copyFile(resolved, backupPath, constants.COPYFILE_EXCL);
-    // Lock down backup permissions
-    const { chmod } = await import('node:fs/promises');
     await chmod(backupPath, 0o400);
   } catch {
     // Backup is best-effort; primary keyfile was already written successfully

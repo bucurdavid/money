@@ -699,53 +699,29 @@ export const METHOD_SCHEMAS: Record<string, MethodEntry> = {
 
 /** Get the human-readable type name from a Zod schema field. */
 function getZodTypeName(field: z.ZodTypeAny): string {
-  // Zod v4 uses _def.type; v3 uses _def.typeName. Support both.
-  const def = (field as unknown as {
-    _def: {
-      type?: string;
-      typeName?: string;
-      innerType?: z.ZodTypeAny;
-      options?: z.ZodTypeAny[];
-      types?: z.ZodTypeAny[];
-      entries?: Record<string, string>;
-      values?: string[];
-    };
-  })._def;
-  const typeName = def?.type ?? def?.typeName;
+  const def = (field as unknown as { _def: Record<string, unknown> })._def;
+  const type = def.type as string | undefined;
 
-  if (typeName === 'optional' || typeName === 'ZodOptional') {
-    if (def.innerType) return getZodTypeName(def.innerType);
+  if (type === 'optional' && def.innerType) return getZodTypeName(def.innerType as z.ZodTypeAny);
+  if (type === 'union') {
+    const options = def.options as z.ZodTypeAny[] | undefined;
+    if (options) return options.map(getZodTypeName).join(' | ');
   }
-  if (typeName === 'union' || typeName === 'ZodUnion') {
-    const types = (def.options ?? def.types) as z.ZodTypeAny[] | undefined;
-    if (types) return types.map(getZodTypeName).join(' | ');
+  if (type === 'enum') {
+    const entries = def.entries as Record<string, string> | undefined;
+    if (entries) return Object.keys(entries).map((v) => `"${v}"`).join(' | ');
   }
-  if (typeName === 'enum' || typeName === 'ZodEnum') {
-    // v4: _def.entries is Record<string, string>, v3: _def.values is string[]
-    const entries = def.entries;
-    if (entries) return Object.keys(entries).map((v: string) => `"${v}"`).join(' | ');
-    const vals = def.values;
-    if (vals) return vals.map((v: string) => `"${v}"`).join(' | ');
-  }
-  if (typeName === 'array' || typeName === 'ZodArray') return 'array';
-  if (typeName === 'object' || typeName === 'ZodObject') return 'object';
-  if (typeName === 'string' || typeName === 'ZodString') return 'string';
-  if (typeName === 'number' || typeName === 'ZodNumber') return 'number';
-  if (typeName === 'boolean' || typeName === 'ZodBoolean') return 'boolean';
-  if (typeName === 'bigint' || typeName === 'ZodBigInt') return 'bigint';
-  if ((typeName === 'effects' || typeName === 'ZodEffects') && def.innerType) {
-    return getZodTypeName(def.innerType);
-  }
-  if (typeName === 'custom' || typeName === 'ZodCustom') return 'Uint8Array';
-  return typeName ?? 'unknown';
+  if (type === 'pipe' && def.in) return getZodTypeName(def.in as z.ZodTypeAny);
+  if (type === 'custom') return 'Uint8Array';
+  return type ?? 'unknown';
 }
 
 /** Extract field description, checking both outer and inner type. */
 function getFieldDescription(field: z.ZodTypeAny): string {
   const desc = field.description;
   if (desc) return desc;
-  const def = (field as unknown as { _def: { innerType?: z.ZodTypeAny } })._def;
-  return def?.innerType?.description ?? '';
+  const innerType = (field as unknown as { _def: Record<string, unknown> })._def.innerType as z.ZodTypeAny | undefined;
+  return innerType?.description ?? '';
 }
 
 /** Build "{ chain, network?, rpc? }" from a ZodObject. */
