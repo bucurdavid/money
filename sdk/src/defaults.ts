@@ -192,6 +192,37 @@ export const DEFAULT_CHAIN_CONFIGS: Record<string, Record<NetworkType, ChainConf
   },
 };
 
+// ─── Built-in chain IDs and explorers ─────────────────────────────────────────
+
+export const BUILT_IN_CHAIN_IDS: Record<string, { mainnet: number; testnet: number }> = {
+  ethereum:  { mainnet: 1,      testnet: 11155111 },
+  base:      { mainnet: 8453,   testnet: 84532 },
+  arbitrum:  { mainnet: 42161,  testnet: 421614 },
+  polygon:   { mainnet: 137,    testnet: 80002 },
+  optimism:  { mainnet: 10,     testnet: 11155420 },
+  bsc:       { mainnet: 56,     testnet: 97 },
+  avalanche: { mainnet: 43114,  testnet: 43113 },
+  fantom:    { mainnet: 250,    testnet: 4002 },
+  zksync:    { mainnet: 324,    testnet: 300 },
+  linea:     { mainnet: 59144,  testnet: 59141 },
+  scroll:    { mainnet: 534352, testnet: 534351 },
+};
+
+export const BUILT_IN_EXPLORERS: Record<string, { mainnet: string; testnet: string }> = {
+  ethereum:  { mainnet: 'https://etherscan.io/tx/',               testnet: 'https://sepolia.etherscan.io/tx/' },
+  base:      { mainnet: 'https://basescan.org/tx/',               testnet: 'https://sepolia.basescan.org/tx/' },
+  arbitrum:  { mainnet: 'https://arbiscan.io/tx/',                testnet: 'https://sepolia.arbiscan.io/tx/' },
+  polygon:   { mainnet: 'https://polygonscan.com/tx/',            testnet: 'https://amoy.polygonscan.com/tx/' },
+  optimism:  { mainnet: 'https://optimistic.etherscan.io/tx/',    testnet: 'https://sepolia-optimism.etherscan.io/tx/' },
+  bsc:       { mainnet: 'https://bscscan.com/tx/',                testnet: 'https://testnet.bscscan.com/tx/' },
+  avalanche: { mainnet: 'https://snowtrace.io/tx/',               testnet: 'https://testnet.snowtrace.io/tx/' },
+  fantom:    { mainnet: 'https://ftmscan.com/tx/',                testnet: 'https://testnet.ftmscan.com/tx/' },
+  zksync:    { mainnet: 'https://explorer.zksync.io/tx/',         testnet: 'https://sepolia.explorer.zksync.io/tx/' },
+  linea:     { mainnet: 'https://lineascan.build/tx/',            testnet: 'https://sepolia.lineascan.build/tx/' },
+  scroll:    { mainnet: 'https://scrollscan.com/tx/',             testnet: 'https://sepolia.scrollscan.com/tx/' },
+  solana:    { mainnet: 'https://solscan.io/tx/',                 testnet: 'https://solscan.io/tx/' },
+};
+
 /**
  * Derive the config storage key from chain + network.
  * Testnet uses bare chain name (backward compat), mainnet uses "chain:mainnet".
