@@ -486,7 +486,7 @@ export default function PayPage() {
                     </button>
                   </div>
                   <p className="result-hint">
-                    Share this URL with an AI agent or paste it in your terminal to generate a payment request.
+                    Share this URL with an AI agent to generate a payment request.
                   </p>
                 </div>
               )}
