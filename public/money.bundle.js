@@ -88482,7 +88482,7 @@ Or pass receiver address:
     try {
       toTokenResolved = resolveSwapToken(toToken, to.chain);
     } catch {
-      const wellKnown = resolveTokenAddress(toToken, to.chain);
+      const wellKnown = resolveTokenAddress(toToken, to.chain) ?? resolveTokenAddress("W" + toToken, to.chain);
       if (wellKnown) {
         toTokenResolved = wellKnown;
       } else {

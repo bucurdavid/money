@@ -1269,7 +1269,8 @@ export const money = {
     } catch {
       // Destination token resolution may fail for cross-chain bridges (e.g., SET on Fast → WSET on EVM).
       // Try well-known token lookup before falling back to raw string.
-      const wellKnown = resolveTokenAddress(toToken, to.chain);
+      const wellKnown = resolveTokenAddress(toToken, to.chain)
+        ?? resolveTokenAddress('W' + toToken, to.chain);
       if (wellKnown) {
         toTokenResolved = wellKnown;
       } else {
