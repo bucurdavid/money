@@ -2,11 +2,11 @@
 name: money
 version: {{VERSION}}
 description: >
-  Universal payment SDK for AI agents. Send tokens, check balances, swap tokens, bridge cross-chain,
+  Universal payment SDK for AI agents. Send tokens, check balances, create payment links, swap tokens, bridge cross-chain,
   look up prices, sign messages, list providers, and register custom EVM chains across 13 chains
   (Fast, Base, Ethereum, Arbitrum, Polygon, Optimism, BSC, Avalanche, Fantom, zkSync, Linea, Scroll, Solana)
   or any EVM chain.
-  Use when asked to pay, transfer, swap, bridge, check price, sign a message, fund a wallet, check a balance,
+  Use when asked to pay, transfer, request payment, create payment link, swap, bridge, check price, sign a message, fund a wallet, check a balance,
   or list available providers.
   Do NOT use for yield farming, lending, staking, or detecting incoming payments.
 
@@ -102,9 +102,45 @@ Check `money.history({ chain })` before sending to avoid double sends. Match on 
 
 ---
 
+## Payment Links
+
+Create a shareable payment link to request tokens on any chain:
+
+```js
+const link = await money.createPaymentLink({ receiver: "set1...", amount: 10, chain: "fast" });
+// → { url: "https://.../pay?...", payment_id: "pay_abc...", ... }
+```
+
+Share the URL with a payer. They (or their AI agent) can fetch it to get payment instructions with a `money.send()` call pre-filled.
+
+### Paying from a link
+
+1. Fetch the payment link URL to get the markdown response
+2. Parse `payment_id`, `receiver`, `amount`, `chain`, `token`, `network` from the YAML frontmatter
+3. Execute:
+
+```js
+await money.setup({ chain: "base" });
+await money.send({ to: "0x...", amount: 10, chain: "base", payment_id: "pay_abc..." });
+```
+
+Passing `payment_id` to `send()` enables duplicate tracking — it warns if the link was already paid.
+
+### Tracking
+
+```js
+await money.listPaymentLinks();                                    // all tracked links
+await money.listPaymentLinks({ payment_id: "pay_abc..." });       // specific link
+await money.listPaymentLinks({ direction: "paid", chain: "fast" }); // paid links on fast
+```
+
+Tracked locally in `~/.money/payment-links.csv`. Two directions: `created` (you requested payment) and `paid` (you paid a link).
+
+---
+
 ## Receiving
 
-This skill cannot detect incoming payments. Compare balance before/after as a proxy.
+This skill cannot detect incoming payments. Use `money.createPaymentLink()` to create a payment request, or compare balance before/after as a proxy.
 
 ---
 

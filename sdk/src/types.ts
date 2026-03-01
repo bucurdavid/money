@@ -66,6 +66,18 @@ export type TokensParams = z.infer<typeof S.TokensParams>;
 /** Params for money.history() */
 export type HistoryParams = z.infer<typeof S.HistoryParams>;
 
+/** Params for money.createPaymentLink() */
+export type PaymentLinkParams = z.infer<typeof S.PaymentLinkParams>;
+
+/** Result of money.createPaymentLink() */
+export type PaymentLinkResult = z.infer<typeof S.PaymentLinkResult>;
+
+/** Params for money.listPaymentLinks() */
+export type PaymentLinksParams = z.infer<typeof S.PaymentLinksParams>;
+
+/** Result of money.listPaymentLinks() */
+export type PaymentLinksResult = z.infer<typeof S.PaymentLinksResult>;
+
 /** Params for money.registerEvmChain() */
 export type RegisterEvmChainParams = z.infer<typeof S.RegisterEvmChainParams>;
 
@@ -113,6 +125,22 @@ export interface HistoryEntry {
   to: string;          // recipient address
   amount: string;
   token: string;
+  txHash: string;
+}
+
+// ─── Payment link types ─────────────────────────────────────────────────────
+
+export interface PaymentLinkEntry {
+  ts: string;
+  payment_id: string;
+  direction: 'created' | 'paid';
+  chain: string;
+  network: string;
+  receiver: string;
+  amount: string;
+  token: string;
+  memo: string;
+  url: string;
   txHash: string;
 }
 

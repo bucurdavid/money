@@ -12,6 +12,13 @@ import { DEFAULT_CHAIN_CONFIGS, configKey, parseConfigKey, supportedChains, BUIL
 import { getAlias, setAlias, getAliases } from './aliases.js';
 import { appendHistory, readHistory } from './history.js';
 import {
+  generatePaymentId,
+  buildPaymentUrl,
+  appendPaymentLink,
+  readPaymentLinks,
+  findPaidLink,
+} from './payment-links.js';
+import {
   registerSwapProvider,
   registerBridgeProvider,
   registerPriceProvider,
@@ -80,6 +87,10 @@ import type {
   HelpEntry,
   DescribeResult,
   ProvidersResult,
+  PaymentLinkParams,
+  PaymentLinkResult,
+  PaymentLinksParams,
+  PaymentLinksResult,
 } from './types.js';
 
 import { parseUnits, formatUnits } from 'viem';
@@ -135,6 +146,11 @@ export type {
   SwapParams,
   HelpEntry,
   DescribeResult,
+  PaymentLinkParams,
+  PaymentLinkResult,
+  PaymentLinksParams,
+  PaymentLinksResult,
+  PaymentLinkEntry,
 } from './types.js';
 
 export type {
@@ -533,7 +549,7 @@ export const money = {
   },
 
   async send(params: SendParams): Promise<SendResult> {
-    const { to, amount: amountRaw, chain, network, token: tokenOpt } = params;
+    const { to, amount: amountRaw, chain, network, token: tokenOpt, payment_id } = params;
 
     requireParam(to, 'to', 'Provide a recipient address:\n  await money.send({ to: "set1...", amount: "1", chain: "fast" })');
     requireParam(chain, 'chain', 'Provide a chain name:\n  await money.send({ to, amount, chain: "fast" })');
@@ -551,6 +567,15 @@ export const money = {
 
     if (!await isValidAddress(to, chain)) {
       throw new MoneyError('INVALID_ADDRESS', `Address "${to}" is not valid for chain "${chain}".`, { chain, details: { address: to }, note: `Verify the address format. Use identifyChains to check:\n  money.identifyChains({ address: "${to}" })` });
+    }
+
+    // Check for duplicate payment link
+    let duplicateWarning = '';
+    if (payment_id) {
+      const existing = await findPaidLink(payment_id);
+      if (existing) {
+        duplicateWarning = `Warning: payment link ${payment_id} was already paid (txHash: ${existing.txHash}). Proceeding anyway.`;
+      }
     }
 
     const { key, chainConfig } = await requireChainConfig(chain, network);
@@ -598,7 +623,24 @@ export const money = {
       txHash: result.txHash,
     });
 
-    return { ...result, chain: sentChain, network: sentNetwork as NetworkType, note: '' };
+    // Record payment link fulfillment if payment_id was provided
+    if (payment_id) {
+      await appendPaymentLink({
+        ts: new Date().toISOString(),
+        payment_id,
+        direction: 'paid',
+        chain: sentChain,
+        network: sentNetwork,
+        receiver: to,
+        amount: amountStr,
+        token,
+        memo: '',
+        url: '',
+        txHash: result.txHash,
+      });
+    }
+
+    return { ...result, chain: sentChain, network: sentNetwork as NetworkType, note: duplicateWarning };
   },
 
   async faucet(params: FaucetParams): Promise<FaucetResult> {
@@ -1299,6 +1341,121 @@ export const money = {
       orderId: result.orderId ?? result.txHash,
       estimatedTime: result.estimatedTime,
       note: '',
+    };
+  },
+
+  // ─── payment links ──────────────────────────────────────────────────────────
+
+  async createPaymentLink(params: PaymentLinkParams): Promise<PaymentLinkResult> {
+    if (!params.chain) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: chain', {
+        note: 'Provide a chain name:\n  await money.createPaymentLink({ receiver: "set1...", amount: 10, chain: "fast" })',
+      });
+    }
+    if (!params.receiver) {
+      throw new MoneyError('INVALID_PARAMS', 'Missing required param: receiver', {
+        note: 'Provide the recipient address:\n  await money.createPaymentLink({ receiver: "set1...", amount: 10, chain: "fast" })',
+      });
+    }
+
+    const amountNum = typeof params.amount === 'string' ? parseFloat(params.amount) : params.amount;
+    if (!amountNum || amountNum <= 0 || isNaN(amountNum)) {
+      throw new MoneyError('INVALID_PARAMS', 'Amount must be a positive number', {
+        note: 'Provide a positive amount:\n  await money.createPaymentLink({ receiver: "set1...", amount: 10, chain: "fast" })',
+      });
+    }
+    const amountStr = String(amountNum);
+
+    const chain = params.chain;
+    const network = params.network ?? 'testnet';
+
+    // Validate chain is known
+    const allChains = supportedChains();
+    if (!allChains.includes(chain)) {
+      // Check custom chains
+      const config = await loadConfig();
+      if (!config.customChains?.[chain]) {
+        throw new MoneyError('INVALID_PARAMS', `Unknown chain: ${chain}`, {
+          note: `Supported chains: ${allChains.join(', ')}.\n  Or register a custom chain: await money.registerEvmChain({ chain: "${chain}", chainId: 1, rpc: "https://..." })`,
+        });
+      }
+    }
+
+    // Validate receiver address format
+    const valid = await isValidAddress(params.receiver, chain);
+    if (!valid) {
+      throw new MoneyError('INVALID_ADDRESS', `Invalid address for chain ${chain}: ${params.receiver}`, {
+        note: `Check the address format for ${chain}.`,
+      });
+    }
+
+    // Resolve token — default to chain's native token
+    let token = params.token;
+    if (!token) {
+      const defaults = DEFAULT_CHAIN_CONFIGS[chain];
+      if (defaults) {
+        token = defaults[network as 'testnet' | 'mainnet']?.defaultToken ?? defaults.testnet.defaultToken;
+      } else {
+        const config = await loadConfig();
+        const chainConf = config.chains[configKey(chain, network as 'testnet' | 'mainnet')];
+        token = chainConf?.defaultToken ?? 'native';
+      }
+    }
+
+    const payment_id = generatePaymentId();
+    const created_at = new Date().toISOString();
+    const expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+
+    // Build URL — use MONEY_HOST env or default
+    const baseUrl = process.env.MONEY_HOST ?? 'https://money-alpha-khaki.vercel.app';
+    const url = buildPaymentUrl({
+      receiver: params.receiver,
+      amount: amountStr,
+      chain,
+      token,
+      network,
+      memo: params.memo,
+    }, baseUrl);
+
+    // Track locally
+    await appendPaymentLink({
+      ts: created_at,
+      payment_id,
+      direction: 'created',
+      chain,
+      network,
+      receiver: params.receiver,
+      amount: amountStr,
+      token,
+      memo: params.memo ?? '',
+      url,
+      txHash: '',
+    });
+
+    return {
+      url,
+      payment_id,
+      receiver: params.receiver,
+      amount: amountStr,
+      chain,
+      token,
+      network,
+      note: `Share this URL with the payer. They can fetch it to get payment instructions.\nTrack status: await money.listPaymentLinks({ payment_id: "${payment_id}" })`,
+    };
+  },
+
+  async listPaymentLinks(params?: PaymentLinksParams): Promise<PaymentLinksResult> {
+    const entries = await readPaymentLinks({
+      payment_id: params?.payment_id,
+      direction: params?.direction,
+      chain: params?.chain,
+      limit: params?.limit,
+    });
+    return {
+      entries,
+      note: entries.length === 0
+        ? 'No payment links found. Create one: await money.createPaymentLink({ receiver: "...", amount: 10, chain: "fast" })'
+        : `Found ${entries.length} payment link(s).`,
     };
   },
 

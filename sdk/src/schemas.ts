@@ -98,6 +98,7 @@ export const SendParams = z.object({
   amount: z.union([z.number(), z.string()]).describe('Amount in human-readable units (e.g. 10, "0.5")'),
   network: NetworkType.optional().describe('Defaults to "testnet"'),
   token: z.string().optional().describe('Token symbol or address (defaults to native token)'),
+  payment_id: z.string().optional().describe('Payment link ID for duplicate tracking'),
 });
 
 export const SendResult = z.object({
@@ -652,6 +653,74 @@ const providersMeta = {
   notes: 'Returns built-in and custom-registered providers. Use registerSwapProvider/registerBridgeProvider/registerPriceProvider to add custom ones.',
 } as const;
 
+// ─── createPaymentLink ───────────────────────────────────────────────────────
+
+export const PaymentLinkParams = z.object({
+  receiver: z.string().describe('Recipient address (format depends on chain)'),
+  amount: z.union([z.number(), z.string()]).describe('Amount to request (human units)'),
+  chain: z.string().describe('Chain name (e.g. "fast", "base", "solana")'),
+  token: z.string().optional().describe('Token name (defaults to chain native token)'),
+  network: NetworkType.optional().describe('Defaults to "testnet"'),
+  memo: z.string().optional().describe('Optional memo/note for the payment'),
+});
+
+export const PaymentLinkResult = z.object({
+  url: z.string(),
+  payment_id: z.string(),
+  receiver: z.string(),
+  amount: z.string(),
+  chain: z.string(),
+  token: z.string(),
+  network: z.string(),
+  note: z.string(),
+});
+
+const createPaymentLinkMeta = {
+  description: 'Create a shareable payment link to request tokens on any chain.',
+  examples: [
+    'await money.createPaymentLink({ receiver: "set1...", amount: 10, chain: "fast" })',
+    'await money.createPaymentLink({ receiver: "0xABC...", amount: 5, chain: "base", token: "USDC", network: "mainnet" })',
+    'await money.createPaymentLink({ receiver: "7nYB...", amount: 1, chain: "solana", memo: "coffee" })',
+  ],
+  notes: 'Share the returned URL with a payer. They can fetch it to get payment instructions. Links expire after 24 hours. Created links are tracked locally in ~/.money/payment-links.csv.',
+} as const;
+
+// ─── listPaymentLinks ────────────────────────────────────────────────────────
+
+export const PaymentLinksParams = z.object({
+  payment_id: z.string().optional().describe('Filter by payment ID'),
+  direction: z.enum(['created', 'paid']).optional().describe('Filter by direction'),
+  chain: z.string().optional().describe('Filter by chain'),
+  limit: z.number().optional().describe('Max entries to return'),
+});
+
+export const PaymentLinksResult = z.object({
+  entries: z.array(z.object({
+    ts: z.string(),
+    payment_id: z.string(),
+    direction: z.enum(['created', 'paid']),
+    chain: z.string(),
+    network: z.string(),
+    receiver: z.string(),
+    amount: z.string(),
+    token: z.string(),
+    memo: z.string(),
+    url: z.string(),
+    txHash: z.string(),
+  })),
+  note: z.string(),
+});
+
+const listPaymentLinksMeta = {
+  description: 'List tracked payment links (created and paid).',
+  examples: [
+    'await money.listPaymentLinks()',
+    'await money.listPaymentLinks({ payment_id: "pay_abc123" })',
+    'await money.listPaymentLinks({ direction: "paid", chain: "fast" })',
+  ],
+  notes: 'Returns locally tracked payment links from ~/.money/payment-links.csv, newest first.',
+} as const;
+
 // ─── Method schema entry ─────────────────────────────────────────────────────
 
 export interface MethodEntry {
@@ -693,6 +762,20 @@ export const METHOD_SCHEMAS: Record<string, MethodEntry> = {
   providers:             { params: null,                   result: ProvidersResult,      ...providersMeta },
   help:                  { params: null,                   result: null,                 ...helpMeta },
   describe:              { params: null,                   result: null,                 ...describeMeta },
+  createPaymentLink: {
+    description: createPaymentLinkMeta.description,
+    params: PaymentLinkParams,
+    result: PaymentLinkResult,
+    examples: [...createPaymentLinkMeta.examples],
+    notes: createPaymentLinkMeta.notes,
+  },
+  listPaymentLinks: {
+    description: listPaymentLinksMeta.description,
+    params: PaymentLinksParams,
+    result: PaymentLinksResult,
+    examples: [...listPaymentLinksMeta.examples],
+    notes: listPaymentLinksMeta.notes,
+  },
 };
 
 // ─── Introspection helpers ───────────────────────────────────────────────────

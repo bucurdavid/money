@@ -6967,7 +6967,7 @@ function weierstrass(curveDef) {
   function prepSig(msgHash, privateKey, opts = defaultSigOpts) {
     if (["recovered", "canonical"].some((k) => k in opts))
       throw new Error("sign() legacy options not supported");
-    const { hash: hash4, randomBytes: randomBytes5 } = CURVE;
+    const { hash: hash4, randomBytes: randomBytes6 } = CURVE;
     let { lowS, prehash, extraEntropy: ent } = opts;
     if (lowS == null)
       lowS = true;
@@ -6979,7 +6979,7 @@ function weierstrass(curveDef) {
     const d = normPrivateKeyToScalar(privateKey);
     const seedArgs = [int2octets(d), int2octets(h1int)];
     if (ent != null && ent !== false) {
-      const e2 = ent === true ? randomBytes5(Fp.BYTES) : ent;
+      const e2 = ent === true ? randomBytes6(Fp.BYTES) : ent;
       seedArgs.push(ensureBytes("extraEntropy", e2));
     }
     const seed = concatBytes5(...seedArgs);
@@ -17178,8 +17178,8 @@ var require_constants = __commonJS({
 // node_modules/node-gyp-build/node-gyp-build.js
 var require_node_gyp_build = __commonJS({
   "node_modules/node-gyp-build/node-gyp-build.js"(exports, module) {
-    var fs4 = __require("fs");
-    var path5 = __require("path");
+    var fs5 = __require("fs");
+    var path6 = __require("path");
     var os3 = __require("os");
     var runtimeRequire = typeof __webpack_require__ === "function" ? __non_webpack_require__ : __require;
     var vars = process.config && process.config.variables || {};
@@ -17196,21 +17196,21 @@ var require_node_gyp_build = __commonJS({
       return runtimeRequire(load.resolve(dir));
     }
     load.resolve = load.path = function(dir) {
-      dir = path5.resolve(dir || ".");
+      dir = path6.resolve(dir || ".");
       try {
-        var name = runtimeRequire(path5.join(dir, "package.json")).name.toUpperCase().replace(/-/g, "_");
+        var name = runtimeRequire(path6.join(dir, "package.json")).name.toUpperCase().replace(/-/g, "_");
         if (process.env[name + "_PREBUILD"]) dir = process.env[name + "_PREBUILD"];
       } catch (err3) {
       }
       if (!prebuildsOnly) {
-        var release = getFirst(path5.join(dir, "build/Release"), matchBuild);
+        var release = getFirst(path6.join(dir, "build/Release"), matchBuild);
         if (release) return release;
-        var debug = getFirst(path5.join(dir, "build/Debug"), matchBuild);
+        var debug = getFirst(path6.join(dir, "build/Debug"), matchBuild);
         if (debug) return debug;
       }
       var prebuild = resolve(dir);
       if (prebuild) return prebuild;
-      var nearby = resolve(path5.dirname(process.execPath));
+      var nearby = resolve(path6.dirname(process.execPath));
       if (nearby) return nearby;
       var target = [
         "platform=" + platform,
@@ -17227,26 +17227,26 @@ var require_node_gyp_build = __commonJS({
       ].filter(Boolean).join(" ");
       throw new Error("No native build was found for " + target + "\n    loaded from: " + dir + "\n");
       function resolve(dir2) {
-        var tuples = readdirSync(path5.join(dir2, "prebuilds")).map(parseTuple);
+        var tuples = readdirSync(path6.join(dir2, "prebuilds")).map(parseTuple);
         var tuple2 = tuples.filter(matchTuple(platform, arch)).sort(compareTuples)[0];
         if (!tuple2) return;
-        var prebuilds = path5.join(dir2, "prebuilds", tuple2.name);
+        var prebuilds = path6.join(dir2, "prebuilds", tuple2.name);
         var parsed = readdirSync(prebuilds).map(parseTags);
         var candidates = parsed.filter(matchTags(runtime, abi2));
         var winner = candidates.sort(compareTags(runtime))[0];
-        if (winner) return path5.join(prebuilds, winner.file);
+        if (winner) return path6.join(prebuilds, winner.file);
       }
     };
     function readdirSync(dir) {
       try {
-        return fs4.readdirSync(dir);
+        return fs5.readdirSync(dir);
       } catch (err3) {
         return [];
       }
     }
     function getFirst(dir, filter) {
       var files = readdirSync(dir).filter(filter);
-      return files[0] && path5.join(dir, files[0]);
+      return files[0] && path6.join(dir, files[0]);
     }
     function matchBuild(name) {
       return /\.node$/.test(name);
@@ -17333,7 +17333,7 @@ var require_node_gyp_build = __commonJS({
       return typeof window !== "undefined" && window.process && window.process.type === "renderer";
     }
     function isAlpine(platform2) {
-      return platform2 === "linux" && fs4.existsSync("/etc/alpine-release");
+      return platform2 === "linux" && fs5.existsSync("/etc/alpine-release");
     }
     load.parseTags = parseTags;
     load.matchTags = matchTags;
@@ -19616,7 +19616,7 @@ var require_websocket = __commonJS({
     var http2 = __require("http");
     var net = __require("net");
     var tls = __require("tls");
-    var { randomBytes: randomBytes5, createHash } = __require("crypto");
+    var { randomBytes: randomBytes6, createHash } = __require("crypto");
     var { Duplex, Readable } = __require("stream");
     var { URL: URL3 } = __require("url");
     var PerMessageDeflate = require_permessage_deflate();
@@ -20143,7 +20143,7 @@ var require_websocket = __commonJS({
         }
       }
       const defaultPort = isSecure ? 443 : 80;
-      const key = randomBytes5(16).toString("base64");
+      const key = randomBytes6(16).toString("base64");
       const request = isSecure ? https.request : http2.request;
       const protocolSet = /* @__PURE__ */ new Set();
       let perMessageDeflate;
@@ -27693,9 +27693,9 @@ var init_defineKzg = __esm({
 });
 
 // node_modules/viem/_esm/utils/kzg/setupKzg.js
-function setupKzg(parameters, path5) {
+function setupKzg(parameters, path6) {
   try {
-    parameters.loadTrustedSetup(path5);
+    parameters.loadTrustedSetup(path6);
   } catch (e2) {
     const error48 = e2;
     if (!error48.message.includes("trusted setup is already loaded"))
@@ -28472,7 +28472,7 @@ var require_utils = __commonJS({
     exports.createHasher = createHasher3;
     exports.createOptHasher = createOptHasher;
     exports.createXOFer = createXOFer2;
-    exports.randomBytes = randomBytes5;
+    exports.randomBytes = randomBytes6;
     var crypto_1 = require_cryptoNode();
     function isBytes7(a) {
       return a instanceof Uint8Array || ArrayBuffer.isView(a) && a.constructor.name === "Uint8Array";
@@ -28670,7 +28670,7 @@ var require_utils = __commonJS({
     exports.wrapConstructor = createHasher3;
     exports.wrapConstructorWithOpts = createOptHasher;
     exports.wrapXOFConstructorWithOpts = createXOFer2;
-    function randomBytes5(bytesLength = 32) {
+    function randomBytes6(bytesLength = 32) {
       if (crypto_1.crypto && typeof crypto_1.crypto.getRandomValues === "function") {
         return crypto_1.crypto.getRandomValues(new Uint8Array(bytesLength));
       }
@@ -30354,7 +30354,7 @@ var require_edwards = __commonJS({
     }
     function twistedEdwards(curveDef) {
       const CURVE = validateOpts2(curveDef);
-      const { Fp, n: CURVE_ORDER, prehash, hash: cHash, randomBytes: randomBytes5, nByteLength, h: cofactor } = CURVE;
+      const { Fp, n: CURVE_ORDER, prehash, hash: cHash, randomBytes: randomBytes6, nByteLength, h: cofactor } = CURVE;
       const MASK = _2n5 << BigInt(nByteLength * 8) - _1n7;
       const modP2 = Fp.create;
       const Fn = (0, modular_ts_1.Field)(CURVE.n, CURVE.nBitLength);
@@ -30692,7 +30692,7 @@ var require_edwards = __commonJS({
       const utils = {
         getExtendedPublicKey,
         /** ed25519 priv keys are uniform 32b. No need to check for modulo bias, like in secp256k1. */
-        randomPrivateKey: () => randomBytes5(Fp.BYTES),
+        randomPrivateKey: () => randomBytes6(Fp.BYTES),
         /**
          * We're doing scalar multiplication (used in getPublicKey etc) with precomputed BASE_POINT
          * values. This slows down first getPublicKey() by milliseconds (see Speed section),
@@ -38563,8 +38563,8 @@ var require_dist2 = __commonJS({
         constructor(failure, failures) {
           let cached2;
           const { message, explanation, ...rest } = failure;
-          const { path: path5 } = failure;
-          const msg = path5.length === 0 ? message : `At path: ${path5.join(".")} -- ${message}`;
+          const { path: path6 } = failure;
+          const msg = path6.length === 0 ? message : `At path: ${path6.join(".")} -- ${message}`;
           super(explanation ?? msg);
           if (explanation != null)
             this.cause = msg;
@@ -38609,15 +38609,15 @@ var require_dist2 = __commonJS({
         } else if (typeof result === "string") {
           result = { message: result };
         }
-        const { path: path5, branch } = context;
+        const { path: path6, branch } = context;
         const { type: type2 } = struct59;
         const { refinement, message = `Expected a value of type \`${type2}\`${refinement ? ` with refinement \`${refinement}\`` : ""}, but received: \`${print(value)}\`` } = result;
         return {
           value,
           type: type2,
           refinement,
-          key: path5[path5.length - 1],
-          path: path5,
+          key: path6[path6.length - 1],
+          path: path6,
           branch,
           ...result,
           message
@@ -38635,8 +38635,8 @@ var require_dist2 = __commonJS({
         }
       }
       function* run(value, struct59, options = {}) {
-        const { path: path5 = [], branch = [value], coerce: coerce2 = false, mask: mask2 = false } = options;
-        const ctx = { path: path5, branch, mask: mask2 };
+        const { path: path6 = [], branch = [value], coerce: coerce2 = false, mask: mask2 = false } = options;
+        const ctx = { path: path6, branch, mask: mask2 };
         if (coerce2) {
           value = struct59.coercer(value, ctx);
         }
@@ -38648,7 +38648,7 @@ var require_dist2 = __commonJS({
         }
         for (let [k, v, s] of struct59.entries(value, ctx)) {
           const ts = run(v, s, {
-            path: k === void 0 ? path5 : [...path5, k],
+            path: k === void 0 ? path6 : [...path6, k],
             branch: k === void 0 ? branch : [...branch, v],
             coerce: coerce2,
             mask: mask2,
@@ -40578,14 +40578,14 @@ var require_url_state_machine = __commonJS({
       return url2.replace(/\u0009|\u000A|\u000D/g, "");
     }
     function shortenPath(url2) {
-      const path5 = url2.path;
-      if (path5.length === 0) {
+      const path6 = url2.path;
+      if (path6.length === 0) {
         return;
       }
-      if (url2.scheme === "file" && path5.length === 1 && isNormalizedWindowsDriveLetter(path5[0])) {
+      if (url2.scheme === "file" && path6.length === 1 && isNormalizedWindowsDriveLetter(path6[0])) {
         return;
       }
-      path5.pop();
+      path6.pop();
     }
     function includesCredentials(url2) {
       return url2.username !== "" || url2.password !== "";
@@ -48713,7 +48713,7 @@ var require_weierstrass = __commonJS({
       function prepSig(msgHash, privateKey, opts = defaultSigOpts) {
         if (["recovered", "canonical"].some((k) => k in opts))
           throw new Error("sign() legacy options not supported");
-        const { hash: hash4, randomBytes: randomBytes5 } = CURVE;
+        const { hash: hash4, randomBytes: randomBytes6 } = CURVE;
         let { lowS, prehash, extraEntropy: ent } = opts;
         if (lowS == null)
           lowS = true;
@@ -48725,7 +48725,7 @@ var require_weierstrass = __commonJS({
         const d = normPrivateKeyToScalar(privateKey);
         const seedArgs = [int2octets(d), int2octets(h1int)];
         if (ent != null && ent !== false) {
-          const e2 = ent === true ? randomBytes5(Fp.BYTES) : ent;
+          const e2 = ent === true ? randomBytes6(Fp.BYTES) : ent;
           seedArgs.push((0, utils_ts_1.ensureBytes)("extraEntropy", e2));
         }
         const seed = (0, utils_ts_1.concatBytes)(...seedArgs);
@@ -58390,20 +58390,20 @@ var require_file_uri_to_path = __commonJS({
       var rest = decodeURI(uri.substring(7));
       var firstSlash = rest.indexOf("/");
       var host = rest.substring(0, firstSlash);
-      var path5 = rest.substring(firstSlash + 1);
+      var path6 = rest.substring(firstSlash + 1);
       if ("localhost" == host) host = "";
       if (host) {
         host = sep + sep + host;
       }
-      path5 = path5.replace(/^(.+)\|/, "$1:");
+      path6 = path6.replace(/^(.+)\|/, "$1:");
       if (sep == "\\") {
-        path5 = path5.replace(/\//g, "\\");
+        path6 = path6.replace(/\//g, "\\");
       }
-      if (/^.+\:/.test(path5)) {
+      if (/^.+\:/.test(path6)) {
       } else {
-        path5 = sep + path5;
+        path6 = sep + path6;
       }
-      return host + path5;
+      return host + path6;
     }
   }
 });
@@ -58411,19 +58411,19 @@ var require_file_uri_to_path = __commonJS({
 // node_modules/bindings/bindings.js
 var require_bindings = __commonJS({
   "node_modules/bindings/bindings.js"(exports, module) {
-    var fs4 = __require("fs");
-    var path5 = __require("path");
+    var fs5 = __require("fs");
+    var path6 = __require("path");
     var fileURLToPath = require_file_uri_to_path();
-    var join3 = path5.join;
-    var dirname2 = path5.dirname;
-    var exists = fs4.accessSync && function(path6) {
+    var join3 = path6.join;
+    var dirname2 = path6.dirname;
+    var exists = fs5.accessSync && function(path7) {
       try {
-        fs4.accessSync(path6);
+        fs5.accessSync(path7);
       } catch (e2) {
         return false;
       }
       return true;
-    } || fs4.existsSync || path5.existsSync;
+    } || fs5.existsSync || path6.existsSync;
     var defaults = {
       arrow: process.env.NODE_BINDINGS_ARROW || " \u2192 ",
       compiled: process.env.NODE_BINDINGS_COMPILED_DIR || "compiled",
@@ -58468,7 +58468,7 @@ var require_bindings = __commonJS({
       if (!opts.module_root) {
         opts.module_root = exports.getRoot(exports.getFileName());
       }
-      if (path5.extname(opts.bindings) != ".node") {
+      if (path6.extname(opts.bindings) != ".node") {
         opts.bindings += ".node";
       }
       var requireFunc = typeof __webpack_require__ === "function" ? __non_webpack_require__ : __require;
@@ -68710,8 +68710,8 @@ async function generateSecp256k1Key() {
     privKeyBuf.fill(0);
   }
 }
-async function loadKeyfile(path5) {
-  const resolved = expandHome(path5);
+async function loadKeyfile(path6) {
+  const resolved = expandHome(path6);
   let raw;
   try {
     raw = await readFile(resolved, "utf-8");
@@ -71953,6 +71953,186 @@ async function readHistory(opts) {
   return entries;
 }
 
+// dist/src/payment-links.js
+import { randomBytes as randomBytes5 } from "node:crypto";
+import fs4 from "node:fs/promises";
+import path5 from "node:path";
+var CSV_HEADER2 = "ts,payment_id,direction,chain,network,receiver,amount,token,memo,url,txHash";
+function getPaymentLinksPath() {
+  return path5.join(getConfigDir(), "payment-links.csv");
+}
+function generatePaymentId() {
+  return "pay_" + randomBytes5(16).toString("hex");
+}
+function buildPaymentUrl(params, baseUrl) {
+  const searchParams = new URLSearchParams();
+  searchParams.set("receiver", params.receiver);
+  searchParams.set("amount", params.amount);
+  searchParams.set("chain", params.chain);
+  if (params.token) {
+    searchParams.set("token", params.token);
+  }
+  if (params.network) {
+    searchParams.set("network", params.network);
+  }
+  if (params.memo) {
+    searchParams.set("memo", params.memo);
+  }
+  return `${baseUrl}/pay?${searchParams.toString()}`;
+}
+function escapeField(f) {
+  if (f.includes('"') || f.includes(",") || f.includes("\n")) {
+    return `"${f.replace(/"/g, '""')}"`;
+  }
+  return f;
+}
+function entryToRow2(e2) {
+  const fields = [
+    e2.ts,
+    e2.payment_id,
+    e2.direction,
+    e2.chain,
+    e2.network,
+    e2.receiver,
+    e2.amount,
+    e2.token,
+    e2.memo,
+    e2.url,
+    e2.txHash
+  ];
+  return fields.map(escapeField).join(",");
+}
+function parseRow(row) {
+  const parts = [];
+  let current = "";
+  let inQuotes = false;
+  let i = 0;
+  while (i < row.length) {
+    const ch = row[i];
+    if (ch === '"') {
+      if (inQuotes && row[i + 1] === '"') {
+        current += '"';
+        i += 2;
+        continue;
+      }
+      inQuotes = !inQuotes;
+      i++;
+      continue;
+    }
+    if (ch === "," && !inQuotes) {
+      parts.push(current);
+      current = "";
+      i++;
+      continue;
+    }
+    current += ch;
+    i++;
+  }
+  parts.push(current);
+  return parts;
+}
+function splitCsvRows(raw) {
+  const rows = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+      current += ch;
+    } else if (ch === "\n" && !inQuotes) {
+      rows.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current.trim()) {
+    rows.push(current);
+  }
+  return rows;
+}
+function rowToEntry2(row) {
+  const parts = parseRow(row);
+  if (parts.length !== 11)
+    return null;
+  const [ts, payment_id, direction, chain2, network, receiver, amount, token, memo, url2, txHash] = parts;
+  if (!ts || !payment_id || !direction)
+    return null;
+  if (direction !== "created" && direction !== "paid")
+    return null;
+  return {
+    ts: ts ?? "",
+    payment_id: payment_id ?? "",
+    direction,
+    chain: chain2 ?? "",
+    network: network ?? "",
+    receiver: receiver ?? "",
+    amount: amount ?? "",
+    token: token ?? "",
+    memo: memo ?? "",
+    url: url2 ?? "",
+    txHash: txHash ?? ""
+  };
+}
+async function appendPaymentLink(entry) {
+  const filePath = getPaymentLinksPath();
+  await fs4.mkdir(path5.dirname(filePath), { recursive: true, mode: 448 });
+  const fh = await fs4.open(filePath, "a", 384);
+  try {
+    const { size: size5 } = await fh.stat();
+    if (size5 === 0) {
+      await fh.write(CSV_HEADER2 + "\n");
+    }
+    await fh.write(entryToRow2(entry) + "\n");
+  } finally {
+    await fh.close();
+  }
+}
+async function readPaymentLinks(opts) {
+  const filePath = getPaymentLinksPath();
+  let raw;
+  try {
+    raw = await fs4.readFile(filePath, "utf-8");
+  } catch (err3) {
+    if (err3.code === "ENOENT")
+      return [];
+    throw err3;
+  }
+  const lines = splitCsvRows(raw).filter((l) => l.trim() && l.trim() !== CSV_HEADER2);
+  const entries = [];
+  for (const line of lines) {
+    const entry = rowToEntry2(line);
+    if (!entry)
+      continue;
+    if (opts?.payment_id && entry.payment_id !== opts.payment_id)
+      continue;
+    if (opts?.direction && entry.direction !== opts.direction)
+      continue;
+    if (opts?.chain && entry.chain !== opts.chain)
+      continue;
+    entries.push(entry);
+  }
+  entries.sort((a, b) => {
+    const ta = Date.parse(a.ts);
+    const tb = Date.parse(b.ts);
+    if (isNaN(ta) && isNaN(tb))
+      return 0;
+    if (isNaN(ta))
+      return 1;
+    if (isNaN(tb))
+      return -1;
+    return tb - ta;
+  });
+  if (opts?.limit !== void 0)
+    return entries.slice(0, opts.limit);
+  return entries;
+}
+async function findPaidLink(payment_id) {
+  const entries = await readPaymentLinks({ payment_id });
+  return entries.find((e2) => e2.direction === "paid") ?? null;
+}
+
 // dist/src/providers/registry.js
 var swapProviders = [];
 var bridgeProviders = [];
@@ -73758,10 +73938,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path5) {
-  if (!path5)
+function getElementAtPath(obj, path6) {
+  if (!path6)
     return obj;
-  return path5.reduce((acc, key) => acc?.[key], obj);
+  return path6.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -74144,11 +74324,11 @@ function aborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path5, issues) {
+function prefixIssues(path6, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path5);
+    iss.path.unshift(path6);
     return iss;
   });
 }
@@ -74331,7 +74511,7 @@ function formatError(error48, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error48, mapper = (issue2) => issue2.message) {
   const result = { errors: [] };
-  const processError = (error49, path5 = []) => {
+  const processError = (error49, path6 = []) => {
     var _a3, _b2;
     for (const issue2 of error49.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
@@ -74341,7 +74521,7 @@ function treeifyError(error48, mapper = (issue2) => issue2.message) {
       } else if (issue2.code === "invalid_element") {
         processError({ issues: issue2.issues }, issue2.path);
       } else {
-        const fullpath = [...path5, ...issue2.path];
+        const fullpath = [...path6, ...issue2.path];
         if (fullpath.length === 0) {
           result.errors.push(mapper(issue2));
           continue;
@@ -74373,8 +74553,8 @@ function treeifyError(error48, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path5 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path5) {
+  const path6 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path6) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -86351,13 +86531,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path5 = ref.slice(1).split("/").filter(Boolean);
-  if (path5.length === 0) {
+  const path6 = ref.slice(1).split("/").filter(Boolean);
+  if (path6.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path5[0] === defsKey) {
-    const key = path5[1];
+  if (path6[0] === defsKey) {
+    const key = path6[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -86825,7 +87005,8 @@ var SendParams = external_exports.object({
   to: external_exports.string().describe("Recipient address"),
   amount: external_exports.union([external_exports.number(), external_exports.string()]).describe('Amount in human-readable units (e.g. 10, "0.5")'),
   network: NetworkType.optional().describe('Defaults to "testnet"'),
-  token: external_exports.string().optional().describe("Token symbol or address (defaults to native token)")
+  token: external_exports.string().optional().describe("Token symbol or address (defaults to native token)"),
+  payment_id: external_exports.string().optional().describe("Payment link ID for duplicate tracking")
 });
 var SendResult = external_exports.object({
   txHash: external_exports.string(),
@@ -87274,6 +87455,64 @@ var providersMeta = {
   ],
   notes: "Returns built-in and custom-registered providers. Use registerSwapProvider/registerBridgeProvider/registerPriceProvider to add custom ones."
 };
+var PaymentLinkParams = external_exports.object({
+  receiver: external_exports.string().describe("Recipient address (format depends on chain)"),
+  amount: external_exports.union([external_exports.number(), external_exports.string()]).describe("Amount to request (human units)"),
+  chain: external_exports.string().describe('Chain name (e.g. "fast", "base", "solana")'),
+  token: external_exports.string().optional().describe("Token name (defaults to chain native token)"),
+  network: NetworkType.optional().describe('Defaults to "testnet"'),
+  memo: external_exports.string().optional().describe("Optional memo/note for the payment")
+});
+var PaymentLinkResult = external_exports.object({
+  url: external_exports.string(),
+  payment_id: external_exports.string(),
+  receiver: external_exports.string(),
+  amount: external_exports.string(),
+  chain: external_exports.string(),
+  token: external_exports.string(),
+  network: external_exports.string(),
+  note: external_exports.string()
+});
+var createPaymentLinkMeta = {
+  description: "Create a shareable payment link to request tokens on any chain.",
+  examples: [
+    'await money.createPaymentLink({ receiver: "set1...", amount: 10, chain: "fast" })',
+    'await money.createPaymentLink({ receiver: "0xABC...", amount: 5, chain: "base", token: "USDC", network: "mainnet" })',
+    'await money.createPaymentLink({ receiver: "7nYB...", amount: 1, chain: "solana", memo: "coffee" })'
+  ],
+  notes: "Share the returned URL with a payer. They can fetch it to get payment instructions. Links expire after 24 hours. Created links are tracked locally in ~/.money/payment-links.csv."
+};
+var PaymentLinksParams = external_exports.object({
+  payment_id: external_exports.string().optional().describe("Filter by payment ID"),
+  direction: external_exports.enum(["created", "paid"]).optional().describe("Filter by direction"),
+  chain: external_exports.string().optional().describe("Filter by chain"),
+  limit: external_exports.number().optional().describe("Max entries to return")
+});
+var PaymentLinksResult = external_exports.object({
+  entries: external_exports.array(external_exports.object({
+    ts: external_exports.string(),
+    payment_id: external_exports.string(),
+    direction: external_exports.enum(["created", "paid"]),
+    chain: external_exports.string(),
+    network: external_exports.string(),
+    receiver: external_exports.string(),
+    amount: external_exports.string(),
+    token: external_exports.string(),
+    memo: external_exports.string(),
+    url: external_exports.string(),
+    txHash: external_exports.string()
+  })),
+  note: external_exports.string()
+});
+var listPaymentLinksMeta = {
+  description: "List tracked payment links (created and paid).",
+  examples: [
+    "await money.listPaymentLinks()",
+    'await money.listPaymentLinks({ payment_id: "pay_abc123" })',
+    'await money.listPaymentLinks({ direction: "paid", chain: "fast" })'
+  ],
+  notes: "Returns locally tracked payment links from ~/.money/payment-links.csv, newest first."
+};
 var METHOD_SCHEMAS = {
   setup: { params: SetupParams, result: SetupResult, ...setupMeta },
   status: { params: null, result: StatusResult, ...statusMeta },
@@ -87302,7 +87541,21 @@ var METHOD_SCHEMAS = {
   registerPriceProvider: { params: null, result: null, ...registerPriceProviderMeta },
   providers: { params: null, result: ProvidersResult, ...providersMeta },
   help: { params: null, result: null, ...helpMeta },
-  describe: { params: null, result: null, ...describeMeta }
+  describe: { params: null, result: null, ...describeMeta },
+  createPaymentLink: {
+    description: createPaymentLinkMeta.description,
+    params: PaymentLinkParams,
+    result: PaymentLinkResult,
+    examples: [...createPaymentLinkMeta.examples],
+    notes: createPaymentLinkMeta.notes
+  },
+  listPaymentLinks: {
+    description: listPaymentLinksMeta.description,
+    params: PaymentLinksParams,
+    result: PaymentLinksResult,
+    examples: [...listPaymentLinksMeta.examples],
+    notes: listPaymentLinksMeta.notes
+  }
 };
 function getZodTypeName(field) {
   const def = field._def;
@@ -87631,7 +87884,7 @@ var money = {
     return { chain: balChain, network: balNetwork, address, amount: bal.amount, token: bal.token, note };
   },
   async send(params) {
-    const { to, amount: amountRaw, chain: chain2, network, token: tokenOpt } = params;
+    const { to, amount: amountRaw, chain: chain2, network, token: tokenOpt, payment_id } = params;
     requireParam(to, "to", 'Provide a recipient address:\n  await money.send({ to: "set1...", amount: "1", chain: "fast" })');
     requireParam(chain2, "chain", 'Provide a chain name:\n  await money.send({ to, amount, chain: "fast" })');
     if (!amountRaw) {
@@ -87648,6 +87901,13 @@ var money = {
     if (!await isValidAddress(to, chain2)) {
       throw new MoneyError("INVALID_ADDRESS", `Address "${to}" is not valid for chain "${chain2}".`, { chain: chain2, details: { address: to }, note: `Verify the address format. Use identifyChains to check:
   money.identifyChains({ address: "${to}" })` });
+    }
+    let duplicateWarning = "";
+    if (payment_id) {
+      const existing = await findPaidLink(payment_id);
+      if (existing) {
+        duplicateWarning = `Warning: payment link ${payment_id} was already paid (txHash: ${existing.txHash}). Proceeding anyway.`;
+      }
     }
     const { key, chainConfig: chainConfig2 } = await requireChainConfig(chain2, network);
     const adapter = await getAdapter(key);
@@ -87689,7 +87949,22 @@ Or reduce the amount.` : "Fund the wallet or reduce the amount.";
       token,
       txHash: result.txHash
     });
-    return { ...result, chain: sentChain, network: sentNetwork, note: "" };
+    if (payment_id) {
+      await appendPaymentLink({
+        ts: (/* @__PURE__ */ new Date()).toISOString(),
+        payment_id,
+        direction: "paid",
+        chain: sentChain,
+        network: sentNetwork,
+        receiver: to,
+        amount: amountStr,
+        token,
+        memo: "",
+        url: "",
+        txHash: result.txHash
+      });
+    }
+    return { ...result, chain: sentChain, network: sentNetwork, note: duplicateWarning };
   },
   async faucet(params) {
     const { chain: chain2, network } = params;
@@ -88267,6 +88542,103 @@ Or pass receiver address:
       orderId: result.orderId ?? result.txHash,
       estimatedTime: result.estimatedTime,
       note: ""
+    };
+  },
+  // ─── payment links ──────────────────────────────────────────────────────────
+  async createPaymentLink(params) {
+    if (!params.chain) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: chain", {
+        note: 'Provide a chain name:\n  await money.createPaymentLink({ receiver: "set1...", amount: 10, chain: "fast" })'
+      });
+    }
+    if (!params.receiver) {
+      throw new MoneyError("INVALID_PARAMS", "Missing required param: receiver", {
+        note: 'Provide the recipient address:\n  await money.createPaymentLink({ receiver: "set1...", amount: 10, chain: "fast" })'
+      });
+    }
+    const amountNum = typeof params.amount === "string" ? parseFloat(params.amount) : params.amount;
+    if (!amountNum || amountNum <= 0 || isNaN(amountNum)) {
+      throw new MoneyError("INVALID_PARAMS", "Amount must be a positive number", {
+        note: 'Provide a positive amount:\n  await money.createPaymentLink({ receiver: "set1...", amount: 10, chain: "fast" })'
+      });
+    }
+    const amountStr = String(amountNum);
+    const chain2 = params.chain;
+    const network = params.network ?? "testnet";
+    const allChains = supportedChains();
+    if (!allChains.includes(chain2)) {
+      const config2 = await loadConfig();
+      if (!config2.customChains?.[chain2]) {
+        throw new MoneyError("INVALID_PARAMS", `Unknown chain: ${chain2}`, {
+          note: `Supported chains: ${allChains.join(", ")}.
+  Or register a custom chain: await money.registerEvmChain({ chain: "${chain2}", chainId: 1, rpc: "https://..." })`
+        });
+      }
+    }
+    const valid = await isValidAddress(params.receiver, chain2);
+    if (!valid) {
+      throw new MoneyError("INVALID_ADDRESS", `Invalid address for chain ${chain2}: ${params.receiver}`, {
+        note: `Check the address format for ${chain2}.`
+      });
+    }
+    let token = params.token;
+    if (!token) {
+      const defaults = DEFAULT_CHAIN_CONFIGS[chain2];
+      if (defaults) {
+        token = defaults[network]?.defaultToken ?? defaults.testnet.defaultToken;
+      } else {
+        const config2 = await loadConfig();
+        const chainConf = config2.chains[configKey(chain2, network)];
+        token = chainConf?.defaultToken ?? "native";
+      }
+    }
+    const payment_id = generatePaymentId();
+    const created_at = (/* @__PURE__ */ new Date()).toISOString();
+    const expires_at = new Date(Date.now() + 24 * 60 * 60 * 1e3).toISOString();
+    const baseUrl = process.env.MONEY_HOST ?? "https://money-alpha-khaki.vercel.app";
+    const url2 = buildPaymentUrl({
+      receiver: params.receiver,
+      amount: amountStr,
+      chain: chain2,
+      token,
+      network,
+      memo: params.memo
+    }, baseUrl);
+    await appendPaymentLink({
+      ts: created_at,
+      payment_id,
+      direction: "created",
+      chain: chain2,
+      network,
+      receiver: params.receiver,
+      amount: amountStr,
+      token,
+      memo: params.memo ?? "",
+      url: url2,
+      txHash: ""
+    });
+    return {
+      url: url2,
+      payment_id,
+      receiver: params.receiver,
+      amount: amountStr,
+      chain: chain2,
+      token,
+      network,
+      note: `Share this URL with the payer. They can fetch it to get payment instructions.
+Track status: await money.listPaymentLinks({ payment_id: "${payment_id}" })`
+    };
+  },
+  async listPaymentLinks(params) {
+    const entries = await readPaymentLinks({
+      payment_id: params?.payment_id,
+      direction: params?.direction,
+      chain: params?.chain,
+      limit: params?.limit
+    });
+    return {
+      entries,
+      note: entries.length === 0 ? 'No payment links found. Create one: await money.createPaymentLink({ receiver: "...", amount: 10, chain: "fast" })' : `Found ${entries.length} payment link(s).`
     };
   },
   // ─── discovery ──────────────────────────────────────────────────────────────

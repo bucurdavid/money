@@ -32,6 +32,7 @@ export default async function Home() {
         <div className="nav-inner">
           <span className="nav-wordmark">money</span>
           <div className="nav-links">
+            <a href="/pay">Pay</a>
             <a href="/skill.md">Skill</a>
             <a href="/money.bundle.js" download>Bundle</a>
           </div>
@@ -126,6 +127,10 @@ export default async function Home() {
             <h2 className="section-label">Features</h2>
             <div className="features">
               <div className="feature">
+                <span className="feature-title">Payment Links</span>
+                <span className="feature-desc">Shareable payment requests for any chain with duplicate tracking</span>
+              </div>
+              <div className="feature">
                 <span className="feature-title">Swap</span>
                 <span className="feature-desc">Token swaps via Jupiter (Solana) and Paraswap (EVM)</span>
               </div>
@@ -197,6 +202,7 @@ export default async function Home() {
         <div className="container footer-inner">
           <span className="footer-credit">Fast Protocol</span>
           <nav className="footer-nav">
+            <a href="/pay">Pay</a>
             <a href="/skill.md">Skill</a>
             <a href="/money.bundle.js" download>
               Bundle
