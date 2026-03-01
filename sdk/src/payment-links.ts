@@ -111,6 +111,8 @@ ${tick + tick + tick}bash
 mkdir -p ~/.money
 curl -sL ${baseUrl}/skill.md -o ~/.money/SKILL.md
 curl -sL ${baseUrl}/money.bundle.js -o ~/.money/money.bundle.js
+curl -sL ${baseUrl}/money.bundle.js.sha256 -o /tmp/money.sha256
+(cd ~/.money && shasum -a 256 -c /tmp/money.sha256) && rm -f /tmp/money.sha256
 ${tick + tick + tick}
 
 ## Pay
