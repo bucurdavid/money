@@ -659,7 +659,7 @@ export const PaymentLinkParams = z.object({
   receiver: z.string().describe('Recipient address (format depends on chain)'),
   amount: z.union([z.number(), z.string()]).describe('Amount to request (human units)'),
   chain: z.string().describe('Chain name (e.g. "fast", "base", "solana")'),
-  token: z.string().optional().describe('Token name (defaults to chain native token)'),
+  token: z.string().optional().describe('Native token symbol (e.g. "ETH", "SOL") or contract/mint address for non-native tokens (defaults to chain native token)'),
   network: NetworkType.optional().describe('Defaults to "testnet"'),
   memo: z.string().optional().describe('Optional memo/note for the payment'),
 });
@@ -679,10 +679,10 @@ const createPaymentLinkMeta = {
   description: 'Create a shareable payment link to request tokens on any chain.',
   examples: [
     'await money.createPaymentLink({ receiver: "set1...", amount: 10, chain: "fast" })',
-    'await money.createPaymentLink({ receiver: "0xABC...", amount: 5, chain: "base", token: "USDC", network: "mainnet" })',
+    'await money.createPaymentLink({ receiver: "0xABC...", amount: 5, chain: "base", token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", network: "mainnet" })',
     'await money.createPaymentLink({ receiver: "7nYB...", amount: 1, chain: "solana", memo: "coffee" })',
   ],
-  notes: 'Share the returned URL with a payer. They can fetch it to get payment instructions. Links expire after 24 hours. Created links are tracked locally in ~/.money/payment-links.csv.',
+  notes: 'Share the returned URL with a payer. They can fetch it to get payment instructions. For non-native tokens, use the contract/mint address (not the symbol name). Created links are tracked locally in ~/.money/payment-links.csv.',
 } as const;
 
 // ─── listPaymentLinks ────────────────────────────────────────────────────────

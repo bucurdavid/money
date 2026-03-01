@@ -1404,7 +1404,6 @@ export const money = {
 
     const payment_id = generatePaymentId();
     const created_at = new Date().toISOString();
-    const expires_at = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
     // Build URL — use MONEY_HOST env or default
     const baseUrl = process.env.MONEY_HOST ?? 'https://money-alpha-khaki.vercel.app';

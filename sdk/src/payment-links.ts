@@ -73,7 +73,6 @@ export function generatePaymentMarkdown(
     token: string;
     network: string;
     memo?: string;
-    expires_at: string;
     created_at: string;
   },
   baseUrl: string,
@@ -94,7 +93,6 @@ receiver: "${params.receiver}"
 amount: "${params.amount}"
 token: "${params.token}"
 memo: "${params.memo ?? ''}"
-expires_at: "${params.expires_at}"
 created_at: "${params.created_at}"
 skill: "${baseUrl}/skill.md"
 ---
@@ -125,7 +123,7 @@ await money.setup({ chain: "${params.chain}", network: "${params.network}" });
 await money.send({ to: "${params.receiver}", amount: ${params.amount}, chain: "${params.chain}", token: "${params.token}", network: "${params.network}", payment_id: "${params.payment_id}" });
 ${tick + tick + tick}
 
-> ${networkNote} Expires: ${params.expires_at}
+> ${networkNote}
 `;
 }
 

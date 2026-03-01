@@ -111,9 +111,14 @@ Create a shareable payment link to request tokens on any chain:
 ```js
 const link = await money.createPaymentLink({ receiver: "set1...", amount: 10, chain: "fast" });
 // → { url: "https://.../pay?...", payment_id: "pay_abc...", ... }
+
+// Non-native token — use the contract/mint address, not the symbol
+const usdcLink = await money.createPaymentLink({ receiver: "0xABC...", amount: 5, chain: "base", token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", network: "mainnet" });
 ```
 
 Share the URL with a payer. They (or their AI agent) can fetch it to get payment instructions with a `money.send()` call pre-filled.
+
+For non-native tokens, always use the on-chain contract address (EVM) or mint address (Solana), not the symbol name. Native tokens (ETH, SOL, SET) use the symbol.
 
 ### Paying from a link
 

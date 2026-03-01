@@ -87459,7 +87459,7 @@ var PaymentLinkParams = external_exports.object({
   receiver: external_exports.string().describe("Recipient address (format depends on chain)"),
   amount: external_exports.union([external_exports.number(), external_exports.string()]).describe("Amount to request (human units)"),
   chain: external_exports.string().describe('Chain name (e.g. "fast", "base", "solana")'),
-  token: external_exports.string().optional().describe("Token name (defaults to chain native token)"),
+  token: external_exports.string().optional().describe('Native token symbol (e.g. "ETH", "SOL") or contract/mint address for non-native tokens (defaults to chain native token)'),
   network: NetworkType.optional().describe('Defaults to "testnet"'),
   memo: external_exports.string().optional().describe("Optional memo/note for the payment")
 });
@@ -87477,10 +87477,10 @@ var createPaymentLinkMeta = {
   description: "Create a shareable payment link to request tokens on any chain.",
   examples: [
     'await money.createPaymentLink({ receiver: "set1...", amount: 10, chain: "fast" })',
-    'await money.createPaymentLink({ receiver: "0xABC...", amount: 5, chain: "base", token: "USDC", network: "mainnet" })',
+    'await money.createPaymentLink({ receiver: "0xABC...", amount: 5, chain: "base", token: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", network: "mainnet" })',
     'await money.createPaymentLink({ receiver: "7nYB...", amount: 1, chain: "solana", memo: "coffee" })'
   ],
-  notes: "Share the returned URL with a payer. They can fetch it to get payment instructions. Links expire after 24 hours. Created links are tracked locally in ~/.money/payment-links.csv."
+  notes: "Share the returned URL with a payer. They can fetch it to get payment instructions. For non-native tokens, use the contract/mint address (not the symbol name). Created links are tracked locally in ~/.money/payment-links.csv."
 };
 var PaymentLinksParams = external_exports.object({
   payment_id: external_exports.string().optional().describe("Filter by payment ID"),
@@ -88594,7 +88594,6 @@ Or pass receiver address:
     }
     const payment_id = generatePaymentId();
     const created_at = (/* @__PURE__ */ new Date()).toISOString();
-    const expires_at = new Date(Date.now() + 24 * 60 * 60 * 1e3).toISOString();
     const baseUrl = process.env.MONEY_HOST ?? "https://money-alpha-khaki.vercel.app";
     const url2 = buildPaymentUrl({
       receiver: params.receiver,

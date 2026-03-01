@@ -187,7 +187,6 @@ describe('generatePaymentMarkdown', () => {
     chain: 'fast',
     token: 'SET',
     network: 'testnet',
-    expires_at: '2026-03-02T12:00:00.000Z',
     created_at: '2026-03-01T12:00:00.000Z',
   };
 
@@ -227,11 +226,6 @@ describe('generatePaymentMarkdown', () => {
   it('frontmatter contains network', () => {
     const md = generatePaymentMarkdown(baseParams, BASE_URL);
     assert.ok(md.includes('network: "testnet"'));
-  });
-
-  it('frontmatter contains expires_at', () => {
-    const md = generatePaymentMarkdown(baseParams, BASE_URL);
-    assert.ok(md.includes(`expires_at: "${baseParams.expires_at}"`));
   });
 
   it('frontmatter contains created_at', () => {

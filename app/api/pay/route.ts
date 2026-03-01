@@ -64,11 +64,10 @@ function buildMarkdown(params: {
   amount: string;
   token: string;
   memo: string | null;
-  expiresAt: string;
   createdAt: string;
   baseUrl: string;
 }): string {
-  const { paymentId, chain, network, receiver, amount, token, memo, expiresAt, createdAt, baseUrl } = params;
+  const { paymentId, chain, network, receiver, amount, token, memo, createdAt, baseUrl } = params;
 
   const memoLine = memo ? '\n\n**Memo:** ' + memo : '';
   const memoFrontmatter = memo ?? '';
@@ -87,7 +86,6 @@ function buildMarkdown(params: {
     'amount: "' + amount + '"',
     'token: "' + token + '"',
     'memo: "' + memoFrontmatter + '"',
-    'expires_at: "' + expiresAt + '"',
     'created_at: "' + createdAt + '"',
     'skill: "' + baseUrl + '/skill.md"',
     '---',
@@ -137,7 +135,7 @@ function buildMarkdown(params: {
     '',
     payBlock,
     '',
-    '> ' + networkDisclaimer + ' Expires: ' + expiresAt,
+    '> ' + networkDisclaimer,
   ].join('\n');
 }
 
@@ -194,7 +192,6 @@ export async function GET(request: Request) {
   // Generate IDs and timestamps
   const paymentId = generatePaymentId();
   const createdAt = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
 
   // Derive base URL from request headers
   const headersList = await headers();
@@ -210,7 +207,6 @@ export async function GET(request: Request) {
     amount,
     token: resolvedToken,
     memo,
-    expiresAt,
     createdAt,
     baseUrl,
   });
