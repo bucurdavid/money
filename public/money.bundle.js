@@ -88482,7 +88482,12 @@ Or pass receiver address:
     try {
       toTokenResolved = resolveSwapToken(toToken, to.chain);
     } catch {
-      toTokenResolved = { address: toToken, decimals: fromTokenResolved.decimals };
+      const wellKnown = resolveTokenAddress(toToken, to.chain);
+      if (wellKnown) {
+        toTokenResolved = wellKnown;
+      } else {
+        toTokenResolved = { address: toToken, decimals: fromTokenResolved.decimals };
+      }
     }
     const fromRaw = toRaw(String(amount), fromTokenResolved.decimals).toString();
     const isFastSource = from14.chain === "fast";
@@ -88521,12 +88526,22 @@ Or pass receiver address:
     });
     try {
       const dstResolved = resolveChainKey(to.chain, config2.chains, network);
-      if (dstResolved && toTokenResolved.address && toTokenResolved.address !== "0x0000000000000000000000000000000000000000") {
-        const tokenName = to.token ?? from14.token;
+      const dstAddr = toTokenResolved.address;
+      const isValidTokenAddr = dstAddr.startsWith("0x") && dstAddr.length === 42 || /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(dstAddr);
+      if (dstResolved && dstAddr && isValidTokenAddr && dstAddr !== "0x0000000000000000000000000000000000000000") {
+        let tokenName = to.token ?? from14.token;
+        const wellKnown = resolveTokenAddress(tokenName, to.chain);
+        if (!wellKnown || wellKnown.address !== dstAddr) {
+          const wrappedName = "W" + tokenName;
+          const wrappedResolved = resolveTokenAddress(wrappedName, to.chain);
+          if (wrappedResolved && wrappedResolved.address === dstAddr) {
+            tokenName = wrappedName;
+          }
+        }
         if (to.chain === "solana") {
-          await setAlias(dstResolved.key, tokenName, { mint: toTokenResolved.address, decimals: toTokenResolved.decimals });
+          await setAlias(dstResolved.key, tokenName, { mint: dstAddr, decimals: toTokenResolved.decimals });
         } else {
-          await setAlias(dstResolved.key, tokenName, { address: toTokenResolved.address, decimals: toTokenResolved.decimals });
+          await setAlias(dstResolved.key, tokenName, { address: dstAddr, decimals: toTokenResolved.decimals });
         }
         evictAdapter(dstResolved.key);
       }

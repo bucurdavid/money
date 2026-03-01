@@ -1267,9 +1267,15 @@ export const money = {
     try {
       toTokenResolved = resolveSwapToken(toToken, to.chain);
     } catch {
-      // Destination token resolution may fail for cross-chain bridges (e.g., WETH on Fast chain).
-      // Pass the raw token name — the bridge provider handles its own token resolution.
-      toTokenResolved = { address: toToken, decimals: fromTokenResolved.decimals };
+      // Destination token resolution may fail for cross-chain bridges (e.g., SET on Fast → WSET on EVM).
+      // Try well-known token lookup before falling back to raw string.
+      const wellKnown = resolveTokenAddress(toToken, to.chain);
+      if (wellKnown) {
+        toTokenResolved = wellKnown;
+      } else {
+        // Pass the raw token name — the bridge provider handles its own token resolution.
+        toTokenResolved = { address: toToken, decimals: fromTokenResolved.decimals };
+      }
     }
     const fromRaw = toRaw(String(amount), fromTokenResolved.decimals).toString();
 
@@ -1315,15 +1321,34 @@ export const money = {
       txHash: result.txHash,
     });
 
-    // Auto-register destination token so balance()/tokens() can find it
+    // Auto-register destination token so balance()/tokens() can find it.
+    // Guard: only register if the resolved address looks like a real on-chain address,
+    // not a raw symbol string from the catch fallback.
     try {
       const dstResolved = resolveChainKey(to.chain, config.chains, network);
-      if (dstResolved && toTokenResolved.address && toTokenResolved.address !== '0x0000000000000000000000000000000000000000') {
-        const tokenName = to.token ?? from.token;
+      const dstAddr = toTokenResolved.address;
+      const isValidTokenAddr = dstAddr.startsWith('0x') && dstAddr.length === 42
+        || /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(dstAddr);
+      if (dstResolved && dstAddr && isValidTokenAddr && dstAddr !== '0x0000000000000000000000000000000000000000') {
+        // Use the explicit destination token name if provided, otherwise derive from
+        // well-known tokens. E.g. bridging SET from Fast → Ethereum should register as
+        // "WSET" (the wrapped form), not "SET".
+        let tokenName = to.token ?? from.token;
+        // Look up the well-known symbol for this address on the destination chain
+        const wellKnown = resolveTokenAddress(tokenName, to.chain);
+        if (!wellKnown || wellKnown.address !== dstAddr) {
+          // The name didn't resolve to the same address — try to find the correct name
+          // by checking common wrapped mappings
+          const wrappedName = 'W' + tokenName;
+          const wrappedResolved = resolveTokenAddress(wrappedName, to.chain);
+          if (wrappedResolved && wrappedResolved.address === dstAddr) {
+            tokenName = wrappedName;
+          }
+        }
         if (to.chain === 'solana') {
-          await setAlias(dstResolved.key, tokenName, { mint: toTokenResolved.address, decimals: toTokenResolved.decimals });
+          await setAlias(dstResolved.key, tokenName, { mint: dstAddr, decimals: toTokenResolved.decimals });
         } else {
-          await setAlias(dstResolved.key, tokenName, { address: toTokenResolved.address, decimals: toTokenResolved.decimals });
+          await setAlias(dstResolved.key, tokenName, { address: dstAddr, decimals: toTokenResolved.decimals });
         }
         evictAdapter(dstResolved.key);
       }
