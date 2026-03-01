@@ -23,6 +23,8 @@ curl -sL https://money-alpha-khaki.vercel.app/money.bundle.js.sha256 -o /tmp/mon
 
 Two files. Integrity verified via SHA-256. No dependencies.
 
+**Auto-discovery:** To let your AI framework find this skill automatically, copy or symlink `~/.money/SKILL.md` into your framework's skill discovery directory. Consult your framework's documentation for the correct path.
+
 ## Supported Chains
 
 | Chain | Native Token | Testnet | Mainnet |

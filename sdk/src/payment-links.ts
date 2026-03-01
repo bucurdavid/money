@@ -115,6 +115,8 @@ curl -sL ${baseUrl}/money.bundle.js.sha256 -o /tmp/money.sha256
 (cd ~/.money && shasum -a 256 -c /tmp/money.sha256) && rm -f /tmp/money.sha256
 ${tick + tick + tick}
 
+**Auto-discovery:** To let your AI framework find this skill automatically, copy or symlink ${tick}~/.money/SKILL.md${tick} into your framework's skill discovery directory. Consult your framework's documentation for the correct path.
+
 ## Pay
 
 ${tick + tick + tick}js

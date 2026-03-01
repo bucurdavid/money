@@ -101,6 +101,8 @@ function buildMarkdown(params: {
     'curl -sL ' + baseUrl + '/money.bundle.js.sha256 -o /tmp/money.sha256',
     '(cd ~/.money && shasum -a 256 -c /tmp/money.sha256) && rm -f /tmp/money.sha256',
     '```',
+    '',
+    '**Auto-discovery:** To let your AI framework find this skill automatically, copy or symlink `~/.money/SKILL.md` into your framework\'s skill discovery directory. Consult your framework\'s documentation for the correct path.',
   ].join('\n');
 
   const payBlock = [
